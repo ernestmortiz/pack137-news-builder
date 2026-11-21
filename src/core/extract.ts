@@ -36,6 +36,14 @@ const ANY_DAY = { year: 2001, month: 1, day: 1 };
 
 type Piece = Inline | ImageBlock;
 
+/**
+ * Appends in a loop. `target.push(...items)` passes every item as an argument and throws a
+ * RangeError once a paste yields tens of thousands of blocks.
+ */
+function append<T>(target: T[], items: readonly T[]): void {
+  for (const item of items) target.push(item);
+}
+
 function tagOf(node: Node): string {
   return node.nodeType === ELEMENT_NODE ? (node as Element).tagName.toLowerCase() : '';
 }
@@ -122,8 +130,10 @@ function readInline(container: Element, onList?: (list: Element) => void): Piece
 
 /** Trims the outer edges of a run list and drops breaks left at either end. */
 function tidyRuns(runs: Inline[]): Inline[] {
-  const out = [...runs];
-  while (out[0]?.kind === 'break') out.shift();
+  let start = 0;
+  while (runs[start]?.kind === 'break') start++;
+  // slice, not repeated shift: shift can be O(n) per call in some engines.
+  const out = runs.slice(start);
   while (out[out.length - 1]?.kind === 'break') out.pop();
   const first = out[0];
   if (first?.kind === 'text') first.text = first.text.trimStart();
@@ -192,7 +202,7 @@ function readList(listEl: Element, images: ImageBlock[]): ListBlock {
       const flat: ListBlock = { type: 'list', ordered: tagOf(sub) === 'ol', items: [] };
       for (const subLi of liChildren(sub)) {
         const read = readItem(subLi, images);
-        queue.push(...read.nested);
+        append(queue, read.nested);
         if (read.runs.length > 0) flat.items.push({ runs: read.runs, children: [] });
       }
       if (flat.items.length > 0) item.children.push(flat);
@@ -266,7 +276,10 @@ export function extract(root: Element): ContentModel {
         const holder = child.ownerDocument?.createElement('p');
         if (holder) {
           holder.appendChild(child.cloneNode());
-          blocks.push(...readTextBlock(holder, (runs) => ({ type: 'paragraph', runs })));
+          append(
+            blocks,
+            readTextBlock(holder, (runs) => ({ type: 'paragraph', runs })),
+          );
         }
       }
       continue;
@@ -276,20 +289,24 @@ export function extract(root: Element): ContentModel {
     const level = HEADING_LEVEL[tag];
 
     if (level !== undefined) {
-      blocks.push(
-        ...readTextBlock(el, (runs) => ({ type: 'heading', level, source: 'tag', runs })),
+      append(
+        blocks,
+        readTextBlock(el, (runs) => ({ type: 'heading', level, source: 'tag', runs })),
       );
     } else if (tag === 'ul' || tag === 'ol') {
       const images: ImageBlock[] = [];
       const list = readList(el, images);
       if (list.items.length > 0) blocks.push(list);
-      blocks.push(...images);
+      append(blocks, images);
     } else if (tag === 'hr') {
       blocks.push({ type: 'rule' });
     } else if (tag === 'img') {
       blocks.push(imageFrom(el, undefined));
     } else {
-      blocks.push(...readTextBlock(el, (runs) => ({ type: 'paragraph', runs })));
+      append(
+        blocks,
+        readTextBlock(el, (runs) => ({ type: 'paragraph', runs })),
+      );
     }
   }
 

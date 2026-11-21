@@ -173,6 +173,20 @@ describe('extract: robustness', () => {
     expect(performance.now() - started).toBeLessThan(5000);
   });
 
+  it('handles a paragraph with 70,000 images without overflowing the stack', () => {
+    const html = '<p>' + '<img src="https://a.org/i.png" alt="a">a'.repeat(70_000) + '</p>';
+    const result = blocks(html);
+    expect(result.filter((b) => b.type === 'image')).toHaveLength(70_000);
+  }, 60_000);
+
+  it('trims 250,000 leading breaks in linear time', () => {
+    const html = '<p><img src="https://a.org/i.png" alt="a">' + '<br>'.repeat(250_000) + 'x</p>';
+    const started = performance.now();
+    const result = blocks(html);
+    expect(result.at(-1)).toEqual({ type: 'paragraph', runs: [text('x')] });
+    expect(performance.now() - started).toBeLessThan(30_000);
+  }, 60_000);
+
   it('never yields an empty text run', () => {
     const all = blocks('<p><b></b>a<i> </i>b<s></s></p><ul><li><b> </b>c</li></ul>');
     const runs = all.flatMap((b) =>
