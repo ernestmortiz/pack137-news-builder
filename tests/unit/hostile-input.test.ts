@@ -383,7 +383,8 @@ describe('hostile input: size and shape', () => {
     table: ['<table><tr><td>', '</td></tr></table>'],
   };
   for (const [name, [open, close]] of Object.entries(nests)) {
-    const run = name === 'ul and li' || name === 'table' ? it.fails : it;
+    // The table case overflows the stack in normalize; remove it.fails once fixed.
+    const run = name === 'table' ? it.fails : it;
     run(
       `survives 3000 levels of ${name} nesting`,
       () => {

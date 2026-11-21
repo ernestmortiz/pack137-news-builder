@@ -80,8 +80,12 @@ interface Frame {
   href: string | undefined;
 }
 
-/** Walks inline content in document order with an explicit stack. */
-function readInline(container: Element): Piece[] {
+/**
+ * Walks inline content in document order with an explicit stack. When `onList` is given, nested
+ * ul and ol elements are not read; they are handed to `onList` instead. A p or heading inside the
+ * container starts a new line.
+ */
+function readInline(container: Element, onList?: (list: Element) => void): Piece[] {
   const out: Piece[] = [];
   const stack: Frame[] = [];
   const pushChildren = (parent: Node, marks: Mark[], href: string | undefined) => {
@@ -102,9 +106,12 @@ function readInline(container: Element): Piece[] {
       out.push({ kind: 'break' });
     } else if (tag === 'img') {
       out.push(imageFrom(el, href));
+    } else if (onList && (tag === 'ul' || tag === 'ol')) {
+      onList(el);
     } else if (tag === 'a') {
       pushChildren(el, marks, el.getAttribute('href') ?? undefined);
     } else {
+      if ((tag === 'p' || tag in HEADING_LEVEL) && out.length > 0) out.push({ kind: 'break' });
       const mark = MARK_OF[tag];
       const next = mark && !marks.includes(mark) ? [...marks, mark].sort() : marks;
       pushChildren(el, next, href);
@@ -152,64 +159,41 @@ function readTextBlock(el: Element, make: (runs: Inline[]) => Block): Block[] {
   return splitAtImages(readInline(el)).map((part) => (Array.isArray(part) ? make(part) : part));
 }
 
-function emptyItem(): ListItem {
-  return { runs: [], children: [] };
+/** Reads one li: its own runs, plus the lists nested in it, without descending into them. */
+function readItem(li: Element, images: ImageBlock[]): { runs: Inline[]; nested: Element[] } {
+  const nested: Element[] = [];
+  const runs: Inline[] = [];
+  for (const piece of readInline(li, (list) => nested.push(list))) {
+    if ('type' in piece) images.push(piece);
+    else runs.push(piece);
+  }
+  return { runs: tidyRuns(mergeRuns(runs)), nested };
+}
+
+function liChildren(list: Element): Element[] {
+  return Array.from(list.children).filter((c) => tagOf(c) === 'li');
 }
 
 /**
  * Reads a list. Nested lists become `children` of their item; lists nested deeper are lifted to
- * that first level, in document order. Images inside items are returned separately so they are
- * not lost; the caller places them after the list.
+ * that first level, breadth first. Images inside items are returned separately so they are not
+ * lost; the caller places them after the list. No recursion and no cloning, so depth is safe.
  */
 function readList(listEl: Element, images: ImageBlock[]): ListBlock {
   const list: ListBlock = { type: 'list', ordered: tagOf(listEl) === 'ol', items: [] };
 
-  for (const li of Array.from(listEl.children)) {
-    if (tagOf(li) !== 'li') continue;
-    const item = emptyItem();
-    const pieces: Piece[] = [];
-    // Lists inside this item, at any depth, each read flat.
-    const nested: Element[] = [];
+  for (const li of liChildren(listEl)) {
+    const { runs, nested } = readItem(li, images);
+    const item: ListItem = { runs, children: [] };
 
-    for (const child of Array.from(li.childNodes)) {
-      const tag = tagOf(child);
-      if (tag === 'ul' || tag === 'ol') nested.push(child as Element);
-      else if (tag === 'p' || /^h[1-6]$/.test(tag)) {
-        if (pieces.length > 0) pieces.push({ kind: 'break' });
-        pieces.push(...readInline(child as Element));
-      } else if (child.nodeType === TEXT_NODE || child.nodeType === ELEMENT_NODE) {
-        const holder = child.ownerDocument?.createElement('span');
-        if (!holder) continue;
-        holder.appendChild(child.cloneNode(true));
-        pieces.push(...readInline(holder));
-      }
-    }
-
-    for (const piece of pieces) {
-      if ('type' in piece) images.push(piece);
-      else item.runs.push(piece);
-    }
-    item.runs = tidyRuns(mergeRuns(item.runs));
-
-    // Breadth-first over nested lists so deeper lists land after their parents.
-    const queue = [...nested];
-    while (queue.length > 0) {
-      const sub = queue.shift() as Element;
+    const queue = nested;
+    for (let q = 0; q < queue.length; q++) {
+      const sub = queue[q] as Element;
       const flat: ListBlock = { type: 'list', ordered: tagOf(sub) === 'ol', items: [] };
-      for (const subLi of Array.from(sub.children)) {
-        if (tagOf(subLi) !== 'li') continue;
-        const deeper = Array.from(subLi.children).filter((c) => /^(ul|ol)$/.test(tagOf(c)));
-        queue.push(...deeper);
-        const copy = subLi.cloneNode(true) as Element;
-        for (const d of Array.from(copy.children)) if (/^(ul|ol)$/.test(tagOf(d))) d.remove();
-        const pieces2 = readInline(copy);
-        const runs: Inline[] = [];
-        for (const piece of pieces2) {
-          if ('type' in piece) images.push(piece);
-          else runs.push(piece);
-        }
-        const tidy = tidyRuns(runs);
-        if (tidy.length > 0) flat.items.push({ runs: tidy, children: [] });
+      for (const subLi of liChildren(sub)) {
+        const read = readItem(subLi, images);
+        queue.push(...read.nested);
+        if (read.runs.length > 0) flat.items.push({ runs: read.runs, children: [] });
       }
       if (flat.items.length > 0) item.children.push(flat);
     }
