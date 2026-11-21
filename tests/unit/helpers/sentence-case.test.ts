@@ -69,8 +69,21 @@ describe('sentence case helper', () => {
     expect(sc('Popcorn Sales End In December')).toBe('Popcorn sales end in December');
     expect(sc('Hike On Saturday, February 27')).toBe('Hike on Saturday, February 27');
     expect(sc('Camp Out May 3')).toBe('Camp out May 3');
-    expect(sc('Sat Dec 6 Den Meeting')).toBe('Sat Dec 6 den meeting');
+    expect(sc('Sat Dec 6 Den Meeting')).toBe('Sat Dec 6 Den meeting');
     expect(sc('Parents May Attend')).toBe('Parents may attend');
+  });
+
+  it('keeps "Den" as a name, also in "den leader" (owner decision)', () => {
+    expect(sc('Webelos Den 10 & Den 11 Upcoming Events')).toBe(
+      'Webelos Den 10 & Den 11 upcoming events',
+    );
+    expect(sc('WEBELOS DEN 10 UPCOMING EVENTS')).toBe('Webelos Den 10 upcoming events');
+    // The list cannot tell a den's name from the everyday word, so "den leader" gets a capital too.
+    expect(sc('A Note From Your Den Leader')).toBe('A note from your Den leader');
+    expect(sc('Ask your den leader')).toBe('Ask your Den leader');
+    expect(sc("The Den's Big Day")).toBe("The Den's big day");
+    // Only the whole word: "Dens", "Garden" and "Denver" are not the name.
+    expect(sc('All Dens Meet In The Garden')).toBe('All dens meet in the garden');
   });
 
   it('capitalizes the first word after a colon', () => {

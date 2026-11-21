@@ -162,10 +162,10 @@ describe('suggestionsFor on the weekly fixtures', () => {
     expect(fill('4-in-the-news').suggestions.filter(isCase)).toEqual([]);
   });
 
-  it('5-webelos-dens-10-11: offers sentence case for the title, keeping Webelos', () => {
+  it('5-webelos-dens-10-11: offers sentence case for the title, keeping Webelos and Den', () => {
     const { suggestions } = fill('5-webelos-dens-10-11');
     expect(brief(suggestions.filter(isCase))).toEqual([
-      'title: Webelos Den 10 & Den 11 Upcoming Events -> Webelos den 10 & den 11 upcoming events',
+      'title: Webelos Den 10 & Den 11 Upcoming Events -> Webelos Den 10 & Den 11 upcoming events',
     ]);
   });
 });

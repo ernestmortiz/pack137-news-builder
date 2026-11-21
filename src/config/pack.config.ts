@@ -38,6 +38,7 @@ export const packConfig = {
     'Blue and Gold',
     'Arrow of Light',
     'Webelos',
+    'Den',
     'Lions',
     'Tigers',
     'Wolves',

@@ -24,7 +24,8 @@ import type {
   MessageForm,
   RichText,
 } from './forms';
-import { dateLabel, readLeadingDate } from './helpers/dates';
+import { dateLabel, readLeadingDate, weekdayMismatchMessage } from './helpers/dates';
+import { cleanOddRich, cleanOddText, oddCharactersMessage } from './helpers/odd-characters';
 import { formFields, getAt, isRichText, setAt, type FormField } from './helpers/paths';
 import { contactNote, readContact } from './helpers/people';
 import { toSentenceCase as toHeadingCase } from './helpers/sentence-case';
@@ -56,6 +57,12 @@ export type FieldPath = (string | number)[];
 export type CheckKind =
   /** The year of a date was inferred (spec 7.4, ADR 0003). The UI shows the year beside the field. */
   | 'year-assumed'
+  /**
+   * A weekday written in the paste is not the weekday of its date, as in "Mon 1/16/2027", which is
+   * a Saturday. The form shows the right weekday; the date itself may be the mistake. One marker
+   * for each end of a range whose weekday is wrong, on the row's date.
+   */
+  | 'weekday-mismatch'
   /** A struck date became a Rescheduled tag; the new date is still needed. */
   | 'rescheduled'
   /** All-caps or "!!" text was turned into sentence case and offered as a note. */
@@ -68,6 +75,12 @@ export type CheckKind =
   | 'manage-link'
   /** A service such as SignUpGenius is mentioned with no link. */
   | 'service-no-link'
+  /**
+   * Odd characters were removed from this field: invisible ones, and bullets, ornaments or a
+   * leading emoji (helpers/odd-characters.ts). No word is removed. One marker for a field; the
+   * message lists each removed character once.
+   */
+  | 'odd-characters'
   /** A pasted link had no destination, or an image had no alt text (from the parse issues). */
   | 'pasted-problem'
   /** Any other guess the user should look at. */
@@ -162,6 +175,15 @@ interface Note {
   message: string;
 }
 
+/** Odd characters taken off a line before its field was known, for the field they ended up in. */
+interface OddNote {
+  path: FieldPath;
+  removed: string[];
+}
+
+/** The line as the date reader should see it: without a pasted bullet or ornament in front. */
+const withoutLead = (text: string) => cleanOddText(text, { leadOnly: true }).text;
+
 const TITLE_MAX_LENGTH = 60;
 
 /** True for a short line with no link, no date and no sentence ending: it reads as a title. */
@@ -172,7 +194,7 @@ function isShortLine(runs: Inline[], options: FillOptions): boolean {
     text.length <= TITLE_MAX_LENGTH &&
     !/[.,:;]$/.test(text) &&
     linksOf(runs).length === 0 &&
-    matchLeadingDate(text, options.today, options.programYearStartMonth) === null
+    matchLeadingDate(withoutLead(text), options.today, options.programYearStartMonth) === null
   );
 }
 
@@ -217,11 +239,15 @@ function linkButton(runs: Inline[]): ButtonField | undefined {
 interface BuiltRow {
   row: DateRow;
   notes: Note[];
+  /** Odd characters already removed from the event name. */
+  odd: string[];
 }
 
 /** Builds one Date list row from a line: date, event, link, tags and note (spec 7.4). */
 function buildRow(runs: Inline[], options: FillOptions): BuiltRow {
   const notes: Note[] = [];
+  /** Odd characters taken off the event name here. The caller reports them with the row. */
+  const odd: string[] = [];
   const dated = readLeadingDate(runs, options);
   const rest = dated === null ? trimRich(runs) : dated.rest;
   const text = textOf(rest);
@@ -235,6 +261,12 @@ function buildRow(runs: Inline[], options: FillOptions): BuiltRow {
         field: 'date',
         kind: 'year-assumed',
         message: `The year ${dated.date.start.year} was assumed for this date, so please check it.`,
+      });
+    for (const mismatch of dated.weekdayMismatches)
+      notes.push({
+        field: 'date',
+        kind: 'weekday-mismatch',
+        message: weekdayMismatchMessage(mismatch),
       });
     if (dated.date.struck === true) {
       row.tags = addTag(row.tags, RESCHEDULED);
@@ -261,14 +293,14 @@ function buildRow(runs: Inline[], options: FillOptions): BuiltRow {
   }
 
   const eventTags = takeTags(eventText);
-  // A leading arrow or bullet, as in "=> Sign up", is not part of the name.
-  const event = squash(eventText.slice(eventTags.start, eventTags.end)).replace(
-    /^(?:[=-]+>|[>\u2192\u00bb\u2022*])\s*/,
-    '',
-  );
+  // A leading arrow or bullet, as in "=> Sign up", is not part of the name. A symbol such as a
+  // bullet character is taken off first and reported, so "(bullet) => Sign up" reads the same.
+  const named = cleanOddText(squash(eventText.slice(eventTags.start, eventTags.end)));
+  const event = named.text.replace(/^(?:[=-]+>|[>*])\s*/, '');
   if (event !== '') {
     row.event = event;
     for (const tag of eventTags.tags) row.tags = addTag(row.tags, tag);
+    odd.push(...named.removed);
   } else {
     row.event = squash(eventText);
   }
@@ -312,7 +344,7 @@ function buildRow(runs: Inline[], options: FillOptions): BuiltRow {
       message: 'The capital letters were changed to normal writing, so please check the wording.',
     });
   }
-  return { row, notes };
+  return { row, notes, odd };
 }
 
 /** "Save the Date (details to come)" gives the name and a subtitle, which only a quiet panel shows. */
@@ -329,7 +361,12 @@ function newSection(heading: string): DateSection {
   };
 }
 
-function fillDateList(units: Unit[], options: FillOptions, checks: CheckMe[]): DateListForm {
+function fillDateList(
+  units: Unit[],
+  options: FillOptions,
+  checks: CheckMe[],
+  odd: OddNote[],
+): DateListForm {
   const form: DateListForm = { layout: 'date-list', label: '', title: '', sections: [] };
   let rest = units;
 
@@ -357,7 +394,13 @@ function fillDateList(units: Unit[], options: FillOptions, checks: CheckMe[]): D
       continue;
     }
     let last: DateRow | undefined;
-    for (const line of splitLines(unit.runs)) {
+    for (const pasted of splitLines(unit.runs)) {
+      // A pasted bullet or ornament in front would hide the date, so it is taken off first and
+      // reported on the row's event name. A line of nothing else is left for the pass at the end.
+      const lead = cleanOddRich(pasted, { leadOnly: true });
+      const bare = lead.removed.length > 0 ? trimRich(lead.runs) : pasted;
+      const cleaned = bare.length > 0 && bare !== pasted;
+      const line = cleaned ? bare : pasted;
       const startsRow =
         last === undefined ||
         linksOf(line).length > 0 ||
@@ -365,14 +408,18 @@ function fillDateList(units: Unit[], options: FillOptions, checks: CheckMe[]): D
       if (!startsRow && last !== undefined) {
         // A plain line under a row is that row's note. The note belongs to this row alone, so
         // the line is added in place: joining the whole note again for each line is slow.
+        // The pasted line, not the cleaned one: the pass at the end cleans the note and reports it.
         if (last.note.length > 0) last.note.push({ kind: 'break' });
-        for (const run of line) last.note.push(run);
+        for (const run of pasted) last.note.push(run);
         continue;
       }
       const target = open();
-      const { row, notes } = buildRow(line, options);
+      const built = buildRow(line, options);
+      const { row, notes } = built;
       const at = ['sections', form.sections.length - 1, 'rows', target.rows.length];
       target.rows.push(row);
+      const removed = cleaned ? [...lead.removed, ...built.odd] : built.odd;
+      if (removed.length > 0) odd.push({ path: [...at, 'event'], removed });
       for (const n of notes)
         checks.push({ path: [...at, n.field], kind: n.kind, message: n.message });
       last = row;
@@ -725,6 +772,44 @@ function reviewForm(form: AnnouncementForm): CheckMe[] {
 }
 
 /**
+ * Removes the odd characters (helpers/odd-characters.ts) from every text field of a freshly filled
+ * form, in place, and returns one check for each field that lost any. Words are never removed.
+ * `early` holds what was already taken off a line before its field was known. Links are not text
+ * and are left alone.
+ */
+function cleanOddCharacters(form: AnnouncementForm, early: OddNote[]): CheckMe[] {
+  const waiting = new Map<string, string[]>();
+  for (const note of early) {
+    const key = JSON.stringify(note.path);
+    const known = waiting.get(key);
+    if (known === undefined) waiting.set(key, [...note.removed]);
+    else for (const r of note.removed) known.push(r);
+  }
+
+  // In the order of the form's fields, so the checks read from the top of the form down.
+  const checks: CheckMe[] = [];
+  for (const f of formFields(form)) {
+    if (f.kind === 'url') continue;
+    const cleaned = f.kind === 'rich' ? cleanOddRich(f.value) : cleanOddText(f.value);
+    const before = waiting.size > 0 ? waiting.get(JSON.stringify(f.path)) : undefined;
+    if (cleaned.removed.length === 0 && before === undefined) continue;
+    if (cleaned.removed.length > 0) {
+      const key = f.path[f.path.length - 1];
+      const parent = getAt(form, f.path.slice(0, -1));
+      if (key === undefined || typeof parent !== 'object' || parent === null) continue;
+      (parent as Record<string | number, unknown>)[key] =
+        'runs' in cleaned ? cleaned.runs : cleaned.text;
+    }
+    checks.push({
+      path: f.path,
+      kind: 'odd-characters',
+      message: oddCharactersMessage([...(before ?? []), ...cleaned.removed]),
+    });
+  }
+  return checks;
+}
+
+/**
  * Builds a form for the chosen layout from a parsed paste and runs the smart helpers (spec 7.4).
  * Works for any of the five layouts, since the user may pick one other than the suggestion.
  * Nothing pasted is silently dropped: text with no field of its own goes to the closest free-text
@@ -736,6 +821,7 @@ export function fillForm(parsed: ParseResult, layout: Layout, options: FillOptio
   const images = blocks.flatMap((b) => (b.type === 'image' ? [b] : []));
   const picture = images[0];
   const built: CheckMe[] = [];
+  const odd: OddNote[] = [];
 
   let form: AnnouncementForm;
   switch (layout) {
@@ -754,7 +840,7 @@ export function fillForm(parsed: ParseResult, layout: Layout, options: FillOptio
       );
       break;
     case 'date-list':
-      form = fillDateList(units, options, built);
+      form = fillDateList(units, options, built, odd);
       break;
     case 'help-wanted':
       form = fillHelpWanted(units, options);
@@ -762,6 +848,7 @@ export function fillForm(parsed: ParseResult, layout: Layout, options: FillOptio
   }
   // A deep copy, so the form shares nothing with the parsed model.
   form = structuredClone(form);
+  const oddChecks = cleanOddCharacters(form, odd);
 
   const checks: CheckMe[] = [];
   if (form.label.trim() === '')
@@ -774,6 +861,7 @@ export function fillForm(parsed: ParseResult, layout: Layout, options: FillOptio
     checks.push({ path: ['title'], kind: 'unsure', message: 'Add a title for this announcement.' });
   // One at a time: a spread of a very long list overflows the call stack.
   for (const check of built) checks.push(check);
+  for (const check of oddChecks) checks.push(check);
 
   if (form.layout === 'link-list' && form.image !== undefined && form.image.alt.trim() === '')
     checks.push({

@@ -17,6 +17,7 @@ import type {
   LinkListForm,
   MessageForm,
 } from '../../src/core/forms';
+import { cleanOddRich, cleanOddText } from '../../src/core/helpers/odd-characters';
 import { setAt } from '../../src/core/helpers/paths';
 import { isShouting, shoutStart, toSentenceCase } from '../../src/core/helpers/shouting';
 import { takeTags } from '../../src/core/helpers/tags';
@@ -315,6 +316,75 @@ describe('render: time limits on text typed into a form field', () => {
       expect(elapsed, form.layout).toBeLessThan(budget(LIMIT));
       expect(result).not.toContain(EM_DASH);
     }
+  });
+});
+
+describe('odd characters: time limits at the 2 MB paste limit', () => {
+  const cp = (...codes: number[]) => String.fromCodePoint(...codes);
+  const ZWSP = cp(0x200b);
+  const ZWJ = cp(0x200d);
+  const BULLET = cp(0x2022);
+  const STAR = cp(0x2605);
+  const WOMAN = cp(0x1f469);
+
+  /** Hostile shapes: each one is a long run that a careless scan would read again and again. */
+  const shapes: [string, string][] = [
+    ['invisible characters only', fill(ZWSP, PASTE_CAP)],
+    ['bullets and spaces only', fill(`${BULLET} `, PASTE_CAP)],
+    ['a word, then stars to the end', 'Hike ' + fill(`${STAR} `, PASTE_CAP)],
+    ['stars between words, never at an end', fill(`a ${STAR} `, PASTE_CAP) + 'a'],
+    ['a word with a joiner after every letter', fill(`a${ZWJ}`, PASTE_CAP)],
+    ['one emoji of a million joined parts', fill(`${WOMAN}${ZWJ}`, PASTE_CAP)],
+    ['a million short lines that each start with a bullet', fill(`${BULLET} a\n`, PASTE_CAP)],
+    ['spaces, then a bullet at the very end', fill(' ', PASTE_CAP) + BULLET],
+    ['invisible characters, then one letter', fill(ZWSP, PASTE_CAP) + 'a'],
+  ];
+
+  it.each(shapes)('cleans plain text: %s', (_name, text) => {
+    const { result, elapsed } = timed(() => cleanOddText(text));
+    expect(elapsed).toBeLessThan(budget(LIMIT));
+    expect(result.text.length).toBeLessThanOrEqual(text.length);
+    expect(result.text).not.toContain(ZWSP);
+  });
+
+  it.each(shapes)('cleans rich text in one run and in many runs: %s', (_name, text) => {
+    const one = timed(() => cleanOddRich([{ kind: 'text', text, marks: [] }]));
+    expect(one.elapsed).toBeLessThan(budget(LIMIT));
+    // The same text cut into runs of seven characters, with a line break after every hundredth.
+    const runs: Parameters<typeof cleanOddRich>[0] = [];
+    for (let at = 0, n = 0; at < text.length; at += 7, n++) {
+      runs.push({ kind: 'text', text: text.slice(at, at + 7), marks: [] });
+      if (n % 100 === 99) runs.push({ kind: 'break' });
+    }
+    const many = timed(() => cleanOddRich(runs));
+    expect(many.elapsed).toBeLessThan(budget(LIMIT));
+  });
+
+  it('fills every layout from a row of 2 MB of odd characters', SLOW_PARSE, () => {
+    for (const third of [
+      'Dec 8 Hike ' + fill(`${STAR} ${ZWSP}`, PASTE_CAP),
+      fill(`${BULLET}${ZWSP} `, PASTE_CAP) + 'Dec 8 Hike',
+      'Dec 8 ' + fill(`Hike${ZWSP} ${STAR} `, PASTE_CAP),
+    ]) {
+      const filled = fillsEveryLayout(dateList(third));
+      const row = thirdRow(filled['date-list']);
+      expect(row.date?.start).toEqual({ year: 2026, month: 12, day: 8 });
+      expect(row.event.startsWith('Hike')).toBe(true);
+      expect(JSON.stringify(filled['date-list'].form)).not.toContain(ZWSP);
+      const odd = filled['date-list'].checks.filter((c) => c.kind === 'odd-characters');
+      expect(odd.map((c) => c.path.join('.'))).toEqual(['sections.0.rows.2.event']);
+    }
+  });
+
+  it('fills a paste of very many short lines that each start with a bullet', SLOW_PARSE, () => {
+    const lines = 20_000;
+    const parsed = parse('<p>' + `${BULLET} Dec 8 Hike ${STAR}<br>`.repeat(lines) + '</p>');
+    const filled = fillsEveryLayout(parsed);
+    const form = filled['date-list'].form as DateListForm;
+    expect(form.sections[0]?.rows).toHaveLength(lines);
+    expect(filled['date-list'].checks.filter((c) => c.kind === 'odd-characters')).toHaveLength(
+      lines,
+    );
   });
 });
 
