@@ -2,7 +2,7 @@
 
 A small tool for Cranford Cub Scouts Pack 137 volunteers. It turns the HTML of a TroopTrack announcement into HTML that follows the pack's design standards, and it builds the monthly "Pack 137 Stories" letter from a fill-in template. Nothing is sent anywhere: you copy the result back into TroopTrack.
 
-Status: foundation only. The converter and the letter editor are not built yet.
+Status: the core pipeline (Phase 1) is done, but there is still no screen to use it. The converter screen comes in Phase 3. The letter editor is not built yet.
 
 ## Run it
 
@@ -25,6 +25,7 @@ npm run build
 ## Where things are
 
 - `docs/build-spec.md` the full brief and design standards
+- `docs/decisions` short notes on the choices made during the build
 - `src/config/tokens.ts` colors, font and spacing
 - `src/config/pack.config.ts` pack links, emails and defaults
 - `src/core` reading pasted HTML and producing output (no UI code)
