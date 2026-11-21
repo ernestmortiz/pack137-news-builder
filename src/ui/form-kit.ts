@@ -14,14 +14,30 @@ export interface FormContext {
   checks(): CheckMe[];
   suggestions(): Suggestion[];
   warnings(): FormWarning[];
-  /** The form changed by typing. Refresh the preview and code. No redraw. */
-  changed(): void;
+  /** One edit in a text field (a character, a paste, a replaced selection). Is its own step. */
+  typed(edit: TypingEdit): void;
+  /** Call just before a structural change touches the form, so the step can keep the "before". */
+  begin(): void;
+  /** One finished structural change (add, remove, move, select, checkbox, date). Records a step. */
+  step(label: string): void;
+  /** Undo or redo asked for from inside a field (the browser's own menu, for instance). */
+  history(kind: 'undo' | 'redo'): void;
   /** Two neighbouring entries of the array at `arrayPath` swapped places. */
   swapped(arrayPath: FieldPath, a: number, b: number): void;
   /** The entry at `index` of the array at `arrayPath` was removed. */
   removed(arrayPath: FieldPath, index: number): void;
   /** Apply a one-tap suggestion. The caller redraws the whole form. */
   apply(suggestion: Suggestion): void;
+}
+
+/** One change to the text of one field. Selections are [start, end] in the field's text. */
+export interface TypingEdit {
+  path: FieldPath;
+  label: string;
+  before: string;
+  after: string;
+  selBefore: [number, number];
+  selAfter: [number, number];
 }
 
 export const RICH_HINT = 'Type **bold**, _italic_, ~~struck~~ or [link text](https://example.org).';
@@ -38,6 +54,11 @@ interface RepeaterOptions<T> {
   compact?: boolean;
 }
 
+/** "Label (the small tag at the top)" becomes "Label". */
+function shortLabel(label: string): string {
+  return label.replace(/\s*\(.*\)\s*$/, '');
+}
+
 function sentenceCase(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
@@ -45,6 +66,75 @@ function sentenceCase(text: string): string {
 export function createKit(ctx: FormContext) {
   const claimed = new Set<object>();
   const warnTargets: { path: FieldPath; node: HTMLElement }[] = [];
+  /** Text fields on screen, so undo can change one without redrawing the form. */
+  const fields = new Map<
+    string,
+    { control: HTMLInputElement | HTMLTextAreaElement; apply(value: string): void }
+  >();
+
+  /**
+   * Makes every edit of a text control its own step. `commit` pushes the new text into the form.
+   * Returns the function that puts a value in from outside (undo and redo).
+   */
+  function trackTyping(
+    control: HTMLInputElement | HTMLTextAreaElement,
+    path: FieldPath,
+    label: string,
+    commit: (value: string) => void,
+  ): void {
+    let known = control.value;
+    let pre: [number, number] = [0, 0];
+    control.addEventListener('beforeinput', (event) => {
+      const kind = (event as InputEvent).inputType;
+      if (kind === 'historyUndo' || kind === 'historyRedo') {
+        event.preventDefault();
+        ctx.history(kind === 'historyUndo' ? 'undo' : 'redo');
+        return;
+      }
+      pre = [control.selectionStart ?? 0, control.selectionEnd ?? 0];
+    });
+    control.addEventListener('input', () => {
+      const before = known;
+      const after = control.value;
+      known = after;
+      commit(after);
+      if (before === after) return;
+      ctx.typed({
+        path,
+        label: `typing in ${shortLabel(label)}`,
+        before,
+        after,
+        selBefore: pre,
+        selAfter: [control.selectionStart ?? after.length, control.selectionEnd ?? after.length],
+      });
+    });
+    fields.set(JSON.stringify(path), {
+      control,
+      apply(value) {
+        control.value = value;
+        known = value;
+        commit(value);
+      },
+    });
+  }
+
+  /** Put `value` in the field at `path` and place the caret. False if that field is not on screen. */
+  function setField(path: FieldPath, value: string, selection: [number, number]): boolean {
+    const field = fields.get(JSON.stringify(path));
+    if (!field || !field.control.isConnected) return false;
+    field.apply(value);
+    try {
+      field.control.setSelectionRange(selection[0], selection[1]);
+    } catch {
+      // Some input types have no caret. The value is already in.
+    }
+    return true;
+  }
+
+  function fieldControl(path: FieldPath): HTMLElement | null {
+    const field = fields.get(JSON.stringify(path));
+    return field && field.control.isConnected ? field.control : null;
+  }
 
   /* ---------- markers beside a field ---------- */
 
@@ -156,6 +246,7 @@ export function createKit(ctx: FormContext) {
     input.value = get();
     if (options.placeholder !== undefined) input.placeholder = options.placeholder;
     const extras: HTMLElement[] = [];
+    let showMailNow = (): void => {};
     if (options.url === true) {
       input.inputMode = 'url';
       input.autocapitalize = 'none';
@@ -168,11 +259,11 @@ export function createKit(ctx: FormContext) {
       };
       showMail();
       extras.push(mail);
-      input.addEventListener('input', showMail);
+      showMailNow = showMail;
     }
-    input.addEventListener('input', () => {
-      set(input.value);
-      ctx.changed();
+    trackTyping(input, path, label, (value) => {
+      set(value);
+      showMailNow();
     });
     return wrap(label, input, path, options.hint, extras);
   }
@@ -200,11 +291,10 @@ export function createKit(ctx: FormContext) {
       mail.hidden = seen.size === 0;
     };
     showMail(get());
-    area.addEventListener('input', () => {
-      const runs = textToRich(area.value);
+    trackTyping(area, path, label, (value) => {
+      const runs = textToRich(value);
       set(runs);
       showMail(runs);
-      ctx.changed();
     });
     return wrap(label, area, path, RICH_HINT, [mail]);
   }
@@ -223,10 +313,11 @@ export function createKit(ctx: FormContext) {
     }
     control.value = get();
     control.addEventListener('change', () => {
+      ctx.begin();
       const value = control.value as V;
       set(value);
       onChange?.(value);
-      ctx.changed();
+      ctx.step(`changed ${shortLabel(label)}`);
     });
     return wrap(label, control, path, undefined);
   }
@@ -235,8 +326,9 @@ export function createKit(ctx: FormContext) {
     const input = el('input', { type: 'checkbox', id: uid('f') });
     input.checked = get();
     input.addEventListener('change', () => {
+      ctx.begin();
       set(input.checked);
-      ctx.changed();
+      ctx.step(`changed ${shortLabel(label)}`);
     });
     const wrapper = el('label', { className: 'check-row', htmlFor: input.id }, [
       input,
@@ -326,10 +418,11 @@ export function createKit(ctx: FormContext) {
         const move = (to: number): void => {
           const other = o.items[to];
           if (other === undefined) return;
+          ctx.begin();
           o.items[to] = item;
           o.items[i] = other;
           ctx.swapped(o.arrayPath, Math.min(i, to), Math.max(i, to));
-          ctx.changed();
+          ctx.step(`moved a ${noun} ${to > i ? 'down' : 'up'}`);
           build(() => {
             const li = root.querySelector('.repeat-list')?.children[to];
             const same = to > i ? 'down' : 'up';
@@ -343,9 +436,10 @@ export function createKit(ctx: FormContext) {
         up.addEventListener('click', () => move(i - 1));
         down.addEventListener('click', () => move(i + 1));
         remove.addEventListener('click', () => {
+          ctx.begin();
           o.items.splice(i, 1);
           ctx.removed(o.arrayPath, i);
-          ctx.changed();
+          ctx.step(`removed a ${noun}`);
           build(() => root.querySelector<HTMLElement>('.add-button'));
         });
 
@@ -373,8 +467,9 @@ export function createKit(ctx: FormContext) {
         textContent: o.addLabel,
       });
       add.addEventListener('click', () => {
+        ctx.begin();
         o.items.push(o.create());
-        ctx.changed();
+        ctx.step(`added a ${noun}`);
         build(() => {
           const last = root.querySelector('.repeat-list')?.lastElementChild;
           return last ? firstControl(last) : null;
@@ -406,6 +501,8 @@ export function createKit(ctx: FormContext) {
     markerList,
     leftovers,
     refreshWarnings,
+    setField,
+    fieldControl,
   };
 }
 

@@ -442,3 +442,29 @@ input.date {
     overflow-y: auto;
   }
 }
+
+/* undo and redo */
+.history-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 8px 14px;
+  background: var(--white);
+  border: 1px solid var(--lavender);
+  border-radius: 12px;
+}
+.history-bar[hidden] {
+  display: none;
+}
+.history-note {
+  color: var(--navy);
+  font-size: 14px;
+}
+html {
+  scroll-padding-top: 72px;
+}

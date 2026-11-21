@@ -19,6 +19,10 @@ export interface FormView {
   element: HTMLElement;
   /** Redraw the warning text beside fields after a change. */
   refreshWarnings(): void;
+  /** Put text in a field on screen without redrawing. False if the field is not there. */
+  setField(path: (string | number)[], value: string, selection: [number, number]): boolean;
+  /** The control for a field on screen, if any. */
+  fieldControl(path: (string | number)[]): HTMLElement | null;
 }
 
 /* ---------- pieces shared by layouts ---------- */
@@ -77,7 +81,7 @@ function dateField(
   kit: Kit,
   row: DateRow,
   path: (string | number)[],
-  notify: () => void,
+  ctx: FormContext,
 ): HTMLElement {
   const datePath = [...path, 'date'];
   let stash: Pick<DateField, 'end' | 'struck'> = {};
@@ -121,6 +125,7 @@ function dateField(
   }
 
   startInput.addEventListener('change', () => {
+    ctx.begin();
     const start = fromIsoDate(startInput.value);
     if (start === undefined) {
       if (row.date) stash = { end: row.date.end, struck: row.date.struck };
@@ -138,15 +143,16 @@ function dateField(
       moved.input.checked = struck === true;
     }
     show();
-    notify();
+    ctx.step('changed a date');
   });
   endInput.addEventListener('change', () => {
     if (row.date === undefined) return;
+    ctx.begin();
     const end = fromIsoDate(endInput.value);
     if (end === undefined) delete row.date.end;
     else row.date.end = end;
     show();
-    notify();
+    ctx.step('changed an end date');
   });
   moved.input.addEventListener('change', show);
   show();
@@ -213,9 +219,9 @@ function tagsEditor(kit: Kit, row: DateRow, rowPath: (string | number)[]): HTMLE
   ]);
 }
 
-function rowFields(kit: Kit, row: DateRow, path: (string | number)[], notify: () => void): Node[] {
+function rowFields(kit: Kit, row: DateRow, path: (string | number)[], ctx: FormContext): Node[] {
   return [
-    dateField(kit, row, path, notify),
+    dateField(kit, row, path, ctx),
     kit.text(
       'Event',
       [...path, 'event'],
@@ -244,7 +250,7 @@ function sectionFields(
   kit: Kit,
   section: DateSection,
   path: (string | number)[],
-  notify: () => void,
+  ctx: FormContext,
 ): Node[] {
   const subtitle = kit.text(
     'Subtitle (a small line under the heading)',
@@ -283,14 +289,14 @@ function sectionFields(
       arrayPath: [...path, 'rows'],
       items: section.rows,
       create: () => ({ event: '', url: '', tags: [], note: [] }),
-      body: (row, _i, rowPath) => rowFields(kit, row, rowPath, notify),
+      body: (row, _i, rowPath) => rowFields(kit, row, rowPath, ctx),
     }),
   ];
 }
 
 /* ---------- the five layouts ---------- */
 
-function layoutFields(kit: Kit, form: AnnouncementForm, notify: () => void): HTMLElement[] {
+function layoutFields(kit: Kit, form: AnnouncementForm, ctx: FormContext): HTMLElement[] {
   switch (form.layout) {
     case 'message':
       return [
@@ -399,7 +405,7 @@ function layoutFields(kit: Kit, form: AnnouncementForm, notify: () => void): HTM
             arrayPath: ['sections'],
             items: form.sections,
             create: () => ({ name: '', style: 'plain', subtitle: '', rows: [] }),
-            body: (section, _i, path) => sectionFields(kit, section, path, notify),
+            body: (section, _i, path) => sectionFields(kit, section, path, ctx),
           }),
         ]),
       ];
@@ -474,9 +480,14 @@ function setImage(
 export function buildForm(form: AnnouncementForm, ctx: FormContext): FormView {
   const kit = createKit(ctx);
   const element = el('div', { className: 'form' });
-  const fields = layoutFields(kit, form, () => ctx.changed());
+  const fields = layoutFields(kit, form, ctx);
   element.append(...fields);
   const left = kit.leftovers();
   if (left) element.prepend(left);
-  return { element, refreshWarnings: kit.refreshWarnings };
+  return {
+    element,
+    refreshWarnings: kit.refreshWarnings,
+    setField: kit.setField,
+    fieldControl: kit.fieldControl,
+  };
 }

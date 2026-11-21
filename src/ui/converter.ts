@@ -23,7 +23,8 @@ import { renderAnnouncement } from '../core/render';
 import { copyText } from './clipboard';
 import { clear, debounce, el } from './dom';
 import { buildForm, type FormView } from './form-view';
-import type { FormContext } from './form-kit';
+import type { FormContext, TypingEdit } from './form-kit';
+import { createHistory } from './history';
 import { buildGuide } from './guide';
 import { capIssues, remapAfterRemove, remapAfterSwap } from './paths';
 import { previewDocument } from './preview';
@@ -51,6 +52,19 @@ interface Session {
   suggestions: Suggestion[];
 }
 
+/** Everything the screen is drawn from. A step that is not typing keeps two of these. */
+interface Snapshot {
+  pasteText: string;
+  parsed: ParseResult | null;
+  layout: Layout | null;
+  sessions: [Layout, Session][];
+}
+
+/** One typed change in one field, with the caret either side. */
+interface TypingPatch extends Omit<TypingEdit, 'label'> {
+  layout: Layout;
+}
+
 function layoutName(id: Layout): string {
   return LAYOUTS.find((l) => l.id === id)?.name ?? id;
 }
@@ -63,6 +77,30 @@ export function mountConverter(root: HTMLElement): void {
   let warnings: FormWarning[] = [];
   let view: FormView | null = null;
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+  /** The text of the paste box as of the last time the form was filled from it. */
+  let committedPaste = '';
+  const history = createHistory<Snapshot, TypingPatch>();
+  let pendingBefore: Snapshot | null = null;
+
+  function capture(): Snapshot {
+    return structuredClone({
+      pasteText: committedPaste,
+      parsed,
+      layout,
+      sessions: [...sessions.entries()],
+    });
+  }
+  /** Call just before a structural change. Keeps the screen state as it is now. */
+  function begin(): void {
+    pendingBefore ??= capture();
+  }
+  /** Call just after a structural change. */
+  function step(label: string): void {
+    const before = pendingBefore ?? capture();
+    pendingBefore = null;
+    history.recordSnapshot(before, capture(), label);
+    updateHistoryBar();
+  }
 
   const current = (): Session | undefined => (layout ? sessions.get(layout) : undefined);
 
@@ -182,7 +220,25 @@ export function mountConverter(root: HTMLElement): void {
   const results = el('div', { className: 'workspace' }, [left, right]);
   results.hidden = true;
 
-  root.append(buildGuide(), pasteSection, results);
+  /* ---------- undo and redo ---------- */
+  const undoButton = el('button', { type: 'button', className: 'btn', textContent: 'Undo' });
+  const redoButton = el('button', { type: 'button', className: 'btn', textContent: 'Redo' });
+  const historyNote = el('span', { className: 'history-note' });
+  historyNote.setAttribute('role', 'status');
+  historyNote.setAttribute('aria-live', 'polite');
+  const historyBar = el('div', { className: 'history-bar' }, [undoButton, redoButton, historyNote]);
+  historyBar.setAttribute('role', 'group');
+  historyBar.setAttribute('aria-label', 'Undo and redo');
+  historyBar.tabIndex = -1;
+  historyBar.hidden = true;
+
+  function updateHistoryBar(): void {
+    undoButton.disabled = !history.canUndo();
+    redoButton.disabled = !history.canRedo();
+    historyBar.hidden = parsed === null && !history.canUndo() && !history.canRedo();
+  }
+
+  root.append(buildGuide(), pasteSection, historyBar, results);
 
   /* ---------- output ---------- */
   function showWarnings(list: string[], lintProblems: string[]): void {
@@ -233,7 +289,19 @@ export function mountConverter(root: HTMLElement): void {
     checks: () => current()?.checks ?? [],
     suggestions: () => current()?.suggestions ?? [],
     warnings: () => warnings,
-    changed: () => refreshLater.run(),
+    typed(edit: TypingEdit) {
+      if (!layout) return;
+      const { label, ...patch } = edit;
+      history.recordPatch({ ...patch, layout }, label);
+      refreshLater.run();
+      updateHistoryBar();
+    },
+    begin,
+    step(label: string) {
+      refreshLater.run();
+      step(label);
+    },
+    history: (kind) => travel(kind, 'key'),
     swapped(arrayPath: FieldPath, a: number, b: number) {
       const s = current();
       if (!s) return;
@@ -249,11 +317,13 @@ export function mountConverter(root: HTMLElement): void {
     apply(suggestion: Suggestion) {
       const s = current();
       if (!s) return;
+      begin();
       s.form = applySuggestion(s.form, suggestion);
       s.suggestions = s.suggestions.filter((x) => x !== suggestion);
       drawForm();
       refreshOutput();
       status.textContent = 'Fix applied.';
+      step('applied a fix');
       formHeading.focus();
     },
   };
@@ -308,6 +378,7 @@ export function mountConverter(root: HTMLElement): void {
   function switchTo(next: Layout): void {
     const session = current();
     if (!session || layout === null || next === layout) return;
+    begin();
     if (!sessions.has(next)) {
       // Cloned so that editing one layout can never change another layout's saved form.
       const form = structuredClone(switchLayout(session.form, next));
@@ -318,6 +389,7 @@ export function mountConverter(root: HTMLElement): void {
     drawForm();
     refreshOutput();
     status.textContent = `Switched to ${layoutName(next)}.`;
+    step(`switched to ${layoutName(next)}`);
     // Keep keyboard focus on the chosen radio so arrow keys keep working.
     layoutBox.querySelector<HTMLInputElement>('input:checked')?.focus();
   }
@@ -365,15 +437,23 @@ export function mountConverter(root: HTMLElement): void {
     const value = pasteArea.value;
     startOver.hidden = value === '';
     refreshLater.cancel();
+    if (value === committedPaste) return;
+    begin();
+    const done = (label: string): void => {
+      committedPaste = value;
+      step(label);
+    };
     if (value.trim() === '') {
       resetResults();
       status.textContent = '';
+      done('cleared the pasted HTML');
       return;
     }
     if (new TextEncoder().encode(value).length > MAX_PASTE_BYTES) {
       resetResults();
       status.textContent =
         'That is too big to read (over 2 MB). A normal announcement is much smaller. Check that you copied only one announcement.';
+      done('pasted HTML that was too big');
       return;
     }
     let result: ParseResult;
@@ -383,6 +463,7 @@ export function mountConverter(root: HTMLElement): void {
       resetResults();
       status.textContent =
         'Something went wrong reading that. Copy the HTML again from the code view and paste it here.';
+      done('pasted HTML that could not be read');
       return;
     }
     if (result.model.blocks.length === 0) {
@@ -390,6 +471,7 @@ export function mountConverter(root: HTMLElement): void {
       showIssues(result.issues);
       status.textContent =
         'We could not find any text in that. Check that you copied everything from the code view.';
+      done('pasted HTML with no text');
       return;
     }
     try {
@@ -405,6 +487,7 @@ export function mountConverter(root: HTMLElement): void {
       resetResults();
       status.textContent =
         'Something went wrong filling in the form. Try pasting again, or tell whoever looks after this tool.';
+      done('pasted HTML that could not be filled in');
       return;
     }
     status.textContent = `Read it. We chose ${layoutName(layout)}. You can change that below.`;
@@ -413,6 +496,7 @@ export function mountConverter(root: HTMLElement): void {
     drawLayoutPicker();
     drawForm();
     refreshOutput();
+    done('pasted new HTML');
   }
   const handlePasteLater = debounce(handlePaste, 300);
   pasteArea.addEventListener('input', () => {
@@ -469,8 +553,11 @@ export function mountConverter(root: HTMLElement): void {
   confirmYes.addEventListener('click', () => {
     handlePasteLater.cancel();
     refreshLater.cancel();
+    begin();
     pasteArea.value = '';
     resetResults();
+    committedPaste = '';
+    step('started over');
     copiedNote.textContent = '';
     copyNote.textContent = '';
     status.textContent = 'Cleared. Paste a new announcement when you are ready.';
@@ -478,5 +565,80 @@ export function mountConverter(root: HTMLElement): void {
     startOver.hidden = true;
     codeDetails.open = false;
     pasteArea.focus();
+  });
+  /* ---------- undo and redo: doing it ---------- */
+  function restore(snap: Snapshot): void {
+    handlePasteLater.cancel();
+    refreshLater.cancel();
+    committedPaste = snap.pasteText;
+    pasteArea.value = snap.pasteText;
+    startOver.hidden = snap.pasteText === '';
+    confirmBox.hidden = true;
+    copiedNote.textContent = '';
+    copyNote.textContent = '';
+    resetResults();
+    parsed = snap.parsed;
+    layout = snap.layout;
+    for (const [key, value] of snap.sessions) sessions.set(key, value);
+    if (parsed === null || layout === null) return;
+    results.hidden = false;
+    showIssues(parsed.issues);
+    drawLayoutPicker();
+    drawForm();
+    refreshOutput();
+  }
+
+  function travel(kind: 'undo' | 'redo', from: 'button' | 'key'): void {
+    handlePasteLater.flush();
+    if (kind === 'undo' ? !history.canUndo() : !history.canRedo()) {
+      historyNote.textContent = kind === 'undo' ? 'Nothing to undo.' : 'Nothing to redo.';
+      return;
+    }
+    const move = kind === 'undo' ? history.undo() : history.redo();
+    if (!move) return;
+    const words = kind === 'undo' ? 'Undone' : 'Redone';
+    let target: HTMLElement | null = null;
+    if (move.kind === 'snapshot') {
+      restore(move.state);
+    } else {
+      const patch = move.patch;
+      const text = move.direction === 'undo' ? patch.before : patch.after;
+      const sel = move.direction === 'undo' ? patch.selBefore : patch.selAfter;
+      if (view?.setField(patch.path, text, sel)) {
+        target = view.fieldControl(patch.path);
+        refreshLater.run();
+      }
+    }
+    historyNote.textContent = `${words}: ${move.label}`;
+    updateHistoryBar();
+    if (from === 'key') {
+      if (target) target.focus();
+      else if (!root.contains(document.activeElement) || document.activeElement === document.body) {
+        (results.hidden ? historyBar : formHeading).focus();
+      }
+    } else {
+      target?.scrollIntoView({ block: 'nearest' });
+      // Stay on the button that was pressed. If it just switched off, use the other one.
+      const pressed = kind === 'undo' ? undoButton : redoButton;
+      const other = kind === 'undo' ? redoButton : undoButton;
+      if (pressed.disabled) (other.disabled ? historyBar : other).focus();
+      else pressed.focus();
+    }
+  }
+
+  undoButton.addEventListener('click', () => travel('undo', 'button'));
+  redoButton.addEventListener('click', () => travel('redo', 'button'));
+
+  document.addEventListener('keydown', (event) => {
+    if (event.isComposing || event.altKey || !(event.ctrlKey || event.metaKey)) return;
+    if (root.getClientRects().length === 0) return;
+    const key = event.key.toLowerCase();
+    let kind: 'undo' | 'redo' | null = null;
+    if (key === 'z') kind = event.shiftKey ? 'redo' : 'undo';
+    else if (key === 'y' && event.ctrlKey && !event.shiftKey) kind = 'redo';
+    if (kind === null) return;
+    // Always the app's own history, so the browser's text undo never disagrees with it.
+    event.preventDefault();
+    travel(kind, 'key');
   });
 }
