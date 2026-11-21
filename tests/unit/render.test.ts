@@ -322,9 +322,24 @@ describe('URL rule', () => {
     expect(html).toContain('href="https://x.org/a%20b"');
   });
 
-  it('leaves out an image with no alt text, as the linter requires alt', () => {
-    const html = render(linkList({ image: { src: 'https://x.org/a.png', alt: '  ' } }));
-    expect(html).not.toContain('<img');
+  it('keeps an image with empty or blank alt text as alt=""', () => {
+    for (const alt of ['', '  ']) {
+      const html = render(linkList({ image: { src: 'https://x.org/a.png', alt } }));
+      expect(html).toContain('<img src="https://x.org/a.png" width="80" alt="" style=');
+    }
+  });
+
+  it('still leaves out an image with an invalid URL, whatever its alt', () => {
+    for (const alt of ['', 'Alt']) {
+      const html = render(linkList({ image: { src: 'not a url', alt } }));
+      expect(html).not.toContain('<img');
+    }
+  });
+
+  it('gives the button cell an Outlook padding fallback', () => {
+    for (const html of [render(cta()), render(help())]) {
+      expect(html).toContain('border-radius:8px;mso-padding-alt:13px 22px;">');
+    }
   });
 
   it('writes an image with the required attributes', () => {

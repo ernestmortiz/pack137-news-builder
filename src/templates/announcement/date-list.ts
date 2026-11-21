@@ -1,20 +1,16 @@
 import type { DateListForm, DateRow, DateSection } from '../../core/forms';
 import {
   badge,
-  dateText,
   esc,
   lines,
   panel,
   rowBody,
+  rowIsShown,
   rowsTable,
   sectionHeading,
   spacer,
 } from '../components';
 import { color } from '../../config/tokens';
-
-function usable(row: DateRow): boolean {
-  return row.event.trim() !== '' || dateText(row.date) !== null;
-}
 
 function plainSection(name: string, rows: DateRow[]): string {
   const named = name.trim() !== '';
@@ -56,7 +52,7 @@ function quietSection(section: DateSection, rows: DateRow[]): string {
 export function dateListBody(form: DateListForm): string {
   const parts: string[] = [];
   for (const section of form.sections) {
-    const rows = section.rows.filter(usable);
+    const rows = section.rows.filter(rowIsShown);
     if (rows.length === 0) continue;
     if (section.style === 'plain') {
       parts.push(plainSection(section.name, rows));

@@ -187,7 +187,7 @@ export function button(field: ButtonField | undefined, variant: 'primary' | 'sec
   return lines(
     '<table role="presentation" cellpadding="0" cellspacing="0" border="0">',
     '  <tr>',
-    `    <td style="background-color:${bg};border-radius:${radius.control}px;">`,
+    `    <td style="background-color:${bg};border-radius:${radius.control}px;mso-padding-alt:13px 22px;">`,
     `      ${anchor(href, style, esc(field.text))}`,
     '    </td>',
     '  </tr>',
@@ -200,13 +200,13 @@ export function paragraph(runs: RichText, margin: string, extraStyle = ''): stri
   return `<p style="margin:${margin};${extraStyle}">${richText(runs)}</p>`;
 }
 
-/** An 80px image shown above the text. Left out without a usable web URL or without alt text. */
+/** An 80px image shown above the text. Left out without a usable web URL; empty alt is kept as alt="". */
 export function image(field: ImageField | undefined): string {
-  if (field === undefined || field.alt.trim() === '') return '';
+  if (field === undefined) return '';
   const src = safeWebUrl(field.src);
   if (src === null) return '';
   return (
-    `<img src="${escAttr(src)}" width="80" alt="${escAttr(field.alt)}" ` +
+    `<img src="${escAttr(src)}" width="80" alt="${escAttr(field.alt.trim())}" ` +
     `style="display:block;width:80px;max-width:100%;height:auto;border:0;margin:0 0 12px 0;">`
   );
 }
@@ -271,6 +271,11 @@ export function dateText(field: DateField | undefined): string | null {
     if (!same) return formatRange(field.start, end);
   }
   return formatDate(field.start);
+}
+
+/** A Date list row is shown when it has an event or a usable date. Shared with formWarnings. */
+export function rowIsShown(row: DateRow): boolean {
+  return row.event.trim() !== '' || dateText(row.date) !== null;
 }
 
 function eventHtml(row: DateRow): string {
