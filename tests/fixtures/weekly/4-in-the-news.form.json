@@ -1,0 +1,33 @@
+{
+  "layout": "link-list",
+  "label": "In the news",
+  "title": "Read all about it!",
+  "image": {
+    "src": "https://styles.trooptrack.com/uploads/1795131915582.png",
+    "alt": "Scouting for Food"
+  },
+  "intro": [
+    {
+      "kind": "text",
+      "text": "Thank you to every family who helped collect 1,098 bags of food. Here is the coverage and the story behind it.",
+      "marks": []
+    }
+  ],
+  "items": [
+    {
+      "text": "Cranford Scouts Combine Tradition and Technology to Collect 1,098 Bags of Food",
+      "url": "https://www.tapinto.net/towns/cranford/sections/giving-back/articles/cranford-scouts-combine-tradition-and-technology-to-collect-1-098-bags-of-food",
+      "note": "TAPinto Cranford, Fri Nov 13"
+    },
+    {
+      "text": "Pack 137 Scouting for Food Thank You Letter",
+      "url": "https://drive.google.com/file/d/1tKt3km87RpOp01N1LEdlfhIbmll7S7Dc",
+      "note": "From the pack, on Google Drive"
+    },
+    {
+      "text": "A Short History of Scouting for Food Generosity in Cranford",
+      "url": "https://drive.google.com/file/d/1OTRw2mn8rEzZ7f8tuuS2UrAh6xOo4_wc",
+      "note": "On Google Drive"
+    }
+  ]
+}

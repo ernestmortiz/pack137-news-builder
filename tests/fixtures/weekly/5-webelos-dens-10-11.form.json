@@ -1,0 +1,77 @@
+{
+  "layout": "date-list",
+  "label": "Webelos Dens 10 and 11",
+  "title": "Upcoming den events",
+  "sections": [
+    {
+      "name": "",
+      "style": "highlight",
+      "subtitle": "",
+      "rows": [
+        {
+          "date": {
+            "start": {
+              "year": 2026,
+              "month": 11,
+              "day": 24
+            },
+            "struck": true
+          },
+          "event": "Webelos Meeting",
+          "url": "https://pack137.trooptrack.com/plan/events/1832517",
+          "tags": [
+            {
+              "text": "Rescheduled",
+              "strength": "strong"
+            }
+          ],
+          "note": [
+            {
+              "kind": "text",
+              "text": "Please open the event for the new details and sign up on SignUpGenius.",
+              "marks": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "",
+      "style": "plain",
+      "subtitle": "",
+      "rows": [
+        {
+          "date": {
+            "start": {
+              "year": 2026,
+              "month": 12,
+              "day": 1
+            }
+          },
+          "event": "Webelos Parent Planning Meeting",
+          "url": "https://pack137.trooptrack.com/plan/events/1840186",
+          "tags": [
+            {
+              "text": "Virtual",
+              "strength": "quiet"
+            }
+          ],
+          "note": []
+        },
+        {
+          "date": {
+            "start": {
+              "year": 2026,
+              "month": 12,
+              "day": 8
+            }
+          },
+          "event": "Webelos Meeting",
+          "url": "https://pack137.trooptrack.com/plan/events/1832575",
+          "tags": [],
+          "note": []
+        }
+      ]
+    }
+  ]
+}

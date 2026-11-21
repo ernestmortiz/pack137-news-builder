@@ -1,0 +1,307 @@
+{
+  "layout": "date-list",
+  "label": "Pack calendar",
+  "title": "What's coming up",
+  "sections": [
+    {
+      "name": "Take action now",
+      "style": "highlight",
+      "subtitle": "",
+      "rows": [
+        {
+          "date": {
+            "start": {
+              "year": 2026,
+              "month": 12,
+              "day": 6
+            }
+          },
+          "event": "Parent Planning Meeting",
+          "url": "https://pack137.trooptrack.com/plan/events/1836430",
+          "tags": [
+            {
+              "text": "Virtual",
+              "strength": "quiet"
+            }
+          ],
+          "note": []
+        },
+        {
+          "date": {
+            "start": {
+              "year": 2026,
+              "month": 12,
+              "day": 6
+            }
+          },
+          "event": "Pinewood Derby Planning Meeting",
+          "url": "https://pack137.trooptrack.com/plan/events/1847035",
+          "tags": [
+            {
+              "text": "Virtual",
+              "strength": "quiet"
+            }
+          ],
+          "note": []
+        },
+        {
+          "date": {
+            "start": {
+              "year": 2026,
+              "month": 12,
+              "day": 15
+            }
+          },
+          "event": "Pack Meeting",
+          "url": "https://pack137.trooptrack.com/plan/events/1836468",
+          "tags": [
+            {
+              "text": "Please RSVP",
+              "strength": "strong"
+            }
+          ],
+          "note": [
+            {
+              "kind": "text",
+              "text": "Last chance",
+              "marks": [
+                "strong"
+              ]
+            },
+            {
+              "kind": "text",
+              "text": " to bring donations for Toys for Tots.",
+              "marks": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Coming soon",
+      "style": "plain",
+      "subtitle": "",
+      "rows": [
+        {
+          "date": {
+            "start": {
+              "year": 2027,
+              "month": 1,
+              "day": 3
+            }
+          },
+          "event": "Parent Planning Meeting",
+          "url": "https://pack137.trooptrack.com/plan/events/1836431",
+          "tags": [
+            {
+              "text": "Virtual",
+              "strength": "quiet"
+            }
+          ],
+          "note": []
+        },
+        {
+          "date": {
+            "start": {
+              "year": 2027,
+              "month": 1,
+              "day": 5
+            }
+          },
+          "event": "Pinewood Derby First-Time Racer Overview",
+          "url": "https://pack137.trooptrack.com/plan/events/1836502",
+          "tags": [
+            {
+              "text": "In person",
+              "strength": "quiet"
+            }
+          ],
+          "note": []
+        },
+        {
+          "date": {
+            "start": {
+              "year": 2027,
+              "month": 1,
+              "day": 6
+            }
+          },
+          "event": "Pinewood Derby First-Time Racer Overview",
+          "url": "https://pack137.trooptrack.com/plan/events/1836503",
+          "tags": [
+            {
+              "text": "Virtual",
+              "strength": "quiet"
+            }
+          ],
+          "note": []
+        },
+        {
+          "date": {
+            "start": {
+              "year": 2027,
+              "month": 1,
+              "day": 9
+            }
+          },
+          "event": "Pinewood Derby Build Workshop",
+          "url": "https://pack137.trooptrack.com/plan/events/1836501",
+          "tags": [],
+          "note": []
+        },
+        {
+          "date": {
+            "start": {
+              "year": 2027,
+              "month": 1,
+              "day": 22
+            }
+          },
+          "event": "Pinewood Derby Weigh-In",
+          "url": "https://pack137.trooptrack.com/plan/events/1836504",
+          "tags": [],
+          "note": []
+        },
+        {
+          "date": {
+            "start": {
+              "year": 2027,
+              "month": 1,
+              "day": 23
+            }
+          },
+          "event": "Pinewood Derby Race Day",
+          "url": "https://pack137.trooptrack.com/plan/events/1836505",
+          "tags": [],
+          "note": []
+        }
+      ]
+    },
+    {
+      "name": "Save the date",
+      "style": "quiet",
+      "subtitle": "Details to come.",
+      "rows": [
+        {
+          "date": {
+            "start": {
+              "year": 2027,
+              "month": 2,
+              "day": 6
+            }
+          },
+          "event": "Rock Climbing",
+          "url": "",
+          "tags": [
+            {
+              "text": "TBD",
+              "strength": "quiet"
+            }
+          ],
+          "note": []
+        },
+        {
+          "date": {
+            "start": {
+              "year": 2027,
+              "month": 2,
+              "day": 14
+            }
+          },
+          "event": "Scout Sunday",
+          "url": "",
+          "tags": [],
+          "note": []
+        },
+        {
+          "date": {
+            "start": {
+              "year": 2027,
+              "month": 2,
+              "day": 20
+            }
+          },
+          "event": "Blue and Gold Banquet",
+          "url": "",
+          "tags": [],
+          "note": []
+        },
+        {
+          "date": {
+            "start": {
+              "year": 2027,
+              "month": 2,
+              "day": 27
+            },
+            "end": {
+              "year": 2027,
+              "month": 2,
+              "day": 28
+            }
+          },
+          "event": "Pack Overnight Trip",
+          "url": "",
+          "tags": [],
+          "note": []
+        },
+        {
+          "date": {
+            "start": {
+              "year": 2027,
+              "month": 3,
+              "day": 6
+            }
+          },
+          "event": "Snow Tubing",
+          "url": "",
+          "tags": [],
+          "note": []
+        }
+      ]
+    },
+    {
+      "name": "Ongoing",
+      "style": "plain",
+      "subtitle": "",
+      "rows": [
+        {
+          "event": "Popcorn Storefront Sales",
+          "url": "https://docs.google.com/document/d/1dHSBryPoKxURS8Th3sNuE9FYJ2Vf3oZPdl6BR4VJpsc/edit?usp=sharing",
+          "tags": [],
+          "note": [
+            {
+              "kind": "text",
+              "text": "Contact: Jen and Tess",
+              "marks": []
+            }
+          ]
+        },
+        {
+          "event": "Pinewood Derby 2027 Info",
+          "url": "https://docs.google.com/document/d/1TS2JAxpQ5pARGBFfx-RUxod4QyqvhgfgVal80Ra4B9o/edit?usp=drive_link",
+          "tags": [],
+          "note": [
+            {
+              "kind": "text",
+              "text": "Contact: David Gannon",
+              "marks": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "References",
+      "style": "plain",
+      "subtitle": "",
+      "rows": [
+        {
+          "event": "Pack Policies, Procedures and Guidelines",
+          "url": "https://docs.google.com/document/d/1kTPXbZAW6Cp2lyXpF8tjVb0QpTbgww4IKUzby5Iu7io/edit?tab=t.0",
+          "tags": [],
+          "note": []
+        }
+      ]
+    }
+  ]
+}
