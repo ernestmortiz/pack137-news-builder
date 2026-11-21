@@ -88,6 +88,7 @@ Tokens:
 - grey-page `#EEF1F6`: page background (monthly letter outer wrapper only)
 - ink `#1B1F2E`: body text
 - muted `#5B6275`: read-time line, photo captions, small notes (monthly letter)
+- muted-light `#8A90A6`: monthly letter photo wrappers only (approved 2026-11-21). It is 3.17:1 on white, below the 4.5:1 rule, so it must never color real text.
 - white `#FFFFFF` and lavender `#E3E6F5` are the only text colors on navy besides the golds
 - Font stack: `Inter,Arial,Helvetica,sans-serif`
 - Radius: 12px panels, 8px buttons and pills
@@ -103,9 +104,9 @@ Email-safe HTML rules (TroopTrack and mail clients strip a lot):
 - Table-based layout with `role="presentation"`, `cellpadding="0" cellspacing="0" border="0"`.
 - All styles inline. No `<style>` block, no classes, no ids, no `<script>`, no external CSS.
 - Outer table `width="100%"` with `max-width:600px;margin:0 auto`.
-- Buttons are a table cell with background color holding a padded `<a>`; minimum 44px tall.
+- Buttons are a table cell with background color holding a padded `<a>`; minimum 44px tall. The cell also carries `mso-padding-alt` with the same padding, because Outlook for Windows ignores padding on the link (approved 2026-11-21).
 - Links: navy, bold, underlined, `target="_blank" rel="noopener noreferrer"` (not on `mailto:`).
-- Images: explicit `width`, `height:auto`, `display:block`, `border:0`, and non-empty `alt`.
+- Images: explicit `width`, `height:auto`, `display:block`, `border:0`, and an `alt` attribute. Alt text should describe the image; an image the user leaves without alt text is kept with `alt=""` and the tool warns about it (owner decision, 2026-11-21).
 - Text contrast at least 4.5:1. Only the token pairings above are allowed, which guarantees it.
 - No wrapper `<div>` nesting, no `id="isPasted"`, no `data-*` attributes, no editor classes in output.
 - Every image carries `max-width:100%;height:auto` so a 552px photo cannot overflow a phone screen.
@@ -141,7 +142,7 @@ Primary button (secondary button swaps to background `#E3E6F5` and text `#151B4D
 ```html
 <table role="presentation" cellpadding="0" cellspacing="0" border="0">
   <tr>
-    <td style="background-color:#151B4D;border-radius:8px;">
+    <td style="background-color:#151B4D;border-radius:8px;mso-padding-alt:13px 22px;">
       <a href="{{url}}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:13px 22px;color:#FFFFFF;font-size:16px;font-weight:700;line-height:18px;text-decoration:none;border-radius:8px;">{{text}}</a>
     </td>
   </tr>
@@ -172,6 +173,31 @@ Tags (small pills after an event name):
 ```
 
 Panels: highlight panel is a table cell with `background-color:#FFE9B8;border-radius:12px;padding:14px`. Quiet panel is the same with `#E3E6F5`. Section heading inside a card: `color:#151B4D;font-size:17px;font-weight:700;padding:20px 0 4px 0`.
+
+The patterns below were used in the approved outputs and were added to this section on 2026-11-21. The layout rules for using them are in `docs/decisions/0005-announcement-forms-and-golden-rule.md`.
+
+Panel name. A highlight panel's name is a strong pill with the badge's spacing: `display:inline-block;white-space:nowrap;background-color:#151B4D;color:#F9B93E;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:8px;`. A quiet panel's name is a heading `color:#151B4D;font-size:17px;font-weight:700;`, followed by an optional subtitle `font-size:13px;color:#1B1F2E;padding-top:2px;`.
+
+Spacer, before a panel that follows other content:
+
+```html
+<div style="height:20px;line-height:20px;font-size:1px;">&nbsp;</div>
+```
+
+Help wanted ask title, inside the highlight panel: `color:#151B4D;font-size:18px;font-weight:700;line-height:1.3;padding:10px 0 6px 0;`.
+
+Paragraphs are `<p>` with an explicit margin and nothing else, except ink color inside a panel:
+- Help wanted intro `margin:0 0 14px 0`; ask paragraphs `margin:0 0 10px 0`, the last `margin:0 0 14px 0`; outro `margin:18px 0 12px 0`.
+- Call to action and Message: `margin:0 0 14px 0` between paragraphs, `margin:0 0 16px 0` before a button, `margin:0` for a last paragraph with no button.
+- Link list intro `margin:0 0 6px 0`.
+
+Link list image, above the text:
+
+```html
+<img src="{{src}}" width="80" alt="{{alt}}" style="display:block;width:80px;max-width:100%;height:auto;border:0;margin:0 0 12px 0;">
+```
+
+Link inside a paragraph: `color:#151B4D;font-weight:700;text-decoration:underline;`, with `target="_blank" rel="noopener noreferrer"` except on `mailto:`.
 
 ## 7. Feature 1: Announcement Converter
 

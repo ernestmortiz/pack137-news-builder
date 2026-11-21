@@ -112,7 +112,7 @@ describe('output linter', () => {
         'link is not absolute: &#106;avascript:alert(1)',
       ],
       ['<a>x</a>', 'link without href'],
-      ['<img src="https://x.org/a.png" alt="" style="max-width:100%">', 'image without alt text'],
+      ['<img src="https://x.org/a.png" style="max-width:100%">', 'image without alt text'],
       ['<img src="https://x.org/a.png" alt="a">', 'image without max-width'],
       ['<script>1</script>', 'contains <script>'],
       ['<style>p{}</style>', 'contains <style>'],
@@ -217,5 +217,23 @@ describe('output linter', () => {
         'contains a class attribute',
       ]);
     });
+  });
+});
+
+describe('lintOutput: owner decisions of 2026-11-21', () => {
+  it('accepts an image with an empty alt attribute, kept on purpose', () => {
+    expect(lintOutput('<img src="https://x.org/a.png" alt="" style="max-width:100%">')).toEqual([]);
+  });
+
+  it('accepts the Outlook padding on a button cell', () => {
+    expect(
+      lintOutput(
+        '<table role="presentation"><tr><td style="background-color:#151B4D;border-radius:8px;mso-padding-alt:13px 22px;"><a href="https://x.org" style="display:inline-block;padding:13px 22px;line-height:18px;">Go</a></td></tr></table>',
+      ),
+    ).toEqual([]);
+  });
+
+  it('accepts the muted-light token', () => {
+    expect(lintOutput('<p style="color:#8A90A6;">x</p>')).toEqual([]);
   });
 });

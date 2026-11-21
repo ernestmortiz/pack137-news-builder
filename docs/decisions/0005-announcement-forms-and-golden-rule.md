@@ -27,4 +27,13 @@ These are not written in spec 6.1 but the approved outputs depend on them. The r
 - Paragraph margins: Help wanted intro 14px below; Call to action paragraph 16px below; Link list intro 6px below; Help wanted ask paragraphs 10px below, the last 14px; Help wanted outro 18px above and 12px below.
 - Link list image: 80px wide, above the text.
 
-Message has no approved output. It follows Call to action: each paragraph 14px below, the last 16px below when a button follows, and no margin when it does not. The owner should confirm this in the Phase 2 review.
+Message has no approved output. It follows Call to action: each paragraph 14px below, the last 16px below when a button follows, and no margin when it does not.
+
+## Owner decisions, 2026-11-21 (Phase 2 review)
+
+- Message layout copying Call to action: approved.
+- A 20px spacer before a highlight panel that follows other content, as for a quiet panel: approved.
+- Buttons carry `mso-padding-alt:13px 22px` on their cell so Outlook for Windows keeps them 44px tall. The approved outputs were updated to match.
+- An image with no alt text is kept, with `alt=""`. The tool warns about it.
+- A button with no valid link and a section with no rows are still left out of the output, and the tool warns the user about each one. `formWarnings(form)` in `src/core/form-warnings.ts` lists these warnings for the UI.
+- `#8A90A6` is a token (muted-light), for the monthly photo wrappers only.

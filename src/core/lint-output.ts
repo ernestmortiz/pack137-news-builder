@@ -212,7 +212,7 @@ export function lintOutput(html: string, options: LintOptions = {}): string[] {
     if (/rgba?\(/i.test(style)) problems.push('contains an rgb() color; use token hex values');
 
     if (tag.name === 'img') {
-      if (!(attr(tag, 'alt') ?? '').trim()) problems.push('image without alt text');
+      if (attr(tag, 'alt') === undefined) problems.push('image without alt text');
       if (!/max-width:\s*(100%|\d+px)/i.test(style)) problems.push('image without max-width');
     }
     if (tag.name === 'a') {
