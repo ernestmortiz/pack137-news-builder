@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { budget } from './budget';
 import { extract } from '../../src/core/extract';
 import type { Block, Mark, TextRun } from '../../src/core/model';
 import { normalize } from '../../src/core/normalize';
@@ -170,7 +171,7 @@ describe('extract: robustness', () => {
     const started = performance.now();
     const result = blocks(html);
     expect(result.length).toBeGreaterThan(1000);
-    expect(performance.now() - started).toBeLessThan(5000);
+    expect(performance.now() - started).toBeLessThan(budget(5000));
   });
 
   it('handles a paragraph with 70,000 images without overflowing the stack', () => {
@@ -184,7 +185,7 @@ describe('extract: robustness', () => {
     const started = performance.now();
     const result = blocks(html);
     expect(result.at(-1)).toEqual({ type: 'paragraph', runs: [text('x')] });
-    expect(performance.now() - started).toBeLessThan(30_000);
+    expect(performance.now() - started).toBeLessThan(budget(30_000));
   }, 60_000);
 
   it('never yields an empty text run', () => {

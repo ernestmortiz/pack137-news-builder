@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { budget } from './budget';
 import type { IssueCode } from '../../src/core/model';
 import { sanitize } from '../../src/core/sanitize';
 
@@ -34,7 +35,7 @@ describe('sanitize: time budget for a very large paste', () => {
       elapsed = performance.now() - started;
     }
     const { root, issues } = result;
-    expect(elapsed).toBeLessThan(2000);
+    expect(elapsed).toBeLessThan(budget(2000));
     expect(issues).toEqual([]);
     // Counted by hand: a selector query over this many nodes takes longer than the work itself.
     let links = 0;
@@ -417,7 +418,7 @@ describe('sanitize: hostile and malformed input', () => {
     const started = performance.now();
     const { root, issues } = sanitize(html);
     const elapsed = performance.now() - started;
-    expect(elapsed).toBeLessThan(2000);
+    expect(elapsed).toBeLessThan(budget(2000));
     expect(root.querySelector('script, [onclick], [style], [class], [id]')).toBeNull();
     // Repeats collapse to one issue each.
     expect(issues.map((issue) => issue.code).sort()).toEqual([
@@ -433,7 +434,7 @@ describe('sanitize: hostile and malformed input', () => {
     const html = '<section><article>'.repeat(depth) + 'deep' + '</article></section>'.repeat(depth);
     const started = performance.now();
     const { root } = sanitize(html);
-    expect(performance.now() - started).toBeLessThan(1000);
+    expect(performance.now() - started).toBeLessThan(budget(1000));
     expect(root.childNodes.length).toBe(1);
     expect(root.firstChild?.nodeValue).toBe('deep');
   });
@@ -443,7 +444,7 @@ describe('sanitize: hostile and malformed input', () => {
     const html = `<p>Hi</p><div style="display:none">${deep}</div><form>${deep}</form><p>Bye</p>`;
     const started = performance.now();
     const { root, issues } = sanitize(html);
-    expect(performance.now() - started).toBeLessThan(1000);
+    expect(performance.now() - started).toBeLessThan(budget(1000));
     expect(root.textContent).toBe('HiBye');
     expect(issues.map((issue) => issue.detail)).toEqual(['form']);
   });
@@ -453,7 +454,7 @@ describe('sanitize: hostile and malformed input', () => {
     const html = `<a>${'<div>'.repeat(depth)}words${'</div>'.repeat(depth)}</a><a><img src="https://x.org/a.jpg" alt="A"></a>`;
     const started = performance.now();
     const { root, issues } = sanitize(html);
-    expect(performance.now() - started).toBeLessThan(1000);
+    expect(performance.now() - started).toBeLessThan(budget(1000));
     expect(issues.map((issue) => issue.code)).toEqual(['link-no-destination']);
     // Walk by hand: a tree this deep must not be read with a recursive DOM call.
     const tags = new Set<string>();
@@ -875,7 +876,7 @@ describe('sanitize: deep and wide at once', () => {
     const width = 5000;
     const html = open.repeat(300) + '<i>a</i>'.repeat(width) + close.repeat(300);
     const { root, elapsed } = timed(html, 1500);
-    expect(elapsed).toBeLessThan(1500);
+    expect(elapsed).toBeLessThan(budget(1500));
     const children = Array.from(root.childNodes);
     expect(children.length).toBe(width);
     expect(children.every((child) => child.nodeName === 'I')).toBe(true);
@@ -887,7 +888,7 @@ describe('sanitize: deep and wide at once', () => {
     const html =
       '<section><div>'.repeat(300) + '<i>a</i>'.repeat(width) + '</div></section>'.repeat(300);
     const { root, elapsed } = timed(html, 1500);
-    expect(elapsed).toBeLessThan(1500);
+    expect(elapsed).toBeLessThan(budget(1500));
     // Walk down by hand: 300 nested blocks, each the only child, then the wide run.
     let levels = 0;
     let node: Node = root;
@@ -907,7 +908,7 @@ describe('sanitize: deep and wide at once', () => {
       'a<br><!-- c -->'.repeat(width) +
       '</section>'.repeat(100);
     const { root, elapsed } = timed(html, 1500);
-    expect(elapsed).toBeLessThan(1500);
+    expect(elapsed).toBeLessThan(budget(1500));
     const children = Array.from(root.childNodes);
     expect(children.length).toBe(width * 2);
     expect(children.filter((child) => child.nodeName === 'STRONG').length).toBe(width);
@@ -923,7 +924,7 @@ describe('sanitize: deep and wide at once', () => {
     const width = 30000;
     const html = '<x>'.repeat(depth) + '<b>a</b>'.repeat(width) + '</x>'.repeat(depth);
     const { root, elapsed } = timed(html, 3000);
-    expect(elapsed).toBeLessThan(3000);
+    expect(elapsed).toBeLessThan(budget(3000));
     const children = Array.from(root.childNodes);
     expect(children.length).toBe(width);
     let plain = 0;

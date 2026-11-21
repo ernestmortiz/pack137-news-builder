@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { budget } from './budget';
 import { normalize } from '../../src/core/normalize';
 import { sanitize } from '../../src/core/sanitize';
 
@@ -237,21 +238,21 @@ describe('normalize: deep and very large input', () => {
     const html = '<table><tr><td>'.repeat(depth) + 'deep item' + '</td></tr></table>'.repeat(depth);
     const { root, elapsed } = timed(html);
     expect(root.innerHTML).toBe('<p>deep item</p>');
-    expect(elapsed).toBeLessThan(1000);
+    expect(elapsed).toBeLessThan(budget(1000));
   });
 
   it('unwraps 3000 nested spans in under a second', () => {
     const depth = 3000;
     const { root, elapsed } = timed('<span>'.repeat(depth) + 'deep' + '</span>'.repeat(depth));
     expect(root.innerHTML).toBe('<p>deep</p>');
-    expect(elapsed).toBeLessThan(1000);
+    expect(elapsed).toBeLessThan(budget(1000));
   });
 
   it('flattens 3000 nested bold tags to one strong in under a second', () => {
     const depth = 3000;
     const { root, elapsed } = timed('<b>'.repeat(depth) + 'deep' + '</b>'.repeat(depth));
     expect(root.innerHTML).toBe('<p><strong>deep</strong></p>');
-    expect(elapsed).toBeLessThan(1000);
+    expect(elapsed).toBeLessThan(budget(1000));
   });
 
   it('handles 1 MB of unclosed bold, italic and link tags in under a second', () => {
@@ -263,7 +264,7 @@ describe('normalize: deep and very large input', () => {
     let result = timed(html);
     for (let attempt = 1; attempt < 3 && result.elapsed >= 1000; attempt += 1) result = timed(html);
     const { root, elapsed } = result;
-    expect(elapsed).toBeLessThan(1000);
+    expect(elapsed).toBeLessThan(budget(1000));
     // Every letter survives, in blocks of the usual kind, and the links keep their address.
     expect(root.textContent).toBe('t'.repeat(count));
     for (const el of Array.from(root.children)) expect(el.tagName).toBe('P');
@@ -276,7 +277,7 @@ describe('normalize: deep and very large input', () => {
   it('keeps 3000 nested lists as lists', () => {
     const depth = 3000;
     const { root, elapsed } = timed('<ul><li>'.repeat(depth) + 'deep' + '</li></ul>'.repeat(depth));
-    expect(elapsed).toBeLessThan(1000);
+    expect(elapsed).toBeLessThan(budget(1000));
     // Walk down by hand: a deep tree must not be read with a recursive DOM call.
     let levels = 0;
     let node: Element | null = root.firstElementChild;
@@ -294,7 +295,7 @@ describe('normalize: deep and very large input', () => {
     const depth = 3000;
     const html = '<ul><li><br>'.repeat(depth) + '</li></ul>'.repeat(depth) + '<p>kept</p>';
     const { root, elapsed } = timed(html);
-    expect(elapsed).toBeLessThan(1000);
+    expect(elapsed).toBeLessThan(budget(1000));
     expect(root.innerHTML).toBe('<p>kept</p>');
   });
 
@@ -303,7 +304,7 @@ describe('normalize: deep and very large input', () => {
     const html =
       '<div>'.repeat(depth) + '<p>a</p>'.repeat(2000) + '</div>'.repeat(depth) + '<p>last</p>';
     const { root, elapsed } = timed(html);
-    expect(elapsed).toBeLessThan(2000);
+    expect(elapsed).toBeLessThan(budget(2000));
     expect(root.children.length).toBe(2001);
     expect(root.lastElementChild?.textContent).toBe('last');
   });
@@ -323,7 +324,7 @@ describe('normalize: deep and very large input', () => {
     const width = 50000;
     const html = '<b>'.repeat(500) + '<p>a</p>'.repeat(width);
     const { root, elapsed } = timedWithRetries(html, 2000);
-    expect(elapsed).toBeLessThan(2000);
+    expect(elapsed).toBeLessThan(budget(2000));
     const blocks = Array.from(root.children);
     expect(blocks.length).toBe(width);
     let bold = 0;
@@ -340,7 +341,7 @@ describe('normalize: deep and very large input', () => {
     const width = 5000;
     const html = '<b><i><s>'.repeat(500) + '<p>a</p>'.repeat(width);
     const { root, elapsed } = timedWithRetries(html, 1500);
-    expect(elapsed).toBeLessThan(1500);
+    expect(elapsed).toBeLessThan(budget(1500));
     expect(root.children.length).toBe(width);
     expect(root.firstElementChild?.outerHTML).toBe('<p><strong><em><s>a</s></em></strong></p>');
     expect(root.lastElementChild?.outerHTML).toBe('<p><strong><em><s>a</s></em></strong></p>');
@@ -350,7 +351,7 @@ describe('normalize: deep and very large input', () => {
     const width = 5000;
     const html = '<b>x'.repeat(2000) + '<p>a</p>'.repeat(width);
     const { root, elapsed } = timedWithRetries(html, 1500);
-    expect(elapsed).toBeLessThan(1500);
+    expect(elapsed).toBeLessThan(budget(1500));
     expect(root.children.length).toBe(width + 1);
     expect(root.firstElementChild?.outerHTML).toBe(`<p><strong>${'x'.repeat(2000)}</strong></p>`);
     expect(root.lastElementChild?.outerHTML).toBe('<p><strong>a</strong></p>');
@@ -360,7 +361,7 @@ describe('normalize: deep and very large input', () => {
     const width = 5000;
     const html = '<b>'.repeat(2000) + 'x<br><p>a</p>'.repeat(width);
     const { root, elapsed } = timedWithRetries(html, 1500);
-    expect(elapsed).toBeLessThan(1500);
+    expect(elapsed).toBeLessThan(budget(1500));
     expect(root.children.length).toBe(width * 2);
     expect(root.firstElementChild?.outerHTML).toBe('<p><strong>x</strong></p>');
     expect(root.lastElementChild?.outerHTML).toBe('<p><strong>a</strong></p>');
@@ -371,7 +372,7 @@ describe('normalize: deep and very large input', () => {
     const width = 5000;
     const html = '<div>lead'.repeat(depth) + '<p>a</p>'.repeat(width);
     const { root, elapsed } = timedWithRetries(html, 1500);
-    expect(elapsed).toBeLessThan(1500);
+    expect(elapsed).toBeLessThan(budget(1500));
     expect(root.children.length).toBe(width + depth);
     expect(root.firstElementChild?.outerHTML).toBe('<p>lead</p>');
     expect(root.lastElementChild?.outerHTML).toBe('<p>a</p>');
