@@ -437,3 +437,35 @@ describe('normalize: inline elements and blocks nested inside each other', () =>
     expect(clean(html)).toBe(expected);
   });
 });
+
+describe('normalize: links nested around blocks', () => {
+  /** happy-dom's parser never nests links, so build `<a><a>...<p>` chains by hand, as a spec parser can through table cells. */
+  function nestedLinks(depth: number, blocks: number): HTMLElement {
+    const root = sanitize('').root;
+    const doc = root.ownerDocument;
+    let parent: HTMLElement = root;
+    for (let i = 0; i < depth; i += 1) {
+      const a = doc.createElement('a');
+      a.setAttribute('href', `https://x.org/${i}`);
+      parent.appendChild(a);
+      parent = a;
+    }
+    for (let i = 0; i < blocks; i += 1) {
+      const p = doc.createElement('p');
+      p.textContent = 'a';
+      parent.appendChild(p);
+    }
+    return root;
+  }
+
+  it('wraps each block once, in the outermost link', () => {
+    expect(normalize(nestedLinks(3, 2)).innerHTML).toBe(
+      '<p><a href="https://x.org/0">a</a></p><p><a href="https://x.org/0">a</a></p>',
+    );
+  });
+
+  it('keeps depth x width link nesting linear', () => {
+    const html = normalize(nestedLinks(300, 300)).innerHTML;
+    expect(html.match(/<a /g)).toHaveLength(300);
+  });
+});

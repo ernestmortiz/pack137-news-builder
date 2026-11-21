@@ -395,8 +395,8 @@ function pushInlineIntoBlocks(top: Item, waiting: Waiting): void {
   const enter = (el: Item): void => {
     const tag = el.tag;
     const uses = marksInUse.get(tag) ?? 0;
-    const real = tag === 'a' || uses === 0;
-    if (tag !== 'a') marksInUse.set(tag, uses + 1);
+    const real = uses === 0;
+    marksInUse.set(tag, uses + 1);
     if (real) chain.push(el);
     const index = levels.length;
     const above = levels[index - 1];
@@ -476,7 +476,7 @@ function pushInlineIntoBlocks(top: Item, waiting: Waiting): void {
       const run = open[open.length - 1] === index ? end(index) : null;
       levels.pop();
       const tag = level.el.tag;
-      if (tag !== 'a') marksInUse.set(tag, (marksInUse.get(tag) ?? 1) - 1);
+      marksInUse.set(tag, (marksInUse.get(tag) ?? 1) - 1);
       if (level.real) chain.pop();
       if (run && index > 0) join(index - 1, run);
       continue;
