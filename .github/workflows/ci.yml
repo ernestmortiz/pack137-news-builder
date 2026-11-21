@@ -16,7 +16,11 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      # The build step above is the gate. The upload is a convenience and shares the
+      # account-wide artifact quota, so a full quota must not fail the check.
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: web-build
           path: dist
+          retention-days: 5
