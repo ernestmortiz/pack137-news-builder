@@ -1,0 +1,72 @@
+:root {
+  font-family: var(--font);
+  color: var(--ink);
+  background: var(--grey-page);
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+.shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px;
+}
+.masthead {
+  background: var(--navy-masthead);
+  color: var(--white);
+  border-radius: 12px;
+  padding: 16px;
+}
+.masthead small {
+  color: var(--gold-light);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.masthead h1 {
+  margin: 4px 0 0;
+  font-size: 22px;
+}
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0;
+  flex-wrap: wrap;
+}
+.tab {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 700;
+  background: var(--lavender);
+  color: var(--navy);
+  cursor: pointer;
+}
+.tab[aria-selected='true'] {
+  background: var(--navy);
+  color: var(--white);
+}
+.tab:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+.panel {
+  background: var(--white);
+  border: 1px solid var(--lavender);
+  border-radius: 12px;
+  padding: 16px;
+}
+.panel h2 {
+  margin: 0 0 8px;
+  color: var(--navy);
+  font-size: 20px;
+}
+footer {
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--muted);
+}
