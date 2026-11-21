@@ -6,6 +6,7 @@
 - The output linter now checks only real markup, so ordinary text such as "id=5" no longer fails it. It also flags buttons under 44px and divs nested inside divs.
 - When links are nested around the same text, only the outermost link is kept.
 - Previews will not load remote images (owner decision).
+- Buttons keep their 44px height in Outlook for Windows. Images with no alt text are kept, and the tool lists warnings for buttons with no valid link, empty sections, links that cannot be used and images with no alt text.
 - Parse pipeline (Phase 1 core): reads pasted TroopTrack HTML safely, cleans it, turns it into structured content, and suggests one of the five layouts.
 - Date helper for dates such as "Dec 6" and "Feb 27-28". The year rule is in [ADR 0003](docs/decisions/0003-date-year-rule.md).
 - Original TroopTrack HTML for the five weekly announcements added as test fixtures.
