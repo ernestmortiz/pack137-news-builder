@@ -8,6 +8,7 @@ import {
   isWithin,
   itemsAt,
   itemsFor,
+  mailtoDetails,
   mailtoSummary,
   remapAfterRemove,
   remapAfterSwap,
@@ -89,6 +90,53 @@ describe('mailtoSummary', () => {
   it('is null for other links', () => {
     expect(mailtoSummary('https://example.org')).toBeNull();
     expect(mailtoSummary('')).toBeNull();
+  });
+});
+
+describe('mailtoDetails', () => {
+  const texts = (url: string) => mailtoDetails(url)?.map((l) => l.text);
+  const alerts = (url: string) =>
+    mailtoDetails(url)
+      ?.filter((l) => l.alert)
+      .map((l) => l.text);
+
+  it('is null for other links', () => {
+    expect(mailtoDetails('https://example.org')).toBeNull();
+  });
+  it('handles a plain address with no query', () => {
+    expect(texts('mailto:pack@example.org')).toEqual([
+      'Email link, full value: mailto:pack@example.org',
+      'Sends to: pack@example.org',
+    ]);
+    expect(alerts('mailto:pack@example.org')).toEqual([]);
+  });
+  it('shows a percent-encoded bcc name', () => {
+    const url = 'mailto:pack@example.org?%62cc=someone@evil.example';
+    expect(texts(url)).toContain(`Email link, full value: ${url}`);
+    expect(texts(url)).toContain('Hidden copy (bcc): someone@evil.example');
+    expect(alerts(url)).toEqual(['Hidden copy (bcc): someone@evil.example']);
+  });
+  it('reads header names in any case', () => {
+    expect(alerts('mailto:a@b.org?BCC=x@y.org&Cc=z@y.org')).toEqual([
+      'Copy (cc): z@y.org',
+      'Hidden copy (bcc): x@y.org',
+    ]);
+  });
+  it('adds to= headers and comma lists to the recipients', () => {
+    expect(texts('mailto:a@b.org,c@d.org?to=e@f.org')).toContain(
+      'Sends to: a@b.org, c@d.org, e@f.org',
+    );
+  });
+  it('decodes the subject and body', () => {
+    const t = texts('mailto:a@b.org?subject=Hello%20there&body=Hi%0Afriend');
+    expect(t).toContain('Subject: Hello there');
+    expect(t).toContain('Body: Hi\nfriend');
+  });
+  it('survives a malformed escape and says so', () => {
+    const url = 'mailto:a@b.org?subject=%E0%A4&bcc=x@y.org';
+    expect(texts(url)).toContain('Subject: %E0%A4');
+    expect(texts(url)).toContain('Hidden copy (bcc): x@y.org');
+    expect(alerts(url)?.some((t) => t.includes('could not be decoded'))).toBe(true);
   });
 });
 

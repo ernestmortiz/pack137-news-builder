@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { copyText, type ClipboardEnv } from '../../src/ui/clipboard';
+import { copyText, selectionCoversAll, type ClipboardEnv } from '../../src/ui/clipboard';
 
 function area(): HTMLTextAreaElement {
   const a = document.createElement('textarea');
@@ -7,6 +7,44 @@ function area(): HTMLTextAreaElement {
   document.body.append(a);
   return a;
 }
+
+describe('selectionCoversAll', () => {
+  it('needs the whole text selected in a visible textarea', () => {
+    expect(selectionCoversAll(0, 5, 5, true)).toBe(true);
+    expect(selectionCoversAll(0, 0, 5, true)).toBe(false);
+    expect(selectionCoversAll(1, 5, 5, true)).toBe(false);
+    expect(selectionCoversAll(0, 5, 5, false)).toBe(false);
+    expect(selectionCoversAll(null, null, 5, true)).toBe(false);
+    expect(selectionCoversAll(0, 0, 0, true)).toBe(false);
+  });
+});
+
+describe('copyText fallback guards', () => {
+  it('asks for a manual copy when the textarea is hidden, without running the copy command', async () => {
+    const execCopy = vi.fn().mockReturnValue(true);
+    const outcome = await copyText('abc', area(), {
+      clipboard: undefined,
+      execCopy,
+      isShown: () => false,
+    });
+    expect(outcome).toBe('manual');
+    expect(execCopy).not.toHaveBeenCalled();
+  });
+
+  it('shows the textarea before selecting it', async () => {
+    const order: string[] = [];
+    await copyText('abc', area(), {
+      clipboard: undefined,
+      execCopy: () => true,
+      beforeSelect: () => order.push('shown'),
+      isShown: () => {
+        order.push('checked');
+        return true;
+      },
+    });
+    expect(order).toEqual(['shown', 'checked']);
+  });
+});
 
 describe('copyText', () => {
   it('uses the async clipboard when it works', async () => {

@@ -20,7 +20,7 @@ import { lintOutput } from '../core/lint-output';
 import type { Issue, Layout } from '../core/model';
 import { parse, type ParseResult } from '../core/pipeline';
 import { renderAnnouncement } from '../core/render';
-import { copyText } from './clipboard';
+import { browserClipboardEnv, copyText } from './clipboard';
 import { clear, debounce, el } from './dom';
 import { buildForm, type FormView } from './form-view';
 import type { FormContext, TypingEdit } from './form-kit';
@@ -527,7 +527,14 @@ export function mountConverter(root: HTMLElement): void {
     clearTimeout(copiedTimer);
     copiedNote.textContent = '';
     copyNote.textContent = '';
-    void copyText(html, codeArea).then((outcome) => {
+    const env = {
+      ...browserClipboardEnv(),
+      beforeSelect: () => {
+        // A closed <details> hides the textarea, and a hidden textarea cannot be selected.
+        codeDetails.open = true;
+      },
+    };
+    void copyText(html, codeArea, env).then((outcome) => {
       if (outcome === 'copied') {
         copiedNote.textContent = 'Copied';
         copiedTimer = setTimeout(() => (copiedNote.textContent = ''), 6000);

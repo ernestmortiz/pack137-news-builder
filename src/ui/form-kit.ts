@@ -8,7 +8,7 @@ import type { FormWarning } from '../core/form-warnings';
 import type { ButtonField, RichText } from '../core/forms';
 import { richToText, textToRich } from '../core/rich-text';
 import { clear, el, uid } from './dom';
-import { itemsFor, mailtoSummary, samePath, warningPath } from './paths';
+import { itemsFor, mailtoDetails, type MailLine, samePath, warningPath } from './paths';
 
 export interface FormContext {
   checks(): CheckMe[];
@@ -57,6 +57,26 @@ interface RepeaterOptions<T> {
 /** "Label (the small tag at the top)" becomes "Label". */
 function shortLabel(label: string): string {
   return label.replace(/\s*\(.*\)\s*$/, '');
+}
+
+/** Shows each email link's full value and its plain breakdown. A cc or bcc stands out. */
+function fillMail(box: HTMLElement, groups: MailLine[][]): void {
+  clear(box);
+  for (const lines of groups) {
+    for (const line of lines) {
+      if (line.alert) {
+        box.append(
+          el('p', { className: 'note check' }, [
+            el('strong', { textContent: 'Check me: ' }),
+            line.text,
+          ]),
+        );
+      } else {
+        box.append(el('p', { className: 'note mailto', textContent: line.text }));
+      }
+    }
+  }
+  box.hidden = box.childElementCount === 0;
 }
 
 function sentenceCase(text: string): string {
@@ -252,10 +272,9 @@ export function createKit(ctx: FormContext) {
       input.autocapitalize = 'none';
       input.spellcheck = false;
       input.autocomplete = 'off';
-      const mail = el('p', { className: 'note mailto' });
+      const mail = el('div', { className: 'mailto' });
       const showMail = (): void => {
-        mail.textContent = mailtoSummary(input.value) ?? '';
-        mail.hidden = mail.textContent === '';
+        fillMail(mail, [mailtoDetails(input.value) ?? []]);
       };
       showMail();
       extras.push(mail);
@@ -277,18 +296,16 @@ export function createKit(ctx: FormContext) {
   ): HTMLElement {
     const area = el('textarea', { id: uid('f'), className: 'control rich', rows });
     area.value = richToText(get());
-    const mail = el('p', { className: 'note mailto' });
+    const mail = el('div', { className: 'mailto' });
     const showMail = (runs: RichText): void => {
-      const seen = new Set<string>();
+      const seen = new Map<string, MailLine[]>();
       for (const run of runs) {
         if (run.kind === 'text' && run.href !== undefined) {
-          const line = mailtoSummary(run.href);
-          if (line !== null) seen.add(line);
+          const lines = mailtoDetails(run.href);
+          if (lines !== null) seen.set(run.href, lines);
         }
       }
-      clear(mail);
-      for (const line of seen) mail.append(el('span', { className: 'block', textContent: line }));
-      mail.hidden = seen.size === 0;
+      fillMail(mail, [...seen.values()]);
     };
     showMail(get());
     trackTyping(area, path, label, (value) => {

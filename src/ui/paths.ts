@@ -84,6 +84,85 @@ export function mailtoSummary(url: string): string | null {
   return `Email link, full value: ${value}`;
 }
 
+export interface MailLine {
+  text: string;
+  /** True for a cc or bcc, which should stand out. */
+  alert: boolean;
+}
+
+function decodePart(raw: string): { text: string; ok: boolean } {
+  try {
+    return { text: decodeURIComponent(raw), ok: true };
+  } catch {
+    return { text: raw, ok: false };
+  }
+}
+
+function addresses(text: string): string[] {
+  return text
+    .split(',')
+    .map((a) => a.trim())
+    .filter((a) => a !== '');
+}
+
+/**
+ * An email link in plain words. The first line is the full raw value. The lines after it are what
+ * a mail program will really use: it percent-decodes header names and values (RFC 6068), so
+ * `%62cc=` is a hidden bcc. Only the parts that are present are listed. Null for other links.
+ */
+export function mailtoDetails(url: string): MailLine[] | null {
+  const raw = mailtoSummary(url);
+  if (raw === null) return null;
+  const rest = url.trim().slice('mailto:'.length);
+  const q = rest.indexOf('?');
+  const head = q === -1 ? rest : rest.slice(0, q);
+  const query = q === -1 ? '' : rest.slice(q + 1);
+  let undecoded = false;
+  const take = (value: string): string => {
+    const d = decodePart(value);
+    if (!d.ok) undecoded = true;
+    return d.text;
+  };
+  const headers: Record<'to' | 'cc' | 'bcc' | 'subject' | 'body', string[]> = {
+    to: addresses(take(head)),
+    cc: [],
+    bcc: [],
+    subject: [],
+    body: [],
+  };
+  for (const pair of query.split('&')) {
+    if (pair === '') continue;
+    const eq = pair.indexOf('=');
+    const name = take(eq === -1 ? pair : pair.slice(0, eq))
+      .trim()
+      .toLowerCase();
+    const value = take(eq === -1 ? '' : pair.slice(eq + 1));
+    if (name === 'to' || name === 'cc' || name === 'bcc') headers[name].push(...addresses(value));
+    else if (name === 'subject' || name === 'body') headers[name].push(value);
+  }
+  const lines: MailLine[] = [{ text: raw, alert: false }];
+  if (headers.to.length > 0)
+    lines.push({ text: `Sends to: ${headers.to.join(', ')}`, alert: false });
+  if (headers.cc.length > 0) {
+    lines.push({ text: `Copy (cc): ${headers.cc.join(', ')}`, alert: true });
+  }
+  if (headers.bcc.length > 0) {
+    lines.push({ text: `Hidden copy (bcc): ${headers.bcc.join(', ')}`, alert: true });
+  }
+  if (headers.subject.length > 0) {
+    lines.push({ text: `Subject: ${headers.subject.join(' ')}`, alert: false });
+  }
+  if (headers.body.length > 0)
+    lines.push({ text: `Body: ${headers.body.join(' ')}`, alert: false });
+  if (undecoded) {
+    lines.push({
+      text: 'Part of this link could not be decoded, so it is shown as written. Check it carefully.',
+      alert: true,
+    });
+  }
+  return lines;
+}
+
 /* ---------- dates ---------- */
 
 /** "Sat Nov 21, 2026", so an assumed year is visible beside the field. */

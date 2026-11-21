@@ -14,11 +14,26 @@ export interface ClipboardEnv {
   clipboard?: { writeText(text: string): Promise<void> } | undefined;
   /** Runs the old copy command on the current selection. */
   execCopy(): boolean;
+  /** Called just before the textarea is selected, so it can be made visible first. */
+  beforeSelect?: (() => void) | undefined;
+  /** Whether the textarea is on screen. A hidden textarea cannot hold a selection. */
+  isShown?: ((area: HTMLTextAreaElement) => boolean) | undefined;
+}
+
+/** True only when the selection covers the whole text and the textarea can show it. */
+export function selectionCoversAll(
+  start: number | null,
+  end: number | null,
+  length: number,
+  shown: boolean,
+): boolean {
+  return shown && start === 0 && end === length && length > 0;
 }
 
 export function browserClipboardEnv(): ClipboardEnv {
   return {
     clipboard: typeof navigator === 'undefined' ? undefined : navigator.clipboard,
+    isShown: (area) => area.getClientRects().length > 0,
     execCopy: () => {
       try {
         return document.execCommand('copy');
@@ -53,7 +68,16 @@ export async function copyText(
       // Refused or unavailable: fall through to the textarea.
     }
   }
+  env.beforeSelect?.();
   fallbackArea.value = text;
   selectAll(fallbackArea);
-  return env.execCopy() ? 'copied' : 'manual';
+  const shown = env.isShown ? env.isShown(fallbackArea) : true;
+  const covers = selectionCoversAll(
+    fallbackArea.selectionStart,
+    fallbackArea.selectionEnd,
+    text.length,
+    shown,
+  );
+  // Only trust the copy command when the whole output is really selected.
+  return covers && env.execCopy() ? 'copied' : 'manual';
 }
