@@ -8,6 +8,7 @@
 - Undo and Redo for every change, one typed character at a time, with Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y.
 - Email links show who they send to, including hidden copies, in plain words.
 - Randomized scenario tests and browser tests run in CI.
+- A pasted weekday that does not match its date is flagged. Words in pasted copy are never dropped; only odd characters (invisible characters, decorative bullets) are removed, and each removal is shown.
 - Renderer (Phase 2): turns a filled-in form for any of the five layouts into email-safe HTML. All five approved weekly announcements render to their approved output. The forms and the comparison rule are in [ADR 0005](docs/decisions/0005-announcement-forms-and-golden-rule.md).
 - The output linter now checks only real markup, so ordinary text such as "id=5" no longer fails it. It also flags buttons under 44px and divs nested inside divs.
 - When links are nested around the same text, only the outermost link is kept.
