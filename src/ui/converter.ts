@@ -9,6 +9,7 @@ import { todayFrom } from '../core/dates';
 import {
   applySuggestion,
   fillForm,
+  suggestionsFor,
   switchLayout,
   type CheckMe,
   type FieldPath,
@@ -49,7 +50,6 @@ const PREVIEW_NAMES: Record<number, string> = {
 interface Session {
   form: AnnouncementForm;
   checks: CheckMe[];
-  suggestions: Suggestion[];
 }
 
 /** Everything the screen is drawn from. A step that is not typing keeps two of these. */
@@ -101,6 +101,9 @@ export function mountConverter(root: HTMLElement): void {
     history.recordSnapshot(before, capture(), label);
     updateHistoryBar();
   }
+
+  /** The one-tap fixes for the form as it is now. Worked out again after every change. */
+  let shownSuggestions: Suggestion[] = [];
 
   const current = (): Session | undefined => (layout ? sessions.get(layout) : undefined);
 
@@ -272,7 +275,9 @@ export function mountConverter(root: HTMLElement): void {
       return;
     }
     warnings = formWarnings(session.form);
+    shownSuggestions = suggestionsFor(session.form);
     view?.refreshWarnings();
+    view?.refreshSuggestions();
     showWarnings(
       warnings.map((w) => w.message),
       lintOutput(html),
@@ -287,7 +292,7 @@ export function mountConverter(root: HTMLElement): void {
   /* ---------- form ---------- */
   const ctx: FormContext = {
     checks: () => current()?.checks ?? [],
-    suggestions: () => current()?.suggestions ?? [],
+    suggestions: () => shownSuggestions,
     warnings: () => warnings,
     typed(edit: TypingEdit) {
       if (!layout) return;
@@ -306,20 +311,17 @@ export function mountConverter(root: HTMLElement): void {
       const s = current();
       if (!s) return;
       s.checks = remapAfterSwap(s.checks, arrayPath, a, b);
-      s.suggestions = remapAfterSwap(s.suggestions, arrayPath, a, b);
     },
     removed(arrayPath: FieldPath, index: number) {
       const s = current();
       if (!s) return;
       s.checks = remapAfterRemove(s.checks, arrayPath, index);
-      s.suggestions = remapAfterRemove(s.suggestions, arrayPath, index);
     },
     apply(suggestion: Suggestion) {
       const s = current();
       if (!s) return;
       begin();
       s.form = applySuggestion(s.form, suggestion);
-      s.suggestions = s.suggestions.filter((x) => x !== suggestion);
       drawForm();
       refreshOutput();
       status.textContent = 'Fix applied.';
@@ -334,6 +336,7 @@ export function mountConverter(root: HTMLElement): void {
     view = null;
     if (!session) return;
     warnings = formWarnings(session.form);
+    shownSuggestions = suggestionsFor(session.form);
     view = buildForm(session.form, ctx);
     formHost.append(view.element);
   }
@@ -382,7 +385,7 @@ export function mountConverter(root: HTMLElement): void {
     if (!sessions.has(next)) {
       // Cloned so that editing one layout can never change another layout's saved form.
       const form = structuredClone(switchLayout(session.form, next));
-      sessions.set(next, { form, checks: [], suggestions: [] });
+      sessions.set(next, { form, checks: [] });
     }
     layout = next;
     drawLayoutPicker();
@@ -482,7 +485,7 @@ export function mountConverter(root: HTMLElement): void {
       parsed = result;
       layout = result.suggestion.layout;
       sessions.clear();
-      sessions.set(layout, { form: fill.form, checks: fill.checks, suggestions: fill.suggestions });
+      sessions.set(layout, { form: fill.form, checks: fill.checks });
     } catch {
       resetResults();
       status.textContent =

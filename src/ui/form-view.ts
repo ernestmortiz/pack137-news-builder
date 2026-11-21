@@ -19,6 +19,8 @@ export interface FormView {
   element: HTMLElement;
   /** Redraw the warning text beside fields after a change. */
   refreshWarnings(): void;
+  /** Redraw the suggestion buttons from the form as it is now. Fields are not touched. */
+  refreshSuggestions(): void;
   /** Put text in a field on screen without redrawing. False if the field is not there. */
   setField(path: (string | number)[], value: string, selection: [number, number]): boolean;
   /** The control for a field on screen, if any. */
@@ -482,11 +484,11 @@ export function buildForm(form: AnnouncementForm, ctx: FormContext): FormView {
   const element = el('div', { className: 'form' });
   const fields = layoutFields(kit, form, ctx);
   element.append(...fields);
-  const left = kit.leftovers();
-  if (left) element.prepend(left);
+  element.prepend(kit.leftovers());
   return {
     element,
     refreshWarnings: kit.refreshWarnings,
+    refreshSuggestions: kit.refreshSuggestions,
     setField: kit.setField,
     fieldControl: kit.fieldControl,
   };

@@ -85,6 +85,11 @@ function sentenceCase(text: string): string {
 
 export function createKit(ctx: FormContext) {
   const claimed = new Set<object>();
+  /** Where suggestion buttons go. Refilled from the current form without redrawing any field. */
+  const suggestSlots: { path: FieldPath; node: HTMLElement; key: string }[] = [];
+  const leftover = { node: el('div', { className: 'suggest-leftovers' }), key: '' };
+  let leftoverBox: HTMLElement | null = null;
+  let leftoverChecks = 0;
   const warnTargets: { path: FieldPath; node: HTMLElement }[] = [];
   /** Text fields on screen, so undo can change one without redrawing the form. */
   const fields = new Map<
@@ -193,40 +198,58 @@ export function createKit(ctx: FormContext) {
         ]),
       );
     }
-    for (const suggestion of itemsFor(ctx.suggestions(), path)) {
-      claimed.add(suggestion);
+    const slot = el('div', { className: 'suggest-slot' });
+    suggestSlots.push({ path, node: slot, key: '' });
+    box.append(slot);
+    box.append(warnHere(path));
+    return box;
+  }
+
+  function fillSlot(slot: { node: HTMLElement; key: string }, items: Suggestion[]): void {
+    const key = items.map((s) => `${s.message}\u0000${s.from}\u0000${s.to}`).join('\u0001');
+    if (key === slot.key) return;
+    slot.key = key;
+    clear(slot.node);
+    for (const suggestion of items) {
       const button = el('button', {
         type: 'button',
         className: 'btn suggest',
         textContent: suggestion.message,
       });
       button.addEventListener('click', () => ctx.apply(suggestion));
-      box.append(el('div', { className: 'suggestion' }, [button]));
+      slot.node.append(el('div', { className: 'suggestion' }, [button]));
     }
-    box.append(warnHere(path));
-    return box;
+  }
+
+  /** Puts the suggestions for the form as it is now beside their fields. Fields are not touched. */
+  function refreshSuggestions(): void {
+    const list = ctx.suggestions();
+    const placed = new Set<Suggestion>();
+    for (const slot of suggestSlots) {
+      const items = itemsFor(list, slot.path);
+      for (const item of items) placed.add(item);
+      fillSlot(slot, items);
+    }
+    fillSlot(
+      leftover,
+      list.filter((s) => !placed.has(s)),
+    );
+    if (leftoverBox) leftoverBox.hidden = leftoverChecks === 0 && leftover.key === '';
   }
 
   /** Markers and suggestions nobody claimed, for the top of the form. */
-  function leftovers(): HTMLElement | null {
+  function leftovers(): HTMLElement {
     const checks = ctx.checks().filter((c) => !claimed.has(c));
-    const suggestions = ctx.suggestions().filter((s) => !claimed.has(s));
-    if (checks.length === 0 && suggestions.length === 0) return null;
     const box = el('div', { className: 'leftovers' }, [
       el('p', { className: 'note', textContent: 'Also worth a look:' }),
     ]);
     for (const check of checks) {
       box.append(el('p', { className: 'note check', textContent: check.message }));
     }
-    for (const suggestion of suggestions) {
-      const button = el('button', {
-        type: 'button',
-        className: 'btn suggest',
-        textContent: suggestion.message,
-      });
-      button.addEventListener('click', () => ctx.apply(suggestion));
-      box.append(el('div', { className: 'suggestion' }, [button]));
-    }
+    leftoverChecks = checks.length;
+    box.append(leftover.node);
+    leftoverBox = box;
+    refreshSuggestions();
     return box;
   }
 
@@ -404,6 +427,10 @@ export function createKit(ctx: FormContext) {
         const target = warnTargets[k];
         if (target !== undefined && root.contains(target.node)) warnTargets.splice(k, 1);
       }
+      for (let k = suggestSlots.length - 1; k >= 0; k--) {
+        const slot = suggestSlots[k];
+        if (slot !== undefined && root.contains(slot.node)) suggestSlots.splice(k, 1);
+      }
       clear(root);
       const list = el('ol', { className: 'repeat-list' });
       o.items.forEach((item, i) => {
@@ -498,6 +525,7 @@ export function createKit(ctx: FormContext) {
         root.append(list);
       }
       root.append(add);
+      refreshSuggestions();
       after?.()?.focus();
     }
 
@@ -518,6 +546,7 @@ export function createKit(ctx: FormContext) {
     markerList,
     leftovers,
     refreshWarnings,
+    refreshSuggestions,
     setField,
     fieldControl,
   };
