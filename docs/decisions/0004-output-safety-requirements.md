@@ -23,6 +23,8 @@ Reason: the Phase 1 security review found no way for a paste to run script or re
 5. Wrap `parse()` in try/catch and cap the paste size. A Web Worker is not an option: `DOMParser` does not exist in workers.
 6. Previews do not load remote images. Decided by the owner on 2026-11-21. The preview shows a placeholder the size of each image, and the preview frame's Content Security Policy blocks remote image requests as a second guard.
 
+7. When `lintOutput` reports a problem with the new HTML, "Copy new HTML" stays available. The problem is shown clearly above the copy button in plain words; copying is never blocked. Decided by the owner on 2026-11-21.
+
 ## To verify in a real browser before release (Phase 6)
 
 With the network panel open, paste `<img src="https://example.org/a.png"><link rel=stylesheet href="https://example.org/x.css"><iframe src="https://example.org/"></iframe>` and confirm the parse makes no requests. The review reasoned this from the HTML spec; it has not been observed on a device.
