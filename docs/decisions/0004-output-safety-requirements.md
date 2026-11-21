@@ -21,7 +21,7 @@ Reason: the Phase 1 security review found no way for a paste to run script or re
 3. Show `Issue.detail` as text, never as a link. Shorten long details (an `insecure-url` detail can be 1 MB) and cap how many issues are listed.
 4. Show the full `mailto:` value, parameters included, so a hidden `cc` or `bcc` is visible.
 5. Wrap `parse()` in try/catch and cap the paste size. A Web Worker is not an option: `DOMParser` does not exist in workers.
-6. Previews load remote images, so a pasted tracking image can see the user's address. Decide with the owner whether to load preview images only on request.
+6. Previews do not load remote images. Decided by the owner on 2026-11-21. The preview shows a placeholder the size of each image, and the preview frame's Content Security Policy blocks remote image requests as a second guard.
 
 ## To verify in a real browser before release (Phase 6)
 

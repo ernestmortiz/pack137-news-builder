@@ -390,7 +390,7 @@ CLAUDE.md
 - Pasted HTML is untrusted. It is parsed inert and only the content model reaches the page.
 - Preview `iframe` uses `sandbox` with no script permission.
 - Strict Content Security Policy on the web build and in the wrappers. No remote code, no remote fonts.
-- No network requests at runtime apart from loading images inside the preview. No analytics. Nothing leaves the device.
+- No network requests at runtime. The preview does not load remote images (owner decision, 2026-11-21); it shows a placeholder of the same size. No analytics. Nothing leaves the device.
 - Tauri: enable only the capabilities used (clipboard, file dialog for drafts). Nothing else.
 
 ### 11.6 Definition of done (every phase)
