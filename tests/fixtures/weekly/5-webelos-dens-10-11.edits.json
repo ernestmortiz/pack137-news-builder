@@ -1,0 +1,109 @@
+{
+  "layout": "date-list",
+  "today": "2026-11-21",
+  "edits": [
+    {
+      "path": [
+        "label"
+      ],
+      "value": "Webelos Dens 10 and 11",
+      "why": "human copy edit: owner typed the label (SOURCES 5)"
+    },
+    {
+      "path": [
+        "title"
+      ],
+      "value": "Upcoming den events",
+      "why": "human copy edit: owner shortened the title (SOURCES 5)"
+    },
+    {
+      "path": [
+        "sections",
+        0,
+        "style"
+      ],
+      "value": "highlight",
+      "why": "tool gap: a rescheduled row should sit in its own highlight panel with its old date struck (SOURCES 5); the tool leaves it in the plain list"
+    },
+    {
+      "path": [
+        "sections",
+        1
+      ],
+      "value": {
+        "name": "",
+        "style": "plain",
+        "subtitle": "",
+        "rows": [
+          {
+            "date": {
+              "start": {
+                "year": 2026,
+                "month": 12,
+                "day": 1
+              }
+            },
+            "event": "Webelos Parent Planning Meeting",
+            "url": "https://pack137.trooptrack.com/plan/events/1840186",
+            "tags": [
+              {
+                "text": "Virtual",
+                "strength": "quiet"
+              }
+            ],
+            "note": []
+          },
+          {
+            "date": {
+              "start": {
+                "year": 2026,
+                "month": 12,
+                "day": 8
+              }
+            },
+            "event": "Webelos Meeting",
+            "url": "https://pack137.trooptrack.com/plan/events/1832575",
+            "tags": [],
+            "note": []
+          }
+        ]
+      },
+      "why": "tool gap: the two upcoming meetings should move to their own plain panel below the rescheduled one (SOURCES 5)"
+    },
+    {
+      "path": [
+        "sections",
+        0,
+        "rows"
+      ],
+      "value": [
+        {
+          "date": {
+            "start": {
+              "year": 2026,
+              "month": 11,
+              "day": 24
+            },
+            "struck": true
+          },
+          "event": "Webelos Meeting",
+          "url": "https://pack137.trooptrack.com/plan/events/1832517",
+          "tags": [
+            {
+              "text": "Rescheduled",
+              "strength": "strong"
+            }
+          ],
+          "note": [
+            {
+              "kind": "text",
+              "text": "Please open the event for the new details and sign up on SignUpGenius.",
+              "marks": []
+            }
+          ]
+        }
+      ],
+      "why": "tool gap: keep only the rescheduled row in the first panel (SOURCES 5); the new note wording is a human copy edit and is part of this row"
+    }
+  ]
+}

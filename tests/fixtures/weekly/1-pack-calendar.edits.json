@@ -1,0 +1,144 @@
+{
+  "layout": "date-list",
+  "today": "2026-11-21",
+  "edits": [
+    {
+      "path": [
+        "label"
+      ],
+      "value": "Pack calendar",
+      "why": "human copy edit: owner typed the label (SOURCES 1)"
+    },
+    {
+      "path": [
+        "title"
+      ],
+      "value": "What's coming up",
+      "why": "human copy edit: owner typed the title (SOURCES 1)"
+    },
+    {
+      "path": [
+        "sections",
+        0,
+        "name"
+      ],
+      "value": "Take action now",
+      "why": "tool gap: section name should be sentence case (spec 6, sentence case for headings); no suggestion is offered"
+    },
+    {
+      "path": [
+        "sections",
+        0,
+        "style"
+      ],
+      "value": "highlight",
+      "why": "human copy edit: owner put the urgent items in a highlight panel with a Please RSVP pill (SOURCES 1)"
+    },
+    {
+      "path": [
+        "sections",
+        0,
+        "rows",
+        2,
+        "note"
+      ],
+      "value": [
+        {
+          "kind": "text",
+          "text": "Last chance",
+          "marks": [
+            "strong"
+          ]
+        },
+        {
+          "kind": "text",
+          "text": " to bring donations for Toys for Tots.",
+          "marks": []
+        }
+      ],
+      "why": "human copy edit: owner rewrote the Toys for Tots note and bolded the lead words (SOURCES 1)"
+    },
+    {
+      "path": [
+        "sections",
+        1,
+        "name"
+      ],
+      "value": "Coming soon",
+      "why": "tool gap: section name should be sentence case (spec 6); no suggestion is offered"
+    },
+    {
+      "path": [
+        "sections",
+        1,
+        "rows",
+        1,
+        "event"
+      ],
+      "value": "Pinewood Derby First-Time Racer Overview",
+      "why": "human copy edit: owner added the hyphen (SOURCES 1 wording)"
+    },
+    {
+      "path": [
+        "sections",
+        1,
+        "rows",
+        2,
+        "event"
+      ],
+      "value": "Pinewood Derby First-Time Racer Overview",
+      "why": "human copy edit: owner added the hyphen (SOURCES 1 wording)"
+    },
+    {
+      "path": [
+        "sections",
+        1,
+        "rows",
+        4,
+        "event"
+      ],
+      "value": "Pinewood Derby Weigh-In",
+      "why": "human copy edit: owner wrote Weigh-In (SOURCES 1 wording)"
+    },
+    {
+      "path": [
+        "sections",
+        2,
+        "name"
+      ],
+      "value": "Save the date",
+      "why": "tool gap: section name should be sentence case (spec 6); no suggestion is offered"
+    },
+    {
+      "path": [
+        "sections",
+        2,
+        "rows",
+        2,
+        "event"
+      ],
+      "value": "Blue and Gold Banquet",
+      "why": "human copy edit: owner accepted the offered \"&\" to \"and\" fix, \"Blue and Gold\" (SOURCES 1 wording)"
+    },
+    {
+      "path": [
+        "sections",
+        3,
+        "name"
+      ],
+      "value": "Ongoing",
+      "why": "human copy edit: owner accepted the offered \"On going\" to \"Ongoing\" fix (SOURCES 1 wording)"
+    },
+    {
+      "path": [
+        "sections",
+        3,
+        "rows",
+        0,
+        "event"
+      ],
+      "value": "Popcorn Storefront Sales",
+      "why": "human copy edit: owner changed Store Front to Storefront (SOURCES 1 wording)"
+    }
+  ]
+}
