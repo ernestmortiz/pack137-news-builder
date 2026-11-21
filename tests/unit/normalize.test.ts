@@ -307,4 +307,133 @@ describe('normalize: deep and very large input', () => {
     expect(root.children.length).toBe(2001);
     expect(root.lastElementChild?.textContent).toBe('last');
   });
+
+  /** As `timed`, but a slow run is tried again, up to three times (see the 1 MB test above). */
+  function timedWithRetries(html: string, limit: number): { root: HTMLElement; elapsed: number } {
+    let result = timed(html);
+    for (let attempt = 1; attempt < 3 && result.elapsed >= limit; attempt += 1) {
+      result = timed(html);
+    }
+    return result;
+  }
+
+  // The cost must follow the number of nodes, not nodes times levels. The tests above have one
+  // leaf or a few levels, so they cannot tell the two apart. These are deep and wide at once.
+  it('pushes 500 nested bold tags into 50000 paragraphs in under 2 seconds', () => {
+    const width = 50000;
+    const html = '<b>'.repeat(500) + '<p>a</p>'.repeat(width);
+    const { root, elapsed } = timedWithRetries(html, 2000);
+    expect(elapsed).toBeLessThan(2000);
+    const blocks = Array.from(root.children);
+    expect(blocks.length).toBe(width);
+    let bold = 0;
+    for (const block of blocks) {
+      const only = block.firstChild;
+      if (block.tagName !== 'P' || only !== block.lastChild || only?.nodeName !== 'STRONG')
+        continue;
+      if (only.firstChild === only.lastChild && only.firstChild?.nodeValue === 'a') bold += 1;
+    }
+    expect(bold).toBe(width);
+  }, 60000);
+
+  it('pushes 1500 nested marks of three kinds into 5000 paragraphs', () => {
+    const width = 5000;
+    const html = '<b><i><s>'.repeat(500) + '<p>a</p>'.repeat(width);
+    const { root, elapsed } = timedWithRetries(html, 1500);
+    expect(elapsed).toBeLessThan(1500);
+    expect(root.children.length).toBe(width);
+    expect(root.firstElementChild?.outerHTML).toBe('<p><strong><em><s>a</s></em></strong></p>');
+    expect(root.lastElementChild?.outerHTML).toBe('<p><strong><em><s>a</s></em></strong></p>');
+  });
+
+  it('pushes 2000 nested bold tags that each hold a word into 5000 paragraphs', () => {
+    const width = 5000;
+    const html = '<b>x'.repeat(2000) + '<p>a</p>'.repeat(width);
+    const { root, elapsed } = timedWithRetries(html, 1500);
+    expect(elapsed).toBeLessThan(1500);
+    expect(root.children.length).toBe(width + 1);
+    expect(root.firstElementChild?.outerHTML).toBe(`<p><strong>${'x'.repeat(2000)}</strong></p>`);
+    expect(root.lastElementChild?.outerHTML).toBe('<p><strong>a</strong></p>');
+  });
+
+  it('pushes 2000 nested bold tags into 5000 paragraphs that each follow a word', () => {
+    const width = 5000;
+    const html = '<b>'.repeat(2000) + 'x<br><p>a</p>'.repeat(width);
+    const { root, elapsed } = timedWithRetries(html, 1500);
+    expect(elapsed).toBeLessThan(1500);
+    expect(root.children.length).toBe(width * 2);
+    expect(root.firstElementChild?.outerHTML).toBe('<p><strong>x</strong></p>');
+    expect(root.lastElementChild?.outerHTML).toBe('<p><strong>a</strong></p>');
+  });
+
+  it('flattens 10000 nested blocks that each hold a word around 5000 paragraphs', () => {
+    const depth = 10000;
+    const width = 5000;
+    const html = '<div>lead'.repeat(depth) + '<p>a</p>'.repeat(width);
+    const { root, elapsed } = timedWithRetries(html, 1500);
+    expect(elapsed).toBeLessThan(1500);
+    expect(root.children.length).toBe(width + depth);
+    expect(root.firstElementChild?.outerHTML).toBe('<p>lead</p>');
+    expect(root.lastElementChild?.outerHTML).toBe('<p>a</p>');
+  });
+});
+
+describe('normalize: inline elements and blocks nested inside each other', () => {
+  it.each([
+    [
+      'runs of text at each level',
+      '<b>one<i>two<p>three</p>four</i>five</b>',
+      '<p><strong>one<em>two</em></strong></p><p><strong><em>three</em></strong></p>' +
+        '<p><strong><em>four</em>five</strong></p>',
+    ],
+    [
+      'a line break that is all an inner element holds before a block',
+      '<b><i><br><p>x</p></i>y</b>',
+      '<p><strong><em>x</em></strong></p><p><strong>y</strong></p>',
+    ],
+    [
+      'an inner bold that holds only a line break, in a list item',
+      '<ul><li><b>x<b><br></b><p>q</p>y</b></li></ul>',
+      '<ul><li><strong>x</strong><p><strong>q</strong></p><strong>y</strong></li></ul>',
+    ],
+    [
+      'an inner italic that holds a line break and a block, in a list item',
+      '<ul><li><b>x<i><br><p>q</p></i>y</b></li></ul>',
+      '<ul><li><strong>x</strong><p><strong><em>q</em></strong></p><strong>y</strong></li></ul>',
+    ],
+    [
+      'a link around bold around blocks',
+      '<a href="https://x.org/1"><b><div>One</div><div>Two</div></b></a>',
+      '<p><a href="https://x.org/1"><strong>One</strong></a></p>' +
+        '<p><a href="https://x.org/1"><strong>Two</strong></a></p>',
+    ],
+    [
+      'the same mark three times over',
+      '<b><b><b>lead<p>a</p> <p>b</p>tail</b></b></b>',
+      '<p><strong>lead</strong></p><p><strong>a</strong></p><p><strong>b</strong></p>' +
+        '<p><strong>tail</strong></p>',
+    ],
+    [
+      'two marks that alternate around a list',
+      '<b><i><b><i><ul><li>item</li><li><p>para</p></li></ul></i></b></i></b>',
+      '<ul><li><strong><em>item</em></strong></li><li><strong><em>para</em></strong></li></ul>',
+    ],
+    [
+      'spaces between the levels',
+      '<s>a<b> <i> <p>x</p> </i> </b>b</s>',
+      '<p><s>a</s></p><p><s><strong><em>x</em></strong></s></p><p><s>b</s></p>',
+    ],
+    [
+      'blocks nested in blocks with text at each level',
+      '<div>a<div>b<div><p>c</p>d</div>e</div>f</div>',
+      '<p>a</p><p>b</p><p>c</p><p>d</p><p>e</p><p>f</p>',
+    ],
+    [
+      'nested blocks that leave a list item with one paragraph',
+      '<ul><li><div><div><p>only</p></div></div></li></ul>',
+      '<ul><li>only</li></ul>',
+    ],
+  ])('handles %s', (_, html, expected) => {
+    expect(clean(html)).toBe(expected);
+  });
 });

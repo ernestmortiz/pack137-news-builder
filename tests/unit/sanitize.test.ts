@@ -671,3 +671,265 @@ describe('sanitize: control characters', () => {
       expect(hasControl(`${issue.message}${issue.detail ?? ''}`)).toBe(false);
   });
 });
+
+describe('sanitize: unwrapped chains and pastes that need little or no cleaning', () => {
+  it('keeps the order of text in and around a chain of unwrapped elements', () => {
+    const { root } = sanitize('<p>0</p><x>1<y>2<z>3<b>4</b></z>5</y>6</x>7<p>8</p>');
+    expect(root.innerHTML).toBe('<p>0</p>123<b>4</b>567<p>8</p>');
+  });
+
+  it('runs emphasis on across the end of an unwrapped element', () => {
+    const { root } = sanitize(
+      '<div style="font-weight:bold"><x>one</x><y> <z>two</z></y><i>three</i> four</div>',
+    );
+    expect(root.innerHTML).toBe(
+      '<div><strong>one two</strong><i><strong>three</strong></i><strong> four</strong></div>',
+    );
+  });
+
+  it('leaves a paste that needs no change as it was', () => {
+    const html =
+      '<h2>Title</h2><p>One <b>bold</b> <a href="https://x.org/a">link</a><br>' +
+      '<a href="mailto:a@b.org">mail</a></p><ul><li>item</li></ul>' +
+      '<img src="https://x.org/a.jpg" alt="A" width="552" height="300">';
+    const { root, issues } = sanitize(html);
+    expect(root.innerHTML).toBe(html);
+    expect(issues).toEqual([]);
+  });
+
+  it.each([
+    ['an attribute', '<i id="deep">y</i>', '<i>y</i>'],
+    [
+      'an event handler on a link',
+      '<a href="https://x.org/a" onclick="x()">y</a>',
+      '<a href="https://x.org/a">y</a>',
+    ],
+    ['a link that is not allowed', '<a href="javascript:alert(1)">y</a>', 'y'],
+    [
+      'a link with a space before the address',
+      '<a href=" https://x.org/a">y</a>',
+      '<a href="https://x.org/a">y</a>',
+    ],
+    ['a link with no destination', '<a>y</a>', 'y'],
+    ['an element that is not allowed', '<section>y</section>', 'y'],
+    ['a script', 'y<script>alert(1)</script>', 'y'],
+    ['a comment', 'y<!-- c -->', 'y'],
+    ['a control character', 'y\u0001', 'y'],
+    ['hidden text', 'y<span style="display:none">z</span>', 'y'],
+    [
+      'a picture with a handler',
+      '<img src="https://x.org/a.jpg" alt="A" onerror="x()">',
+      '<img src="https://x.org/a.jpg" alt="A">',
+    ],
+    [
+      'a picture with a size that is not a plain number',
+      '<img src="https://x.org/a.jpg" alt="A" width="50%">',
+      '<img src="https://x.org/a.jpg" alt="A">',
+    ],
+    [
+      'a picture with its attributes in another order',
+      '<img alt="A" height="3" width="5" src="https://x.org/a.jpg">',
+      '<img src="https://x.org/a.jpg" alt="A" width="5" height="3">',
+    ],
+    ['a picture with a script address', '<img src="javascript:alert(1)" alt="A">y', 'y'],
+  ])('still cleans a paste whose only fault is %s, deep inside', (_, fault, expected) => {
+    const open = '<div><p><b>'.repeat(20);
+    const close = '</b></p></div>'.repeat(20);
+    const { root } = sanitize(`<p>ok</p>${open}${fault}${close}<p>end</p>`);
+    expect(root.innerHTML).toBe(`<p>ok</p>${open}${expected}${close}<p>end</p>`);
+  });
+
+  it.each([
+    ['an http link', '<a href="http://x.org/a">y</a>', 'insecure-url'],
+    ['an http picture', '<img src="http://x.org/a.jpg" alt="A">', 'insecure-url'],
+    ['a picture with no description', '<img src="https://x.org/a.jpg" alt="">', 'image-no-alt'],
+  ])('still reports %s in a paste that is otherwise clean', (_, html, code) => {
+    const { root, issues } = sanitize(`<p>ok</p><p>${html}</p>`);
+    expect(root.innerHTML).toBe(`<p>ok</p><p>${html}</p>`);
+    expect(issues.map((issue) => issue.code)).toEqual([code]);
+  });
+});
+
+describe('sanitize: the same result, cleaned in place or built new', () => {
+  // A paste is cleaned in place unless that turns out to cost too much, in which case the
+  // result is built new (see the top of sanitize.ts). Twelve unknown wrappers with 1600 nodes
+  // directly inside the innermost one are over the allowance for a paste this small, so that
+  // paste is built new. The two ways must agree on every node and every warning.
+  const filler = '<u>f</u>'.repeat(800);
+  const open = '<x>'.repeat(12);
+  const close = '</x>'.repeat(12);
+
+  it.each([
+    [
+      'plain blocks',
+      '<h2>Title</h2><p>One <b>two</b> <i>three</i></p><ul><li>a</li><li>b</li></ul><hr>',
+    ],
+    [
+      'attributes of every kind',
+      '<p class="c" id="isPasted" data-x="1" onclick="x()" style="color:red">a</p>',
+    ],
+    [
+      'emphasis from styles',
+      '<div style="font-weight:bold">a <span style="font-style:italic">b</span> c<br>' +
+        '<span style="text-decoration:line-through">d</span><b>e</b> <!-- c --> f</div>',
+    ],
+    ['a b styled as normal weight', '<b style="font-weight:normal"><p>a <b>b</b></p> c</b>'],
+    [
+      'emphasis that is turned off again',
+      '<p style="font-weight:700">a<span style="font-weight:400">b</span>c</p>',
+    ],
+    [
+      'links of every kind',
+      '<p><a href="https://x.org/a" target="_blank">a</a><a href="http://x.org">b</a>' +
+        '<a href="mailto:a@b.org?subject=Hi there">c</a><a href="javascript:alert(1)">d</a>' +
+        '<a href="meet.google.com/x">e</a><a href="">f</a><a>g</a><a name="n"></a>' +
+        '<a href=" HTTPS://x.org/b c">h</a></p>',
+    ],
+    [
+      'pictures of every kind',
+      '<p><img src="https://x.org/a.jpg" alt="A" width="552" height="300" class="c">' +
+        '<img src="https://x.org/b.jpg" style="width: 320px; height: 200px">' +
+        '<img src="http://x.org/c.jpg" alt=" " width="50%"><img src="data:image/png;base64,AAAA" alt="D">' +
+        '<img alt="E"><img src="x.jpg" alt="F"></p>',
+    ],
+    [
+      'hidden and dropped content',
+      '<div style="display:none">preview</div><p>a<script>alert(1)</script><style>p{}</style></p>' +
+        '<form><input value="x"><p>in form</p></form><p style="mso-hide:all">b</p>' +
+        '<svg><a href="https://x.org">s</a></svg><p>c</p>',
+    ],
+    [
+      'unknown elements at several levels',
+      '<section>a<article><p>b</p>c<main>d</main></article>e</section>f',
+    ],
+    ['control characters', '<p>a\u0000b\u000cc\u0001</p><p>\u0002</p>'],
+    [
+      'a layout table',
+      '<table><tbody><tr><td width="96">a</td><td><font color="red">b</font></td></tr></tbody></table>',
+    ],
+    [
+      'emphasis that runs across unwrapped elements',
+      '<div style="font-weight:bold"><label>a</label><code> <abbr>b</abbr></code> c</div>',
+    ],
+  ])('agrees on %s', (_, html) => {
+    const inPlace = sanitize(html);
+    const builtNew = sanitize(open + filler + html + close);
+    expect(builtNew.root.innerHTML).toBe(filler + inPlace.root.innerHTML);
+    expect(builtNew.issues).toEqual(inPlace.issues);
+  });
+
+  it.each([
+    '1-pack-calendar',
+    '2-help-needed',
+    '3-year-in-review-photos',
+    '4-in-the-news',
+    '5-webelos-dens-10-11',
+  ])('agrees on the weekly announcement %s', (name) => {
+    const html = readFileSync(join(__dirname, `../fixtures/weekly/${name}.input.html`), 'utf8');
+    const inPlace = sanitize(html);
+    const builtNew = sanitize(open + filler + html.trimStart() + close);
+    expect(builtNew.root.innerHTML).toBe(filler + inPlace.root.innerHTML);
+    expect(builtNew.issues).toEqual(inPlace.issues);
+  });
+
+  it('builds nothing from the paste itself: no attribute survives but the checked ones', () => {
+    const html =
+      '<p onclick="x()" style="color:red" class="c">a<a href="https://x.org/a" onmouseover="x()">b</a>' +
+      '<img src="https://x.org/a.jpg" alt="A" onerror="x()" srcset="x.jpg 2x"></p>';
+    const { root } = sanitize(open + filler + html + close);
+    expect(root.innerHTML).toBe(
+      filler + '<p>a<a href="https://x.org/a">b</a><img src="https://x.org/a.jpg" alt="A"></p>',
+    );
+  });
+});
+
+describe('sanitize: deep and wide at once', () => {
+  // Last in the file on purpose. These pastes are large, and the test DOM keeps every document
+  // it has parsed, so a large test slows the ones that come after it. The other test files run
+  // at the same moment and compete for the processor, so a slow run is tried again, up to three
+  // times. Work that grows with size times depth, or with the square of the size, fails every
+  // time.
+  // The cost of unwrapping must follow the number of nodes, not nodes times wrappers. The deep
+  // tests further up all have one leaf, so they cannot tell the two apart.
+
+  /** Times sanitize. A slow run is tried again, up to three times, for the reason given above. */
+  function timed(html: string, limit: number): { root: HTMLElement; elapsed: number } {
+    let root = sanitize('').root;
+    let elapsed = Infinity;
+    for (let attempt = 0; attempt < 3 && elapsed >= limit; attempt += 1) {
+      const started = performance.now();
+      root = sanitize(html).root;
+      elapsed = performance.now() - started;
+    }
+    return { root, elapsed };
+  }
+
+  it.each([
+    ['section', '<section>', '</section>'],
+    ['article', '<article>', '</article>'],
+    ['label', '<label>', '</label>'],
+    ['o:p', '<o:p>', '</o:p>'],
+    ['code', '<code>', '</code>'],
+    ['b styled as normal weight', '<b style="font-weight:normal">', '</b>'],
+  ])('unwraps 300 nested %s wrappers around 5000 nodes in under 1.5 seconds', (_, open, close) => {
+    const width = 5000;
+    const html = open.repeat(300) + '<i>a</i>'.repeat(width) + close.repeat(300);
+    const { root, elapsed } = timed(html, 1500);
+    expect(elapsed).toBeLessThan(1500);
+    const children = Array.from(root.childNodes);
+    expect(children.length).toBe(width);
+    expect(children.every((child) => child.nodeName === 'I')).toBe(true);
+    expect(root.firstChild?.firstChild?.nodeValue).toBe('a');
+  });
+
+  it('unwraps 300 wrappers that alternate with kept blocks around 5000 nodes', () => {
+    const width = 5000;
+    const html =
+      '<section><div>'.repeat(300) + '<i>a</i>'.repeat(width) + '</div></section>'.repeat(300);
+    const { root, elapsed } = timed(html, 1500);
+    expect(elapsed).toBeLessThan(1500);
+    // Walk down by hand: 300 nested blocks, each the only child, then the wide run.
+    let levels = 0;
+    let node: Node = root;
+    while (node.childNodes.length === 1 && node.firstChild?.nodeName === 'DIV') {
+      levels += 1;
+      node = node.firstChild;
+    }
+    expect(levels).toBe(300);
+    expect(node.childNodes.length).toBe(width);
+  });
+
+  it('strips a wide run of styled text inside nested wrappers in under 1.5 seconds', () => {
+    // Every text node gets an emphasis element, and every second node is one that is removed.
+    const width = 5000;
+    const html =
+      '<section style="font-weight:bold">'.repeat(100) +
+      'a<br><!-- c -->'.repeat(width) +
+      '</section>'.repeat(100);
+    const { root, elapsed } = timed(html, 1500);
+    expect(elapsed).toBeLessThan(1500);
+    const children = Array.from(root.childNodes);
+    expect(children.length).toBe(width * 2);
+    expect(children.filter((child) => child.nodeName === 'STRONG').length).toBe(width);
+    expect(children.filter((child) => child.nodeName === 'BR').length).toBe(width);
+  });
+
+  // The largest, so the last. The security review named 100000 nodes here. Run alone, that
+  // takes about 2 seconds. With the whole suite running, the DOM parser by itself takes 2 to 4
+  // seconds on a paste that size, so the width tested here is one that leaves room under the
+  // limit. The code before the fix would need minutes for it.
+  it('unwraps 500 nested unknown elements around 30000 nodes in under 3 seconds', () => {
+    const depth = 500;
+    const width = 30000;
+    const html = '<x>'.repeat(depth) + '<b>a</b>'.repeat(width) + '</x>'.repeat(depth);
+    const { root, elapsed } = timed(html, 3000);
+    expect(elapsed).toBeLessThan(3000);
+    const children = Array.from(root.childNodes);
+    expect(children.length).toBe(width);
+    let plain = 0;
+    for (const child of children) {
+      if (child.nodeName === 'B' && child.firstChild?.nodeValue === 'a') plain += 1;
+    }
+    expect(plain).toBe(width);
+  }, 60000);
+});

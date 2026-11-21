@@ -4,6 +4,25 @@
  * Pasted HTML is untrusted. It is parsed into an inert document with DOMParser and reduced to a
  * small allow-list of elements and attributes. Nothing here touches the live page.
  *
+ * There are two ways to do the work, and they give the same result:
+ *
+ * - In place. The parsed tree is cleaned where it is. Nothing new is made, so this is the cheap
+ *   way, and it is tried first. Its weak spot is unwrapping: the children of an element that is
+ *   not on the allow-list move up one level, so wide content inside a chain of such elements
+ *   would move once for every element in the chain. In some DOM implementations taking a child
+ *   out of a long list of children, or putting one into the middle of it, also costs a search of
+ *   the whole list.
+ * - Built new. The parsed tree is only read, and the result is built in a second inert document.
+ *   Every new node is attached once, while still empty, at the end of its parent, so the cost
+ *   follows the number of nodes whatever the shape of the paste. It makes every kept node a
+ *   second time, which is why it is not the first choice.
+ *
+ * Cleaning in place keeps count of what it spends on those weak spots (`Budget`). An ordinary
+ * paste stays far inside the allowance. When a paste goes over, what the first try left is
+ * dropped and the result is built new, from the same parsed tree if nothing in it had been
+ * changed yet and from a fresh parse otherwise. The choice only decides the cost, never the
+ * result.
+ *
  * Every walk uses an explicit stack and reads children from a snapshot. Recursive DOM calls
  * (reading the text of an element, removing a tall subtree in one piece) are avoided, because
  * some DOM implementations run out of stack on a paste that is thousands of levels deep.
@@ -11,7 +30,7 @@
 import type { Issue, IssueCode } from './model';
 
 export interface SanitizeResult {
-  /** The `<body>` of the inert document, cleaned in place. */
+  /** The `<body>` of an inert document: the parsed one cleaned in place, or one built new. */
   root: HTMLElement;
   issues: Issue[];
 }
@@ -127,8 +146,25 @@ interface Frame {
   node: Node;
   /** Emphasis inherited from styled ancestors that has not been turned into elements yet. */
   emphasis: number;
-  /** True on the second visit to an element that is being unwrapped, after all its children. */
+  /**
+   * Built new only: the new element that takes what this node gives. The children of an element
+   * that is being unwrapped share its target, so they land where it would have been, however
+   * long the chain of unwrapped elements is.
+   */
+  target: Node | null;
+  /**
+   * In place only: true on the second visit to an element that is being unwrapped, after all
+   * its children.
+   */
   unwrap?: boolean;
+}
+
+/** What is kept of a picture. */
+interface CleanImage {
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
 }
 
 interface Wrapper {
@@ -295,8 +331,57 @@ function stripControls(text: string): string {
   return start === 0 ? text : result + text.slice(start);
 }
 
-function removeNode(node: Node): void {
-  node.parentNode?.removeChild(node);
+/**
+ * What cleaning in place may still spend before sanitize gives up on it and builds the result
+ * new. Both counts start in proportion to the size of the paste and only go down.
+ */
+interface Budget {
+  /** Nodes that may still be walked to take an element out together with, or from around, its content. */
+  steps: number;
+  /** Positions that may still be searched or shifted in lists of children. */
+  listWork: number;
+  /** The length of each list of children that is longer than `SHORT_LIST`, as far as known. */
+  lengths: Map<Node, number>;
+  /**
+   * False until cleaning in place makes its first change to the parsed tree. While it is false
+   * the tree is still exactly as it was parsed, and can be read again to build the result new.
+   */
+  changed: boolean;
+}
+
+/** A list of children up to this long is cheap to search. Its real length is not tracked. */
+const SHORT_LIST = 64;
+
+function makeBudget(html: string): Budget {
+  // An ordinary paste has a node for every ten to twenty characters, so this is five to ten
+  // steps a node, enough for a paste that sits whole inside several unwrapped elements. A chain
+  // of 500 unwrapped elements around wide content needs 500 steps a node.
+  return {
+    steps: Math.floor(html.length / 2) + 20_000,
+    listWork: html.length * 50 + 1_000_000,
+    lengths: new Map(),
+    changed: false,
+  };
+}
+
+function isSpent(budget: Budget): boolean {
+  return budget.steps < 0 || budget.listWork < 0;
+}
+
+/** Charges for one child going into or out of the list of children of `parent`. */
+function chargeList(budget: Budget, parent: Node, change: number): void {
+  const length = budget.lengths.get(parent);
+  budget.listWork -= length ?? SHORT_LIST;
+  if (length !== undefined) budget.lengths.set(parent, length + change);
+}
+
+/** Takes `node` out of its parent. In place only. */
+function removeNode(node: Node, budget: Budget): void {
+  const parent = node.parentNode;
+  if (!parent) return;
+  chargeList(budget, parent, -1);
+  budget.changed = true;
+  parent.removeChild(node);
 }
 
 /** A subtree this many levels tall is cut loose on its own before the node above it is moved. */
@@ -310,18 +395,34 @@ interface Cut {
 }
 
 /**
+ * Called when an element with `count` children is found that will be unwrapped later, into
+ * `parent`. If moving that many children up would by itself use up what is left of the budget,
+ * the budget is spent here and now, before the work on the children is done for nothing. On a
+ * paste that starts with a chain of such elements this happens before anything has been changed.
+ */
+function foreseeUnwrap(budget: Budget, parent: Node | null, count: number): void {
+  const length = (parent && budget.lengths.get(parent)) ?? SHORT_LIST;
+  if ((count + 1) * (length + count) > budget.listWork) budget.listWork = -1;
+}
+
+/**
  * Moving or removing a node can recurse through all that is under it, and a paste can nest
  * thousands of levels. This cuts everything under `root` into pieces of a bounded height, deepest
  * piece first, so that `root` itself can then be moved or removed safely. Most subtrees are short
  * and give no cuts at all.
+ *
+ * The walk is charged to the budget, a step a node, and stops as soon as the budget is spent.
+ * The caller must check for that: the tree is then left as it is, pieces cut loose and all.
  */
-function cutTallSubtree(root: Node): Cut[] {
+function cutTallSubtree(root: Node, budget: Budget): Cut[] {
   const cuts: Cut[] = [];
   const heights = new Map<Node, number>();
   const stack: { node: Node; children: Node[] | null }[] = [{ node: root, children: null }];
   for (let frame = stack.pop(); frame; frame = stack.pop()) {
     const { node } = frame;
     if (!frame.children) {
+      budget.steps -= 1;
+      if (budget.steps < 0) return cuts;
       const children = childrenOf(node);
       if (children.length === 0) continue;
       stack.push({ node, children });
@@ -343,6 +444,7 @@ function cutTallSubtree(root: Node): Cut[] {
     const parent = node.parentNode;
     if (height >= MAX_MOVE_HEIGHT && node !== root && parent && parent !== root) {
       cuts.push({ node, parent, next: node.nextSibling });
+      budget.changed = true;
       parent.removeChild(node);
     } else {
       heights.set(node, height);
@@ -359,19 +461,29 @@ function restoreCuts(cuts: Cut[]): void {
   }
 }
 
-/** Removes `root` and everything in it. The pieces cut from it are left apart. */
-function removeSubtree(root: Node): void {
-  cutTallSubtree(root);
-  removeNode(root);
+/** Removes `root` and everything in it. The pieces cut from it are left apart. In place only. */
+function removeSubtree(root: Node, budget: Budget): void {
+  cutTallSubtree(root, budget);
+  if (!isSpent(budget)) removeNode(root, budget);
 }
 
-/** Puts the children of `el` where `el` was. */
-function unwrap(el: Element): void {
+/** Puts the children of `el` where `el` was. In place only. */
+function unwrap(el: Element, budget: Budget): void {
   const parent = el.parentNode;
   if (!parent) return;
-  const cuts = cutTallSubtree(el);
-  while (el.firstChild) parent.insertBefore(el.firstChild, el);
+  const cuts = cutTallSubtree(el, budget);
+  if (isSpent(budget)) return;
+  // Each child is put in just before `el`, which can cost a search of the list up to there, and
+  // the list grows with every child. Charged before the first one moves.
+  const children = childrenOf(el);
+  const length = budget.lengths.get(parent) ?? SHORT_LIST;
+  const after = length + children.length - 1;
+  budget.listWork -= (children.length + 1) * Math.max(length, after);
+  if (isSpent(budget)) return;
+  budget.changed = true;
+  for (const child of children) parent.insertBefore(child, el);
   parent.removeChild(el);
+  if (after > SHORT_LIST) budget.lengths.set(parent, after);
   restoreCuts(cuts);
 }
 
@@ -401,22 +513,26 @@ function readSize(raw: string | null): number {
   return Number.isSafeInteger(size) && size > 0 ? size : 0;
 }
 
-/**
- * Keeps a size only when it is a positive whole number. The attribute is used when it is valid;
- * otherwise the size the inline style gave in pixels, if any.
- */
-function cleanSize(
-  el: Element,
-  name: 'width' | 'height',
-  attribute: string | null,
-  fromStyle: string | null,
-): void {
-  const size = readSize(attribute) || readSize(fromStyle);
-  if (size > 0) el.setAttribute(name, String(size));
+export function sanitize(html: string): SanitizeResult {
+  const parser = new DOMParser();
+  const parsed = parser.parseFromString(html, 'text/html');
+  const budget = makeBudget(html);
+  const cleaned = run(parser, parsed, budget);
+  if (!isSpent(budget)) return cleaned;
+  // Over budget. What the first try left is dropped and the result is built new: from the same
+  // parsed tree if the first try had not changed it yet, otherwise from a fresh parse.
+  return run(parser, budget.changed ? parser.parseFromString(html, 'text/html') : parsed, null);
 }
 
-export function sanitize(html: string): SanitizeResult {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
+/**
+ * The one walk both ways share. With a budget it cleans the parsed paste in place, and stops
+ * early, with a result that must not be used, once the budget is spent. Without a budget it
+ * only reads the parsed paste and builds the result new.
+ */
+function run(parser: DOMParser, pasted: Document, budget: Budget | null): SanitizeResult {
+  // In place, the result is the parsed body. Built new, it is the body of a document of its
+  // own, so that no node of the paste is ever part of it.
+  const doc = budget ? pasted : parser.parseFromString('', 'text/html');
   const root = doc.body;
   const issues: Issue[] = [];
   const seen = new Set<string>();
@@ -439,11 +555,11 @@ export function sanitize(html: string): SanitizeResult {
 
   // The parser moves a leading script, style, meta or title into the head. They never reach the
   // result, but the person should still hear that a script or style was left out.
-  if (doc.head) {
-    const pending: Node[] = [doc.head];
+  if (pasted.head) {
+    const pending: Node[] = [pasted.head];
     for (let node = pending.pop(); node; node = pending.pop()) {
       if (node.nodeType !== ELEMENT_NODE) continue;
-      if (node !== doc.head) {
+      if (node !== pasted.head) {
         const tag = (node as Element).tagName.toLowerCase();
         if (DROPPED.has(tag) && !QUIET.has(tag)) reportDropped(tag);
       }
@@ -457,28 +573,30 @@ export function sanitize(html: string): SanitizeResult {
   }
 
   /**
-   * Elements that are being unwrapped. One is taken out after its children have been cleaned, so
+   * In place only. Elements that are being unwrapped. One is taken out after its children have been cleaned, so
    * what moves up is the cleaned content, a piece at a time. Taking it out first would move
    * everything under it up a level, once for every wrapper in a nested chain.
    */
   const unwrapping = new Set<Node>();
 
-  /** Wraps a text node in the emphasis elements its styled ancestors asked for. */
-  const applyEmphasis = (text: Node, emphasis: number): void => {
+  /** In place only. Wraps a text node in the emphasis elements its styled ancestors asked for. */
+  const applyEmphasis = (text: Node, emphasis: number, spend: Budget): void => {
     // The node that will sit just before the text once every element being unwrapped has gone.
     let before = text.previousSibling;
     for (let up = text.parentNode; !before && up && unwrapping.has(up); up = up.parentNode) {
       before = up.previousSibling;
     }
     const run = before ? wrappers.get(before) : undefined;
+    const parent = text.parentNode;
+    if (!parent) return;
     if (before && run && run.emphasis === emphasis) {
       // Continue the run started by the previous text node.
+      chargeList(spend, parent, -1);
+      spend.changed = true;
       run.inner.appendChild(text);
       return;
     }
     if (!/\S/.test(text.nodeValue ?? '')) return;
-    const parent = text.parentNode;
-    if (!parent) return;
     const tags: string[] = [];
     if (emphasis & BOLD) tags.push('strong');
     if (emphasis & ITALIC) tags.push('em');
@@ -492,42 +610,94 @@ export function sanitize(html: string): SanitizeResult {
       inner = el;
     }
     if (!outer || !inner) return;
+    // The wrapper goes in and the text comes out: the list is searched and stays as long.
+    chargeList(spend, parent, 0);
+    spend.changed = true;
     parent.insertBefore(outer, text);
     inner.appendChild(text);
     wrappers.set(outer, { emphasis, inner });
   };
 
+  /**
+   * Built new only. Adds text at the end of `parent`, inside the emphasis elements its styled
+   * ancestors asked for. Text that follows a run with the same emphasis joins that run.
+   */
+  const addText = (parent: Node, value: string, emphasis: number): void => {
+    const text = doc.createTextNode(value);
+    if (emphasis === 0) {
+      parent.appendChild(text);
+      return;
+    }
+    // The node just before the text. Nothing is ever added in front of it later.
+    const before = parent.lastChild;
+    const run = before ? wrappers.get(before) : undefined;
+    if (run && run.emphasis === emphasis) {
+      run.inner.appendChild(text);
+      return;
+    }
+    if (!/\S/.test(value)) {
+      parent.appendChild(text);
+      return;
+    }
+    const tags: string[] = [];
+    if (emphasis & BOLD) tags.push('strong');
+    if (emphasis & ITALIC) tags.push('em');
+    if (emphasis & STRIKE) tags.push('s');
+    let outer: Element | null = null;
+    let inner: Element | null = null;
+    for (const tag of tags) {
+      const el: Element = doc.createElement(tag);
+      // Attached while still empty, parent before child.
+      (inner ?? parent).appendChild(el);
+      outer ??= el;
+      inner = el;
+    }
+    if (!outer || !inner) {
+      parent.appendChild(text);
+      return;
+    }
+    inner.appendChild(text);
+    wrappers.set(outer, { emphasis, inner });
+  };
+
   const stack: Frame[] = [];
-  const pushChildren = (parent: Node, emphasis: number): void => {
+  /** Queues the children of `parent` and says how many there are. */
+  const pushChildren = (parent: Node, emphasis: number, target: Node | null): number => {
     // Last child first, so the first child is popped first and work runs in document order.
     const children = childrenOf(parent);
+    if (budget && children.length > SHORT_LIST) budget.lengths.set(parent, children.length);
     for (let i = children.length - 1; i >= 0; i -= 1) {
       const node = children[i];
-      if (node) stack.push({ node, emphasis });
+      if (node) stack.push({ node, emphasis, target });
     }
+    return children.length;
   };
-  const unwrapLater = (el: Element, emphasis: number): void => {
-    unwrapping.add(el);
-    stack.push({ node: el, emphasis, unwrap: true });
-    pushChildren(el, emphasis);
+  /** The element goes and its children take its place. */
+  const unwrapElement = (el: Element, emphasis: number, target: Node | null): void => {
+    if (budget) {
+      unwrapping.add(el);
+      stack.push({ node: el, emphasis, target, unwrap: true });
+    }
+    const count = pushChildren(el, emphasis, target);
+    if (budget) foreseeUnwrap(budget, el.parentNode, count);
   };
 
   // Found on first use: most pastes have no link without a destination. The link being checked
   // has not been visited yet, so everything under it is still as it was parsed.
   let textHolders: Set<Node> | null = null;
   const hasVisibleText = (el: Element): boolean => {
-    textHolders ??= findTextHolders(root);
+    textHolders ??= findTextHolders(pasted.body);
     return textHolders.has(el);
   };
 
-  /** Checks a link. Returns false when the link has to be unwrapped. */
-  const cleanLink = (el: Element, raw: string | null): boolean => {
+  /** Checks a link. Returns the address to keep, or null when the link has to be unwrapped. */
+  const cleanLink = (el: Element, raw: string | null): string | null => {
     if (raw === null) {
       // An anchor that was never a link (a named anchor, or one the editor left behind).
       if (hasVisibleText(el)) {
         report('link-no-destination', 'A link had no destination. The words were kept.', '');
       }
-      return false;
+      return null;
     }
     const url = cleanUrl(raw);
     if (url.kind === 'none') {
@@ -538,7 +708,7 @@ export function sanitize(html: string): SanitizeResult {
           : 'This link does not start with https:// so it does not lead anywhere. The link was removed and the words were kept.',
         shorten(url.value),
       );
-      return false;
+      return null;
     }
     if (url.kind === 'blocked') {
       report(
@@ -546,28 +716,25 @@ export function sanitize(html: string): SanitizeResult {
         'This link is not a web or email address, so it was removed. The words were kept.',
         shorten(url.value),
       );
-      return false;
+      return null;
     }
     if (url.kind === 'http') {
       report('insecure-url', 'This link starts with http: rather than https:.', url.value);
     }
-    // Most links are clean already, and writing an attribute is not free on a large paste.
-    if (url.value !== raw) el.setAttribute('href', url.value);
-    return true;
+    return url.value;
   };
 
-  /** Checks an image. Returns false when the image has to be removed. */
+  /** Checks an image. Returns what to keep of it, or null when the image has to go. */
   const cleanImage = (
-    el: Element,
     src: string | null,
     rawAlt: string | null,
     width: string | null,
     height: string | null,
     declarations: Declaration[],
-  ): boolean => {
+  ): CleanImage | null => {
     if (src === null || src.trim() === '') {
       report('blocked-url', 'A picture had no address, so it was removed.', '');
-      return false;
+      return null;
     }
     const url = cleanUrl(src);
     if (url.kind !== 'https' && url.kind !== 'http') {
@@ -576,52 +743,71 @@ export function sanitize(html: string): SanitizeResult {
         'This picture does not have a web address that starts with https://, so it was removed.',
         shorten(url.value),
       );
-      return false;
+      return null;
     }
     if (url.kind === 'http') {
       report('insecure-url', 'This picture starts with http: rather than https:.', url.value);
     }
-    el.setAttribute('src', url.value);
-    const alt = rawAlt === null ? null : stripControls(rawAlt);
-    if (alt === null || alt.trim() === '') {
+    let alt = rawAlt === null ? '' : stripControls(rawAlt);
+    if (alt.trim() === '') {
       report(
         'image-no-alt',
         'This picture has no description for people who cannot see it.',
         url.value,
       );
-      el.setAttribute('alt', '');
-    } else {
-      el.setAttribute('alt', alt);
+      alt = '';
     }
-    cleanSize(el, 'width', width, readStyleSize(declarations, 'width'));
-    cleanSize(el, 'height', height, readStyleSize(declarations, 'height'));
-    return true;
+    // The attribute is used when it is a positive whole number; otherwise the size the inline
+    // style gave in pixels, if any.
+    return {
+      src: url.value,
+      alt,
+      width: readSize(width) || readSize(readStyleSize(declarations, 'width')),
+      height: readSize(height) || readSize(readStyleSize(declarations, 'height')),
+    };
   };
 
-  pushChildren(root, 0);
+  /** Writes the few attributes a picture keeps, on an element that has none. */
+  const writeImage = (el: Element, image: CleanImage): void => {
+    el.setAttribute('src', image.src);
+    el.setAttribute('alt', image.alt);
+    if (image.width > 0) el.setAttribute('width', String(image.width));
+    if (image.height > 0) el.setAttribute('height', String(image.height));
+  };
+
+  pushChildren(pasted.body, 0, budget ? null : root);
   for (let frame = stack.pop(); frame; frame = stack.pop()) {
-    const { node } = frame;
+    // Spent: the caller drops this result and builds a new one.
+    if (budget && isSpent(budget)) break;
+    const { node, target } = frame;
     const type = node.nodeType;
 
     if (frame.unwrap) {
       unwrapping.delete(node);
-      unwrap(node as Element);
+      if (budget) unwrap(node as Element, budget);
       continue;
     }
     if (type === TEXT_NODE) {
       const raw = node.nodeValue ?? '';
       const text = stripControls(raw);
-      if (text === '') {
-        removeNode(node);
+      if (!budget) {
+        if (target && text !== '') addText(target, text, frame.emphasis);
         continue;
       }
-      if (text !== raw) node.nodeValue = text;
-      if (frame.emphasis !== 0) applyEmphasis(node, frame.emphasis);
+      if (text === '') {
+        removeNode(node, budget);
+        continue;
+      }
+      if (text !== raw) {
+        budget.changed = true;
+        node.nodeValue = text;
+      }
+      if (frame.emphasis !== 0) applyEmphasis(node, frame.emphasis, budget);
       continue;
     }
     if (type !== ELEMENT_NODE) {
       // Comments (Outlook conditional blocks included) and anything else that is not content.
-      if (type !== COMMENT_NODE || node.parentNode) removeNode(node);
+      if (budget && (type !== COMMENT_NODE || node.parentNode)) removeNode(node, budget);
       continue;
     }
 
@@ -629,7 +815,7 @@ export function sanitize(html: string): SanitizeResult {
     const tag = el.tagName.toLowerCase();
     if (DROPPED.has(tag)) {
       if (!QUIET.has(tag)) reportDropped(tag);
-      removeSubtree(el);
+      if (budget) removeSubtree(el, budget);
       continue;
     }
 
@@ -638,7 +824,7 @@ export function sanitize(html: string): SanitizeResult {
       : NO_DECLARATIONS;
     if (isHidden(declarations)) {
       // Hidden preview text and the like. Not content, so it goes without a warning.
-      removeSubtree(el);
+      if (budget) removeSubtree(el, budget);
       continue;
     }
 
@@ -649,33 +835,74 @@ export function sanitize(html: string): SanitizeResult {
     const emphasis = ((frame.emphasis & ~style.clear) | style.set) & ~(cancelled ? 0 : own);
 
     if (!ALLOWED.has(tag) || cancelled) {
-      unwrapLater(el, emphasis);
+      unwrapElement(el, emphasis, target);
       continue;
     }
 
-    const href = tag === 'a' ? el.getAttribute('href') : null;
-    const src = tag === 'img' ? el.getAttribute('src') : null;
-    const alt = tag === 'img' ? el.getAttribute('alt') : null;
-    const width = tag === 'img' ? el.getAttribute('width') : null;
-    const height = tag === 'img' ? el.getAttribute('height') : null;
-    // Every attribute goes, bar one: the `href` of a link stays where it is until it has been
-    // checked. `cleanLink` then replaces it with the cleaned address, or the link is unwrapped
-    // and the element goes altogether. The few attributes kept on an image are written again.
+    // Read before anything is taken off the element.
+    const rawHref = tag === 'a' ? el.getAttribute('href') : null;
+    const image =
+      tag === 'img'
+        ? cleanImage(
+            el.getAttribute('src'),
+            el.getAttribute('alt'),
+            el.getAttribute('width'),
+            el.getAttribute('height'),
+            declarations,
+          )
+        : null;
+    const href = tag === 'a' ? cleanLink(el, rawHref) : null;
+
+    if (!budget) {
+      // Built new: no attribute is copied. A link gets its checked address, a picture its few
+      // checked attributes, and every other element none. `tag` is on the allow-list, so this
+      // never makes an element that the paste named freely.
+      if (!target) continue;
+      if (tag === 'img') {
+        if (!image) continue;
+        const picture = doc.createElement('img');
+        writeImage(picture, image);
+        target.appendChild(picture);
+        continue;
+      }
+      if (tag === 'a' && href === null) {
+        unwrapElement(el, emphasis, target);
+        continue;
+      }
+      const kept = doc.createElement(tag);
+      if (href !== null) kept.setAttribute('href', href);
+      target.appendChild(kept);
+      pushChildren(el, emphasis, kept);
+      continue;
+    }
+
+    // In place: every attribute goes, bar one. The `href` of a link stays where it is and is
+    // written again only when cleaning changed it (most links are clean already, and writing an
+    // attribute is not free on a large paste). The few attributes of a picture are written again.
     if (el.hasAttributes()) {
       for (const name of el.getAttributeNames()) {
-        if (tag !== 'a' || name !== 'href') el.removeAttribute(name);
+        if (tag === 'a' && name === 'href') continue;
+        budget.changed = true;
+        el.removeAttribute(name);
       }
     }
-
     if (tag === 'img') {
-      if (!cleanImage(el, src, alt, width, height, declarations)) removeNode(el);
+      budget.changed = true;
+      if (image) writeImage(el, image);
+      else removeNode(el, budget);
       continue;
     }
-    if (tag === 'a' && !cleanLink(el, href)) {
-      unwrapLater(el, emphasis);
-      continue;
+    if (tag === 'a') {
+      if (href === null) {
+        unwrapElement(el, emphasis, target);
+        continue;
+      }
+      if (href !== rawHref) {
+        budget.changed = true;
+        el.setAttribute('href', href);
+      }
     }
-    pushChildren(el, emphasis);
+    pushChildren(el, emphasis, target);
   }
 
   return { root, issues };
