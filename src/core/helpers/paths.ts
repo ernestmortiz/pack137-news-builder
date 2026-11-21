@@ -27,9 +27,17 @@ export function hasPath(form: AnnouncementForm, path: Path): boolean {
   return path.length > 0 && getAt(form, path) !== undefined;
 }
 
-/** A copy of the form with the value at `path` replaced. The path must already exist. */
+/** Keys that reach an object's prototype. No form field has one of these names. */
+const UNSAFE_KEYS = new Set<string | number>(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * A copy of the form with the value at `path` replaced. The path must already exist. A path that
+ * holds '__proto__', 'constructor' or 'prototype' at any level changes nothing: the copy comes
+ * back as it was, so a path from outside can never reach a prototype.
+ */
 export function setAt(form: AnnouncementForm, path: Path, next: unknown): AnnouncementForm {
   const copy = structuredClone(form);
+  if (path.some((key) => UNSAFE_KEYS.has(key))) return copy;
   const last = path[path.length - 1];
   const parent = getAt(copy, path.slice(0, -1));
   if (last === undefined || typeof parent !== 'object' || parent === null) return copy;

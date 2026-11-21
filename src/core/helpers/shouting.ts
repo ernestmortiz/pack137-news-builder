@@ -6,7 +6,7 @@
 import { capitalize } from './text';
 
 /** Short forms that stay in capitals. */
-const KEEP = new Set(['RSVP', 'TBD', 'BSA', 'CPA', 'PTA', 'NJ', 'USA', 'ASAP']);
+export const KEEP = new Set(['RSVP', 'TBD', 'BSA', 'CPA', 'PTA', 'NJ', 'USA', 'ASAP']);
 
 interface Token {
   text: string;
@@ -15,9 +15,25 @@ interface Token {
   caps: boolean;
 }
 
+function isLetterCode(code: number): boolean {
+  return (code >= 0x41 && code <= 0x5a) || (code >= 0x61 && code <= 0x7a);
+}
+
+/**
+ * The word without the characters that are not A to Z at its two ends. A loop, not a regex: an
+ * end-anchored class tried from every position is slow on one very long word.
+ */
+function coreOf(word: string): string {
+  let start = 0;
+  let end = word.length;
+  while (start < end && !isLetterCode(word.charCodeAt(start))) start++;
+  while (end > start && !isLetterCode(word.charCodeAt(end - 1))) end--;
+  return word.slice(start, end);
+}
+
 function tokens(text: string): Token[] {
   return [...text.matchAll(/\S+/g)].map((m) => {
-    const core = m[0].replace(/^[^A-Za-z]+|[^A-Za-z]+$/g, '');
+    const core = coreOf(m[0]);
     const letters = core.replace(/[^A-Za-z]/g, '');
     return {
       text: m[0],
@@ -62,7 +78,7 @@ export function isShouting(text: string): boolean {
 export function toSentenceCase(text: string): string {
   if (!isShouting(text)) return text;
   const lowered = text.replace(/\S+/g, (word) => {
-    const core = word.replace(/^[^A-Za-z]+|[^A-Za-z]+$/g, '');
+    const core = coreOf(word);
     const letters = core.replace(/[^A-Za-z]/g, '');
     if (core === 'A') return word.toLowerCase();
     if (letters.length < 2 || letters !== letters.toUpperCase() || KEEP.has(core)) return word;

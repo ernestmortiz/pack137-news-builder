@@ -7,7 +7,69 @@ import type { Inline, Mark, TextRun } from '../model';
 
 // Built from its code point so this file holds no em dash itself.
 export const EM_DASH = String.fromCharCode(0x2014);
-const EM_DASH_RUN = new RegExp(`\\s*${EM_DASH}\\s*`, 'g');
+
+/*
+ * The scans below are written as loops, not as regexes. A regex that starts or ends with a
+ * repeated class (whitespace then a dash, or separators up to the end of the text) tries again
+ * from every position of a long run and takes time that grows with the square of the text, which
+ * froze the tab on a large paste (tests/unit/fill-perf.test.ts).
+ */
+
+/** True when the UTF-16 code unit is whitespace, exactly as the regex class \s reads it. */
+export function isSpaceCode(code: number): boolean {
+  if (code === 0x20) return true;
+  if (code < 0xa0) return code >= 0x09 && code <= 0x0d;
+  return (
+    code === 0xa0 ||
+    code === 0x1680 ||
+    (code >= 0x2000 && code <= 0x200a) ||
+    code === 0x2028 ||
+    code === 0x2029 ||
+    code === 0x202f ||
+    code === 0x205f ||
+    code === 0x3000 ||
+    code === 0xfeff
+  );
+}
+
+/** Whitespace or one of , ; : - and the en dash: what may sit between a name and a tag or note. */
+export function isSeparatorCode(code: number): boolean {
+  return (
+    code === 0x2c ||
+    code === 0x3b ||
+    code === 0x3a ||
+    code === 0x2d ||
+    code === 0x2013 ||
+    isSpaceCode(code)
+  );
+}
+
+/** Removes separators (see isSeparatorCode) from both ends. */
+export function trimSeparators(text: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && isSeparatorCode(text.charCodeAt(start))) start++;
+  while (end > start && isSeparatorCode(text.charCodeAt(end - 1))) end--;
+  return text.slice(start, end);
+}
+
+/** Every em dash, with the whitespace on both sides of it, becomes ", ". */
+export function emDashesToCommas(text: string): string {
+  let at = text.indexOf(EM_DASH);
+  if (at < 0) return text;
+  let out = '';
+  let pos = 0;
+  while (at >= 0) {
+    let from = at;
+    while (from > pos && isSpaceCode(text.charCodeAt(from - 1))) from--;
+    let to = at + 1;
+    while (isSpaceCode(text.charCodeAt(to))) to++;
+    out += text.slice(pos, from) + ', ';
+    pos = to;
+    at = text.indexOf(EM_DASH, pos);
+  }
+  return out + text.slice(pos);
+}
 
 /** The plain text of a line. A line break reads as a space. */
 export function textOf(runs: Inline[]): string {
@@ -26,7 +88,7 @@ export function plain(text: string, marks: Mark[] = []): RichText {
 
 /** A message for the user: em dashes (from quoted pasted text) become commas. */
 export function sentence(message: string): string {
-  return message.replace(EM_DASH_RUN, ', ');
+  return emDashesToCommas(message);
 }
 
 function copyRun(run: TextRun, text: string): TextRun {
@@ -87,7 +149,8 @@ export function joinLines(lines: Inline[][]): Inline[] {
   for (const line of lines) {
     if (line.length === 0) continue;
     if (out.length > 0) out.push({ kind: 'break' });
-    out.push(...line);
+    // One at a time: a spread of a very long line overflows the call stack.
+    for (const run of line) out.push(run);
   }
   return out;
 }

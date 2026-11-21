@@ -104,8 +104,11 @@ function findClose(text: string, from: number): number {
   return -1;
 }
 
-/** Reads a URL that starts at `from` (just after the "(") up to the unescaped ")". */
-function readUrl(text: string, from: number): { url: string; end: number } | null {
+/**
+ * Reads a URL that starts at `from` (just after the "(") up to the unescaped ")". When there is
+ * none, `stop` is where the search ended: at a line break or at the end of the text.
+ */
+function readUrl(text: string, from: number): { url: string; end: number } | { stop: number } {
   let url = '';
   for (let i = from; i < text.length; i++) {
     const ch = text.charAt(i);
@@ -113,10 +116,10 @@ function readUrl(text: string, from: number): { url: string; end: number } | nul
       url += text.charAt(i + 1);
       i++;
     } else if (ch === ')') return { url, end: i + 1 };
-    else if (ch === '\n') return null;
+    else if (ch === '\n') return { stop: i };
     else url += ch;
   }
-  return null;
+  return { stop: text.length };
 }
 
 export function textToRich(text: string): RichText {
@@ -138,6 +141,10 @@ export function textToRich(text: string): RichText {
       push(buf, href);
       buf = '';
     };
+    // A search for a link's ")" that failed found none up to `noUrlUntil`. A later "(" before
+    // that point has none either, so it is not searched again. Without this, text made of
+    // unclosed links is read to its end once for each of them.
+    let noUrlUntil = -1;
     for (let i = 0; i < src.length; i++) {
       const ch = src.charAt(i);
       if (ch === '\\' && /[\\*_~[\]()]/.test(src.charAt(i + 1)) && i + 1 < src.length) {
@@ -159,7 +166,12 @@ export function textToRich(text: string): RichText {
         toggle('em');
       } else if (ch === '[' && href === undefined) {
         const close = findClose(src, i + 1);
-        const url = close >= 0 && src.charAt(close + 1) === '(' ? readUrl(src, close + 2) : null;
+        let url: { url: string; end: number } | null = null;
+        if (close >= 0 && src.charAt(close + 1) === '(' && close + 2 > noUrlUntil) {
+          const read = readUrl(src, close + 2);
+          if ('stop' in read) noUrlUntil = read.stop;
+          else url = read;
+        }
         if (close >= 0 && url !== null) {
           flush();
           scan(src.slice(i + 1, close), url.url);

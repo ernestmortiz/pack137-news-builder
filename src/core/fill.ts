@@ -7,6 +7,7 @@
  * orchestrator. The helpers live in `./helpers`, one small pure module each. Everything here is
  * pure: the parsed model and the forms passed in are never changed.
  */
+import { packConfig } from '../config/pack.config';
 import type { CalendarDate } from './dates';
 import { matchLeadingDate } from './dates';
 import type {
@@ -24,8 +25,9 @@ import type {
   RichText,
 } from './forms';
 import { dateLabel, readLeadingDate } from './helpers/dates';
-import { formFields, getAt, isRichText, setAt } from './helpers/paths';
+import { formFields, getAt, isRichText, setAt, type FormField } from './helpers/paths';
 import { contactNote, readContact } from './helpers/people';
+import { toSentenceCase as toHeadingCase } from './helpers/sentence-case';
 import { isShouting, shoutStart, toSentenceCase } from './helpers/shouting';
 import { smallFixes } from './helpers/small-fixes';
 import { addTag, RESCHEDULED, takeTags } from './helpers/tags';
@@ -41,6 +43,7 @@ import {
   squash,
   textOf,
   trimRich,
+  trimSeparators,
 } from './helpers/text';
 import { sourceNote, stripSiteName } from './helpers/title-cleanup';
 import { isManageLink, unlinkedServices } from './helpers/warnings';
@@ -360,8 +363,10 @@ function fillDateList(units: Unit[], options: FillOptions, checks: CheckMe[]): D
         linksOf(line).length > 0 ||
         matchLeadingDate(textOf(line), options.today, options.programYearStartMonth) !== null;
       if (!startsRow && last !== undefined) {
-        // A plain line under a row is that row's note.
-        last.note = joinLines([last.note, line]);
+        // A plain line under a row is that row's note. The note belongs to this row alone, so
+        // the line is added in place: joining the whole note again for each line is slow.
+        if (last.note.length > 0) last.note.push({ kind: 'break' });
+        for (const run of line) last.note.push(run);
         continue;
       }
       const target = open();
@@ -418,8 +423,15 @@ function fillLinkList(
       });
     } else if (linkLength * 2 >= text.length && !leadIn) {
       // Mostly link: the few words around it are the note.
-      const around = links.reduceRight((s, l) => s.slice(0, l.start) + ' ' + s.slice(l.end), raw);
-      note = squash(around).replace(/^[\s:;,–-]+|[\s:;,–-]+$/g, '');
+      // Each link is replaced by a space. Built in one pass, left to right.
+      let around = '';
+      let from = 0;
+      for (const l of links) {
+        around += raw.slice(from, l.start) + ' ';
+        from = l.end;
+      }
+      around += raw.slice(from);
+      note = trimSeparators(squash(around));
       if (!/[\p{L}\p{N}]/u.test(note)) note = '';
     } else {
       // A sentence with a link in it: the whole sentence is the note.
@@ -611,9 +623,73 @@ function mainField(form: AnnouncementForm): FieldPath {
   }
 }
 
-function reviewForm(form: AnnouncementForm): { checks: CheckMe[]; suggestions: Suggestion[] } {
-  const checks: CheckMe[] = [];
+/** The texts of a field: the one string, or the text of each run. */
+const textsOf = (f: FormField): string[] =>
+  f.kind === 'rich' ? f.value.flatMap((r) => (r.kind === 'text' ? [r.text] : [])) : [f.value];
+
+/**
+ * The headings and buttons of a form (spec 6: "Sentence case for headings and buttons"): the
+ * title, each Date list section name, the Help wanted ask title and the text of every button.
+ * Labels, event names, link text and paragraphs are not headings.
+ */
+function headingFields(form: AnnouncementForm): { path: FieldPath; value: string }[] {
+  const out: { path: FieldPath; value: string }[] = [{ path: ['title'], value: form.title }];
+  switch (form.layout) {
+    case 'message':
+      if (form.button !== undefined)
+        out.push({ path: ['button', 'text'], value: form.button.text });
+      break;
+    case 'call-to-action':
+      out.push({ path: ['button', 'text'], value: form.button.text });
+      break;
+    case 'date-list':
+      form.sections.forEach((section, i) =>
+        out.push({ path: ['sections', i, 'name'], value: section.name }),
+      );
+      break;
+    case 'link-list':
+      break;
+    case 'help-wanted':
+      out.push({ path: ['ask', 'title'], value: form.ask.title });
+      if (form.ask.button !== undefined)
+        out.push({ path: ['ask', 'button', 'text'], value: form.ask.button.text });
+      if (form.secondary !== undefined)
+        out.push({ path: ['secondary', 'text'], value: form.secondary.text });
+      break;
+  }
+  return out;
+}
+
+/**
+ * Every suggestion for the form as it is now: the small fixes ("&" to "and", "On going" to
+ * "Ongoing", doubled spaces) for each text field, then sentence case for each heading and button
+ * (spec 6). Suggestions are offered and never applied by the tool. Call this again after an edit:
+ * a suggestion made before the edit may no longer fit, and applySuggestion then changes nothing.
+ * Pure: the form is not changed.
+ */
+export function suggestionsFor(form: AnnouncementForm): Suggestion[] {
   const suggestions: Suggestion[] = [];
+  for (const f of formFields(form)) {
+    if (f.kind === 'url') continue;
+    const seen = new Set<string>();
+    for (const text of textsOf(f))
+      for (const fix of smallFixes(text)) {
+        if (seen.has(fix.from)) continue;
+        seen.add(fix.from);
+        suggestions.push({ path: f.path, message: fix.message, from: fix.from, to: fix.to });
+      }
+  }
+  for (const { path, value } of headingFields(form)) {
+    if (value.trim() === '') continue;
+    const to = toHeadingCase(value, packConfig.properNouns);
+    if (to !== value)
+      suggestions.push({ path, message: `Use sentence case: "${to.trim()}".`, from: value, to });
+  }
+  return suggestions.map((s) => ({ ...s, message: sentence(s.message) }));
+}
+
+function reviewForm(form: AnnouncementForm): CheckMe[] {
+  const checks: CheckMe[] = [];
   const fields = formFields(form);
 
   const urls: string[] = [];
@@ -638,25 +714,14 @@ function reviewForm(form: AnnouncementForm): { checks: CheckMe[]; suggestions: S
       );
       if (hasManage) checks.push({ path: f.path, kind: 'manage-link', message: manage });
     }
-    const texts =
-      f.kind === 'text' ? [f.value] : f.value.flatMap((r) => (r.kind === 'text' ? [r.text] : []));
-
-    for (const name of unlinkedServices(texts.join(''), urls))
+    for (const name of unlinkedServices(textsOf(f).join(''), urls))
       checks.push({
         path: f.path,
         kind: 'service-no-link',
         message: `${name} is mentioned here, but there is no link to it.`,
       });
-
-    const seen = new Set<string>();
-    for (const text of texts)
-      for (const fix of smallFixes(text)) {
-        if (seen.has(fix.from)) continue;
-        seen.add(fix.from);
-        suggestions.push({ path: f.path, message: fix.message, from: fix.from, to: fix.to });
-      }
   }
-  return { checks, suggestions };
+  return checks;
 }
 
 /**
@@ -707,7 +772,8 @@ export function fillForm(parsed: ParseResult, layout: Layout, options: FillOptio
     });
   if (form.title.trim() === '')
     checks.push({ path: ['title'], kind: 'unsure', message: 'Add a title for this announcement.' });
-  checks.push(...built);
+  // One at a time: a spread of a very long list overflows the call stack.
+  for (const check of built) checks.push(check);
 
   if (form.layout === 'link-list' && form.image !== undefined && form.image.alt.trim() === '')
     checks.push({
@@ -732,12 +798,11 @@ export function fillForm(parsed: ParseResult, layout: Layout, options: FillOptio
       message: 'A pasted link had no destination, so its words were kept as plain text.',
     });
 
-  const review = reviewForm(form);
-  checks.push(...review.checks);
+  for (const check of reviewForm(form)) checks.push(check);
   return {
     form,
     checks: checks.map((c) => ({ ...c, message: sentence(c.message) })),
-    suggestions: review.suggestions.map((s) => ({ ...s, message: sentence(s.message) })),
+    suggestions: suggestionsFor(form),
   };
 }
 
