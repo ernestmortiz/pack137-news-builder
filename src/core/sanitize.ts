@@ -101,7 +101,16 @@ const TAG_EMPHASIS: Record<string, number> = {
   del: STRIKE,
 };
 
+/**
+ * Dropped like the rest, but without a warning. They never hold content, and Chrome puts a
+ * `<meta charset>` on every clipboard paste, so a warning would show on every paste.
+ */
+const QUIET = new Set(['meta', 'title', 'link', 'base']);
+
 const MAX_DETAIL = 200;
+
+/** One `property: value` pair from an inline style, both lower case, `!important` removed. */
+type Declaration = [property: string, value: string];
 
 interface StyleEmphasis {
   /** Bits the style turns on. */
@@ -130,9 +139,11 @@ interface CleanUrl {
   value: string;
 }
 
-function readStyleEmphasis(style: string | null): StyleEmphasis {
-  const result: StyleEmphasis = { set: 0, clear: 0 };
-  if (!style) return result;
+const NO_DECLARATIONS: Declaration[] = [];
+
+function readDeclarations(style: string | null): Declaration[] {
+  if (!style) return NO_DECLARATIONS;
+  const result: Declaration[] = [];
   for (const declaration of style.split(';')) {
     const colon = declaration.indexOf(':');
     if (colon < 0) continue;
@@ -142,6 +153,48 @@ function readStyleEmphasis(style: string | null): StyleEmphasis {
       .replace(/!\s*important/i, '')
       .trim()
       .toLowerCase();
+    result.push([property, value]);
+  }
+  return result;
+}
+
+/**
+ * True when the inline style hides the element from the reader: `display:none`, `mso-hide:all`,
+ * `visibility:hidden`, or `max-height:0` together with `overflow:hidden`. Mail templates hide
+ * their preview text this way. A later declaration of the same property wins, as in a browser.
+ */
+function isHidden(declarations: Declaration[]): boolean {
+  if (declarations.length === 0) return false;
+  let display = '';
+  let visibility = '';
+  let msoHide = '';
+  let maxHeight = '';
+  let overflow = '';
+  for (const [property, value] of declarations) {
+    if (property === 'display') display = value;
+    else if (property === 'visibility') visibility = value;
+    else if (property === 'mso-hide') msoHide = value;
+    else if (property === 'max-height') maxHeight = value;
+    else if (property === 'overflow') overflow = value;
+  }
+  if (display === 'none' || visibility === 'hidden' || msoHide === 'all') return true;
+  return overflow === 'hidden' && /^0+(\.0+)?[a-z%]*$/.test(maxHeight);
+}
+
+/** A whole number of pixels from `width: Npx` or `height: Npx`. Percentages and `auto` give null. */
+function readStyleSize(declarations: Declaration[], name: 'width' | 'height'): string | null {
+  let size: string | null = null;
+  for (const [property, value] of declarations) {
+    if (property !== name) continue;
+    const match = /^(\d+)px$/.exec(value);
+    size = match ? (match[1] ?? null) : null;
+  }
+  return size;
+}
+
+function readStyleEmphasis(declarations: Declaration[]): StyleEmphasis {
+  const result: StyleEmphasis = { set: 0, clear: 0 };
+  for (const [property, value] of declarations) {
     if (property === 'font-weight') {
       const bold = value === 'bold' || (/^\d+(\.\d+)?$/.test(value) && Number(value) >= 600);
       const plain = value === 'normal' || (/^\d+(\.\d+)?$/.test(value) && Number(value) < 600);
@@ -222,11 +275,25 @@ function hasVisibleText(el: Element): boolean {
   return /\S/.test(el.textContent ?? '');
 }
 
-/** Keeps a size attribute only when it is a positive whole number, with or without `px`. */
-function cleanSize(el: Element, name: 'width' | 'height', raw: string | null): void {
+/** A positive whole number, with or without `px`, or 0 when the text is anything else. */
+function readSize(raw: string | null): number {
   const match = raw === null ? null : /^\s*(\d+)(?:px)?\s*$/i.exec(raw);
   const size = match ? Number(match[1]) : 0;
-  if (Number.isSafeInteger(size) && size > 0) el.setAttribute(name, String(size));
+  return Number.isSafeInteger(size) && size > 0 ? size : 0;
+}
+
+/**
+ * Keeps a size only when it is a positive whole number. The attribute is used when it is valid;
+ * otherwise the size the inline style gave in pixels, if any.
+ */
+function cleanSize(
+  el: Element,
+  name: 'width' | 'height',
+  attribute: string | null,
+  fromStyle: string | null,
+): void {
+  const size = readSize(attribute) || readSize(fromStyle);
+  if (size > 0) el.setAttribute(name, String(size));
 }
 
 export function sanitize(html: string): SanitizeResult {
@@ -252,11 +319,11 @@ export function sanitize(html: string): SanitizeResult {
   };
 
   // The parser moves a leading script, style, meta or title into the head. They never reach the
-  // result, but the person should still hear that something was left out.
+  // result, but the person should still hear that a script or style was left out.
   if (doc.head) {
     for (const el of Array.from(doc.head.querySelectorAll('*'))) {
       const tag = el.tagName.toLowerCase();
-      if (DROPPED.has(tag)) reportDropped(tag);
+      if (DROPPED.has(tag) && !QUIET.has(tag)) reportDropped(tag);
     }
   }
 
@@ -340,6 +407,7 @@ export function sanitize(html: string): SanitizeResult {
     alt: string | null,
     width: string | null,
     height: string | null,
+    declarations: Declaration[],
   ): boolean => {
     if (src === null || src.trim() === '') {
       report('blocked-url', 'A picture had no address, so it was removed.', '');
@@ -368,8 +436,8 @@ export function sanitize(html: string): SanitizeResult {
     } else {
       el.setAttribute('alt', alt);
     }
-    cleanSize(el, 'width', width);
-    cleanSize(el, 'height', height);
+    cleanSize(el, 'width', width, readStyleSize(declarations, 'width'));
+    cleanSize(el, 'height', height, readStyleSize(declarations, 'height'));
     return true;
   };
 
@@ -391,12 +459,19 @@ export function sanitize(html: string): SanitizeResult {
     const el = node as Element;
     const tag = el.tagName.toLowerCase();
     if (DROPPED.has(tag)) {
-      reportDropped(tag);
+      if (!QUIET.has(tag)) reportDropped(tag);
       removeNode(el);
       continue;
     }
 
-    const style = readStyleEmphasis(el.getAttribute('style'));
+    const declarations = readDeclarations(el.getAttribute('style'));
+    if (isHidden(declarations)) {
+      // Hidden preview text and the like. Not content, so it goes without a warning.
+      removeNode(el);
+      continue;
+    }
+
+    const style = readStyleEmphasis(declarations);
     const own = TAG_EMPHASIS[tag] ?? 0;
     // A `b` styled as normal weight is a wrapper, not emphasis (Google Docs pastes one).
     const cancelled = (own & style.clear) !== 0;
@@ -416,7 +491,7 @@ export function sanitize(html: string): SanitizeResult {
     for (const attribute of Array.from(el.attributes)) el.removeAttribute(attribute.name);
 
     if (tag === 'img') {
-      if (!cleanImage(el, src, alt, width, height)) removeNode(el);
+      if (!cleanImage(el, src, alt, width, height, declarations)) removeNode(el);
       continue;
     }
     if (tag === 'a' && !cleanLink(el, href)) {

@@ -32,6 +32,31 @@ describe('sanitize: dropped elements', () => {
     expect(details('<script>alert(1)</script><p>Hi</p>', 'dropped-element')).toContain('script');
   });
 
+  it('drops meta, title, link and base without reporting them', () => {
+    const { root, issues } = sanitize(
+      '<meta charset="utf-8"><title>Clip</title><link rel="stylesheet" href="https://x.org/a.css">' +
+        '<base href="https://x.org/"><p>Hi</p>' +
+        '<div><meta name="a" content="b"><link rel="x" href="https://x.org/b.css"><title>t</title><base href="https://y.org/">there</div>',
+    );
+    expect(root.querySelector('meta, title, link, base')).toBeNull();
+    expect(root.textContent).toBe('Hithere');
+    expect(issues).toEqual([]);
+  });
+
+  it('gives no issue for the meta charset that Chrome adds to a clipboard paste', () => {
+    expect(codes("<meta charset='utf-8'><p>Pack meeting on Friday</p>")).toEqual([]);
+  });
+
+  it('still reports script, style, iframe, object, embed and form beside quiet head tags', () => {
+    expect(
+      details(
+        '<meta charset="utf-8"><title>t</title><style>p{}</style><script>1</script><p>a</p>' +
+          '<iframe></iframe><object></object><embed><form><p>x</p></form>',
+        'dropped-element',
+      ).sort(),
+    ).toEqual(['embed', 'form', 'iframe', 'object', 'script', 'style']);
+  });
+
   it('drops forms, media and embedded content', () => {
     const { root } = sanitize(
       '<form action="https://x.org"><input name="a"><button>Go</button><p>inside</p></form>' +
@@ -234,6 +259,90 @@ describe('sanitize: images', () => {
   });
 });
 
+describe('sanitize: image size from inline style', () => {
+  it('takes width and height from a px style when the attributes are missing', () => {
+    const { root } = sanitize(
+      '<img src="https://x.org/a.jpg" alt="a" style="border:0; WIDTH: 552px; height:300PX !important;">',
+    );
+    expect(root.innerHTML).toBe('<img src="https://x.org/a.jpg" alt="a" width="552" height="300">');
+  });
+
+  it('uses the style when the attribute is present but not a valid size', () => {
+    const { root } = sanitize(
+      '<img src="https://x.org/a.jpg" alt="a" width="100%" height="auto" style="width:480px;height:320px">',
+    );
+    expect(root.innerHTML).toBe('<img src="https://x.org/a.jpg" alt="a" width="480" height="320">');
+  });
+
+  it('prefers a valid attribute over the style', () => {
+    const { root } = sanitize(
+      '<img src="https://x.org/a.jpg" alt="a" width="90" style="width:552px;height:40px">',
+    );
+    expect(root.innerHTML).toBe('<img src="https://x.org/a.jpg" alt="a" width="90" height="40">');
+  });
+
+  it.each([
+    'width:100%;height:auto',
+    'width:auto;height:50%',
+    'width:12.5px;height:3em',
+    'width:0px;height:-4px',
+    'max-width:552px;min-height:300px;line-height:20px',
+    'width:calc(100% - 4px);height:px',
+  ])('ignores the style %j', (style) => {
+    const { root } = sanitize(`<img src="https://x.org/a.jpg" alt="a" style="${style}">`);
+    expect(root.innerHTML).toBe('<img src="https://x.org/a.jpg" alt="a">');
+  });
+});
+
+describe('sanitize: hidden content', () => {
+  it.each([
+    'display:none',
+    'display: none',
+    'DISPLAY : NONE ;',
+    'color:red;display:none !important',
+    'mso-hide:all',
+    'Mso-Hide: All',
+    'visibility:hidden',
+    'visibility: HIDDEN;',
+    'max-height:0;overflow:hidden',
+    'overflow: hidden; font-size:1px; max-height: 0px',
+    'max-height:0.0em !important;overflow:hidden',
+  ])('removes an element styled %j together with its contents', (style) => {
+    const { root, issues } = sanitize(
+      `<p>before</p><div style="${style}">secret <a href="x.org">link</a><img src="x"><p>deep</p></div><p>after</p>`,
+    );
+    expect(root.innerHTML).toBe('<p>before</p><p>after</p>');
+    expect(issues).toEqual([]);
+  });
+
+  it('removes hidden inline elements and hidden table cells', () => {
+    const { root } = sanitize(
+      '<p>a<span style="display:none">b</span>c</p>' +
+        '<table><tr><td>d</td><td style="visibility:hidden">e</td></tr></table>',
+    );
+    expect(root.textContent).toBe('acd');
+  });
+
+  it('removes a hidden element that is not on the allow list', () => {
+    const { root } = sanitize('<section style="display:none">a</section><p>b</p>');
+    expect(root.innerHTML).toBe('<p>b</p>');
+  });
+
+  it.each([
+    'max-height:0',
+    'overflow:hidden',
+    'max-height:10px;overflow:hidden',
+    'display:block',
+    'visibility:visible',
+    'display:none;display:block',
+    'mso-hide:none',
+    'background:url(display:none.png)',
+  ])('keeps an element styled %j', (style) => {
+    const { root } = sanitize(`<div style="${style}">shown</div>`);
+    expect(root.textContent).toBe('shown');
+  });
+});
+
 describe('sanitize: hostile and malformed input', () => {
   it('does not throw on malformed markup', () => {
     for (const html of [
@@ -323,5 +432,45 @@ describe('sanitize: November 2026 letter as pasted', () => {
     ).toBe(true);
     expect(issues.filter((issue) => issue.code === 'image-no-alt').length).toBeGreaterThan(0);
     expect(root.querySelector('a:not([href])')).toBeNull();
+  });
+
+  it('removes the hidden preview text and its zero-width padding', () => {
+    // The preview div is the only place this sentence runs straight into the padding characters.
+    expect(html).toContain('About an 8 minute read. \u034F');
+    const text = root.textContent ?? '';
+    const summary = 'Fall camping at Watchung and a big month around the pack.';
+    // The sentence is shown once more in the visible summary line, and only there.
+    expect(html.split(summary).length - 1).toBe(2);
+    expect(text.split(summary).length - 1).toBe(1);
+    for (const code of [0x200c, 0x034f, 0x00ad, 0x200b, 0xfeff]) {
+      expect(text.includes(String.fromCharCode(code))).toBe(false);
+    }
+  });
+
+  it('gives no dropped-element issue for hidden content or head tags', () => {
+    const dropped = issues
+      .filter((issue) => issue.code === 'dropped-element')
+      .map((issue) => issue.detail);
+    for (const tag of ['meta', 'title', 'link', 'base', 'div']) {
+      expect(dropped).not.toContain(tag);
+    }
+  });
+
+  it('takes each photo width from its inline style', () => {
+    const widths = Array.from(root.querySelectorAll('img')).map((img) => [
+      (img.getAttribute('src') ?? '').split('/').pop(),
+      img.getAttribute('width'),
+      img.getAttribute('height'),
+    ]);
+    expect(widths).toEqual([
+      ['pack137_logo_800.jpg', '90', '90'],
+      ['01-opening-campfire-circle.jpg', '552', null],
+      ['02-justin-skit-rehearsal.jpg', '533', null],
+      ['03-alex-sunfish.jpg', '552', null],
+      ['04-ryan-hiking-station.jpg', '547', null],
+      ['05-nico-bannock-on-sticks.jpg', '552', null],
+      ['06-nico-recipe-bannock-closeup.jpg', '426', null],
+      ['07-david-tarp-shelter.jpg', '492', null],
+    ]);
   });
 });
