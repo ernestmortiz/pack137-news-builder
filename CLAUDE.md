@@ -27,4 +27,4 @@ The full brief is `docs/build-spec.md`. Read it before writing code. This file r
 
 ## Status
 
-Phase 0 (foundation) is complete. Next: Phase 1, core pipeline.
+Phase 0 (foundation) is complete. Phase 1 (core pipeline) is built and awaiting the owner's review. Next: Phase 2, renderer.
