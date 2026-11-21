@@ -3,11 +3,144 @@
  *
  * Takes the sanitized body and reduces it to a flat run of blocks: p, h1 to h6, ul, ol, hr and
  * stand-alone img. Wrappers and layout tables go, emphasis tags are unified, whitespace is tidied
- * and empty nodes are removed. Every walk uses an explicit stack, so deep nesting is safe.
+ * and empty nodes are removed.
+ *
+ * The work is done on a plain copy of the tree (`Item`), not on the DOM. The DOM is read once,
+ * emptied, and written once. In some DOM implementations moving a node costs time in proportion
+ * to everything under it, and several DOM calls recurse (reading text, moving or removing a
+ * subtree), so on the DOM itself thousands of nested wrappers take seconds or overflow the stack.
+ * On the copy every move is a few pointer writes, and every walk uses an explicit stack.
  */
 
 const ELEMENT_NODE = 1;
 const TEXT_NODE = 3;
+
+type Attribute = [name: string, value: string];
+
+/** One node of the working copy: an element, or a text node when `tag` is empty. */
+interface Item {
+  tag: string;
+  /** The characters of a text node. Empty on elements. */
+  text: string;
+  attributes: readonly Attribute[];
+  parent: Item | null;
+  previous: Item | null;
+  next: Item | null;
+  first: Item | null;
+  last: Item | null;
+}
+
+const NO_ATTRIBUTES: readonly Attribute[] = [];
+
+function makeItem(tag: string, text: string, attributes: readonly Attribute[]): Item {
+  return {
+    tag,
+    text,
+    attributes,
+    parent: null,
+    previous: null,
+    next: null,
+    first: null,
+    last: null,
+  };
+}
+
+function makeElement(tag: string, attributes: readonly Attribute[] = NO_ATTRIBUTES): Item {
+  return makeItem(tag, '', attributes);
+}
+
+function makeText(text: string): Item {
+  return makeItem('', text, NO_ATTRIBUTES);
+}
+
+function isText(node: Item): boolean {
+  return node.tag === '';
+}
+
+function attributeOf(node: Item, name: string): string | null {
+  for (const [key, value] of node.attributes) if (key === name) return value;
+  return null;
+}
+
+/** A snapshot of the children, safe to loop over while the tree changes. */
+function childrenOf(parent: Item): Item[] {
+  const result: Item[] = [];
+  for (let child = parent.first; child; child = child.next) result.push(child);
+  return result;
+}
+
+function removeNode(node: Item): void {
+  const parent = node.parent;
+  if (!parent) return;
+  if (node.previous) node.previous.next = node.next;
+  else parent.first = node.next;
+  if (node.next) node.next.previous = node.previous;
+  else parent.last = node.previous;
+  node.parent = null;
+  node.previous = null;
+  node.next = null;
+}
+
+/** Puts `node` in `parent` before `reference`, or at the end when `reference` is null. */
+function insertBefore(parent: Item, node: Item, reference: Item | null): void {
+  if (node === reference) return;
+  removeNode(node);
+  const previous = reference ? reference.previous : parent.last;
+  node.parent = parent;
+  node.previous = previous;
+  node.next = reference;
+  if (previous) previous.next = node;
+  else parent.first = node;
+  if (reference) reference.previous = node;
+  else parent.last = node;
+}
+
+function appendChild(parent: Item, node: Item): void {
+  insertBefore(parent, node, null);
+}
+
+/** Puts the children of `el` where `el` was. */
+function unwrap(el: Item): void {
+  const parent = el.parent;
+  if (!parent) return;
+  const { first, last } = el;
+  if (!first || !last) {
+    removeNode(el);
+    return;
+  }
+  for (let child: Item | null = first; child; child = child.next) child.parent = parent;
+  first.previous = el.previous;
+  last.next = el.next;
+  if (el.previous) el.previous.next = first;
+  else parent.first = first;
+  if (el.next) el.next.previous = last;
+  else parent.last = last;
+  el.first = null;
+  el.last = null;
+  el.parent = null;
+  el.previous = null;
+  el.next = null;
+}
+
+/** Moves every child of `from` to the end of `to`. */
+function moveChildren(from: Item, to: Item): void {
+  const { first, last } = from;
+  if (!first || !last) return;
+  for (let child: Item | null = first; child; child = child.next) child.parent = to;
+  first.previous = to.last;
+  if (to.last) to.last.next = first;
+  else to.first = first;
+  to.last = last;
+  from.first = null;
+  from.last = null;
+}
+
+/** Gives `el` another tag. Its children stay; its attributes belonged to the old tag and go. */
+function rename(el: Item, tag: string): Item {
+  el.tag = tag;
+  el.attributes = NO_ATTRIBUTES;
+  return el;
+}
 
 const RENAME: Record<string, string> = {
   b: 'strong',
@@ -46,67 +179,44 @@ const TEXT_BOUNDARIES = new Set(['br', ...BLOCKS]);
 const MARK_BITS: Record<string, number> = { strong: 1, em: 2, s: 4 };
 
 interface Frame {
-  node: Node;
+  node: Item;
   exit: boolean;
 }
 
-function tagOf(node: Node | null): string {
-  return node && node.nodeType === ELEMENT_NODE ? (node as Element).tagName.toLowerCase() : '';
+function isBlankText(node: Item): boolean {
+  return isText(node) && !/\S/.test(node.text);
 }
 
-function isBlankText(node: Node): boolean {
-  return node.nodeType === TEXT_NODE && !/\S/.test(node.nodeValue ?? '');
-}
-
-function removeNode(node: Node): void {
-  node.parentNode?.removeChild(node);
-}
-
-function unwrap(el: Element): void {
-  const parent = el.parentNode;
-  if (!parent) return;
-  while (el.firstChild) parent.insertBefore(el.firstChild, el);
-  parent.removeChild(el);
-}
-
-/** Replaces `el` with a new element of another tag that holds the same children. */
-function rename(el: Element, tag: string): Element {
-  const fresh = el.ownerDocument.createElement(tag);
-  while (el.firstChild) fresh.appendChild(el.firstChild);
-  el.parentNode?.replaceChild(fresh, el);
-  return fresh;
-}
-
-function hasBlockChild(el: Element): boolean {
-  for (let child = el.firstChild; child; child = child.nextSibling) {
-    if (BLOCKS.has(tagOf(child))) return true;
+function hasBlockChild(el: Item): boolean {
+  for (let child = el.first; child; child = child.next) {
+    if (BLOCKS.has(child.tag)) return true;
   }
   return false;
 }
 
-function pushChildren(stack: Frame[], parent: Node): void {
-  for (let child = parent.lastChild; child; child = child.previousSibling) {
+function pushChildren(stack: Frame[], parent: Item): void {
+  for (let child = parent.last; child; child = child.previous) {
     stack.push({ node: child, exit: false });
   }
 }
 
 /** Wraps each run of inline children in a `p`. Runs that are only whitespace are removed. */
-function wrapInlineRuns(container: Element): void {
-  let run: Node[] = [];
+function wrapInlineRuns(container: Item): void {
+  let run: Item[] = [];
   const flush = (): void => {
     const first = run[0];
     if (!first) return;
     if (run.every(isBlankText)) {
       run.forEach(removeNode);
     } else {
-      const p = container.ownerDocument.createElement('p');
-      container.insertBefore(p, first);
-      for (const node of run) p.appendChild(node);
+      const p = makeElement('p');
+      insertBefore(container, p, first);
+      for (const node of run) appendChild(p, node);
     }
     run = [];
   };
-  for (const child of Array.from(container.childNodes)) {
-    if (BLOCKS.has(tagOf(child))) flush();
+  for (const child of childrenOf(container)) {
+    if (BLOCKS.has(child.tag)) flush();
     else run.push(child);
   }
   flush();
@@ -116,27 +226,27 @@ function wrapInlineRuns(container: Element): void {
  * An inline element (strong, em, s, a) that wraps blocks is pushed down into them, so
  * `<b><div>One</div><div>Two</div></b>` keeps both paragraphs bold.
  */
-function pushInlineIntoBlocks(inline: Element): void {
-  const wrapNodes = (parent: Node, nodes: Node[]): void => {
+function pushInlineIntoBlocks(inline: Item): void {
+  const wrapNodes = (parent: Item, nodes: Item[]): void => {
     const first = nodes[0];
     if (!first || nodes.every(isBlankText)) return;
-    const copy = inline.cloneNode(false);
-    parent.insertBefore(copy, first);
-    for (const node of nodes) copy.appendChild(node);
+    const copy = makeElement(inline.tag, inline.attributes);
+    insertBefore(parent, copy, first);
+    for (const node of nodes) appendChild(copy, node);
   };
-  const containers: Element[] = [inline];
+  const containers: Item[] = [inline];
   for (let container = containers.pop(); container; container = containers.pop()) {
-    let run: Node[] = [];
-    for (const child of Array.from(container.childNodes)) {
-      const tag = tagOf(child);
+    let run: Item[] = [];
+    for (const child of childrenOf(container)) {
+      const tag = child.tag;
       if (!BLOCKS.has(tag)) {
         run.push(child);
         continue;
       }
       wrapNodes(container, run);
       run = [];
-      if (tag === 'p' || HEADINGS.has(tag)) wrapNodes(child, Array.from(child.childNodes));
-      else if (tag !== 'hr') containers.push(child as Element);
+      if (tag === 'p' || HEADINGS.has(tag)) wrapNodes(child, childrenOf(child));
+      else if (tag !== 'hr') containers.push(child);
     }
     wrapNodes(container, run);
   }
@@ -144,8 +254,8 @@ function pushInlineIntoBlocks(inline: Element): void {
 }
 
 /** Runs when every descendant of `el` has already been restructured. */
-function leaveElement(el: Element): void {
-  const tag = tagOf(el);
+function leaveElement(el: Item): void {
+  const tag = el.tag;
   if (tag === 'div' || tag === 'p') {
     if (hasBlockChild(el)) {
       wrapInlineRuns(el);
@@ -161,67 +271,63 @@ function leaveElement(el: Element): void {
   }
   if (HEADINGS.has(tag)) {
     // A heading holds one line of text. Paragraphs inside it are flattened.
-    for (const child of Array.from(el.childNodes)) {
-      if (tagOf(child) !== 'p') continue;
-      el.insertBefore(el.ownerDocument.createTextNode(' '), child);
-      unwrap(child as Element);
+    for (const child of childrenOf(el)) {
+      if (child.tag !== 'p') continue;
+      insertBefore(el, makeText(' '), child);
+      unwrap(child);
     }
     return;
   }
   if (tag === 'ul' || tag === 'ol') {
-    for (const child of Array.from(el.childNodes)) if (isBlankText(child)) removeNode(child);
+    for (const child of childrenOf(el)) if (isBlankText(child)) removeNode(child);
     return;
   }
   if (tag === 'li') {
     // `<li><p>text</p></li>` is one line of text, not mixed content.
-    let only: Element | null = null;
-    for (let child = el.firstChild; child; child = child.nextSibling) {
-      const childTag = tagOf(child);
+    let only: Item | null = null;
+    for (let child = el.first; child; child = child.next) {
+      const childTag = child.tag;
       if (childTag === 'ul' || childTag === 'ol' || isBlankText(child)) continue;
       if (childTag !== 'p' || only) return;
-      only = child as Element;
+      only = child;
     }
     if (only) unwrap(only);
   }
 }
 
 /** Pass 1: rename, unwrap and flatten until only blocks sit under the root. */
-function restructure(root: Element): void {
+function restructure(root: Item): void {
   const stack: Frame[] = [];
   pushChildren(stack, root);
   for (let frame = stack.pop(); frame; frame = stack.pop()) {
     const { node } = frame;
     if (frame.exit) {
-      leaveElement(node as Element);
+      leaveElement(node);
       continue;
     }
-    if (node.nodeType === TEXT_NODE) continue;
-    if (node.nodeType !== ELEMENT_NODE) {
-      removeNode(node);
-      continue;
-    }
-    let el = node as Element;
-    const tag = tagOf(el);
+    if (isText(node)) continue;
+    const tag = node.tag;
     if (UNWRAP.has(tag)) {
-      pushChildren(stack, el);
-      unwrap(el);
+      // The children move up one level and are then visited in their new place.
+      pushChildren(stack, node);
+      unwrap(node);
       continue;
     }
     const target = RENAME[tag];
-    if (target) el = rename(el, target);
-    stack.push({ node: el, exit: true });
-    pushChildren(stack, el);
+    if (target) rename(node, target);
+    stack.push({ node, exit: true });
+    pushChildren(stack, node);
   }
 
   // List items that lost their list (the list tag was not closed, or sat in a dropped wrapper).
-  let list: Element | null = null;
-  for (const child of Array.from(root.childNodes)) {
-    if (tagOf(child) === 'li') {
+  let list: Item | null = null;
+  for (const child of childrenOf(root)) {
+    if (child.tag === 'li') {
       if (!list) {
-        list = root.ownerDocument.createElement('ul');
-        root.insertBefore(list, child);
+        list = makeElement('ul');
+        insertBefore(root, list, child);
       }
-      list.appendChild(child);
+      appendChild(list, child);
     } else if (!isBlankText(child)) {
       list = null;
     }
@@ -233,15 +339,14 @@ function restructure(root: Element): void {
  * Pass 2a: remove elements with no text, image or rule in them. Children are judged before their
  * parent, so one walk settles a whole chain of empty wrappers.
  */
-function removeEmptyElements(root: Element): void {
-  const filled = new Set<Node>();
+function removeEmptyElements(root: Item): void {
+  const filled = new Set<Item>();
   const stack: Frame[] = [];
   pushChildren(stack, root);
   for (let frame = stack.pop(); frame; frame = stack.pop()) {
-    const { node } = frame;
-    if (node.nodeType !== ELEMENT_NODE) continue;
-    const el = node as Element;
-    const tag = tagOf(el);
+    const el = frame.node;
+    if (isText(el)) continue;
+    const tag = el.tag;
     if (tag === 'br') continue;
     if (tag === 'img' || tag === 'hr') {
       filled.add(el);
@@ -254,9 +359,9 @@ function removeEmptyElements(root: Element): void {
     }
     let hasContent = false;
     let hasSpace = false;
-    for (let child = el.firstChild; child; child = child.nextSibling) {
-      if (child.nodeType === TEXT_NODE) {
-        if (isBlankText(child)) hasSpace = hasSpace || (child.nodeValue ?? '') !== '';
+    for (let child = el.first; child; child = child.next) {
+      if (isText(child)) {
+        if (isBlankText(child)) hasSpace = hasSpace || child.text !== '';
         else hasContent = true;
       } else if (filled.has(child)) {
         hasContent = true;
@@ -267,7 +372,8 @@ function removeEmptyElements(root: Element): void {
       filled.add(el);
     } else if (hasSpace && !BLOCKS.has(tag)) {
       // `a<b> </b>b` must keep the space between the words.
-      el.parentNode?.replaceChild(el.ownerDocument.createTextNode(' '), el);
+      if (el.parent) insertBefore(el.parent, makeText(' '), el);
+      removeNode(el);
     } else {
       removeNode(el);
     }
@@ -275,27 +381,27 @@ function removeEmptyElements(root: Element): void {
 }
 
 /** Removes `br` and blank text from one edge of a block. Returns true when a `br` was removed. */
-function trimBlockEdge(block: Element, fromStart: boolean): boolean {
+function trimBlockEdge(block: Item, fromStart: boolean): boolean {
   let removed = false;
   let container = block;
   for (;;) {
-    const edge = fromStart ? container.firstChild : container.lastChild;
+    const edge = fromStart ? container.first : container.last;
     if (!edge) {
       // An inline element emptied by the trim goes too, and the trim carries on above it.
-      const parent = container.parentNode;
+      const parent = container.parent;
       if (container === block || !parent) break;
-      parent.removeChild(container);
-      container = parent as Element;
+      removeNode(container);
+      container = parent;
       continue;
     }
-    const tag = tagOf(edge);
+    const tag = edge.tag;
     if (tag === 'br') {
       removeNode(edge);
       removed = true;
     } else if (isBlankText(edge)) {
       removeNode(edge);
     } else if (MARKS.has(tag) || tag === 'a') {
-      container = edge as Element;
+      container = edge;
     } else {
       break;
     }
@@ -303,38 +409,54 @@ function trimBlockEdge(block: Element, fromStart: boolean): boolean {
   return removed;
 }
 
-/** Pass 2b: a `br` at the very start or end of a block carries no meaning. */
-function trimBreaks(root: Element): boolean {
+/**
+ * Pass 2b: a `br` at the very start or end of a block carries no meaning. Returns true when
+ * something was removed, so the caller can check once more for elements left empty.
+ *
+ * Inner blocks are trimmed before the list item that holds them, and a block or list the trim
+ * left with nothing in it is removed on the spot. A chain such as an item that ends in a break,
+ * then a list whose only item is a break, therefore settles in this one walk, however deep.
+ */
+function trimBreaks(root: Item): boolean {
   let removed = false;
-  const stack: Node[] = Array.from(root.childNodes);
-  for (let node = stack.pop(); node; node = stack.pop()) {
-    if (node.nodeType !== ELEMENT_NODE) continue;
-    const el = node as Element;
-    const tag = tagOf(el);
-    if (TEXT_BLOCKS.has(tag)) {
+  const stack: Frame[] = [];
+  pushChildren(stack, root);
+  for (let frame = stack.pop(); frame; frame = stack.pop()) {
+    const el = frame.node;
+    if (isText(el)) continue;
+    const tag = el.tag;
+    const holdsBlocks = tag === 'ul' || tag === 'ol' || tag === 'li';
+    if (holdsBlocks && !frame.exit) {
+      stack.push({ node: el, exit: true });
+      pushChildren(stack, el);
+      continue;
+    }
+    const trimmed = TEXT_BLOCKS.has(tag);
+    if (trimmed) {
       if (trimBlockEdge(el, true)) removed = true;
       if (trimBlockEdge(el, false)) removed = true;
     }
-    if (tag === 'ul' || tag === 'ol' || tag === 'li') {
-      for (let child = el.firstChild; child; child = child.nextSibling) stack.push(child);
+    if ((trimmed || holdsBlocks) && !el.first) {
+      removeNode(el);
+      removed = true;
     }
   }
   return removed;
 }
 
 /** Pass 3a: `<strong><em><strong>x</strong></em></strong>` needs only the outer strong. */
-function flattenNestedMarks(root: Element): void {
-  const stack: { node: Node; active: number }[] = [];
-  const push = (parent: Node, active: number): void => {
-    for (let child = parent.lastChild; child; child = child.previousSibling) {
+function flattenNestedMarks(root: Item): void {
+  const stack: { node: Item; active: number }[] = [];
+  const push = (parent: Item, active: number): void => {
+    for (let child = parent.last; child; child = child.previous) {
       stack.push({ node: child, active });
     }
   };
   push(root, 0);
   for (let frame = stack.pop(); frame; frame = stack.pop()) {
-    if (frame.node.nodeType !== ELEMENT_NODE) continue;
-    const el = frame.node as Element;
-    const tag = tagOf(el);
+    const el = frame.node;
+    if (isText(el)) continue;
+    const tag = el.tag;
     const bit = MARK_BITS[tag] ?? 0;
     if (bit !== 0 && (frame.active & bit) !== 0) {
       push(el, frame.active);
@@ -346,41 +468,44 @@ function flattenNestedMarks(root: Element): void {
   }
 }
 
-function sameInline(a: Node, b: Node | null): b is Element {
-  const tag = tagOf(a);
-  if (!b || tag === '' || tagOf(b) !== tag) return false;
+function sameInline(a: Item, b: Item | null): boolean {
+  const tag = a.tag;
+  if (!b || tag === '' || b.tag !== tag) return false;
   if (MARKS.has(tag)) return true;
-  return tag === 'a' && (a as Element).getAttribute('href') === (b as Element).getAttribute('href');
+  return tag === 'a' && attributeOf(a, 'href') === attributeOf(b, 'href');
 }
 
 /** Pass 3b: join neighbours such as `<strong>a</strong><strong>b</strong>` and split text nodes. */
-function mergeAdjacent(root: Element): void {
-  const parents: Element[] = [root];
+function mergeAdjacent(root: Item): void {
+  const parents: Item[] = [root];
   for (let parent = parents.pop(); parent; parent = parents.pop()) {
-    let node = parent.firstChild;
+    let node = parent.first;
     while (node) {
-      const next: ChildNode | null = node.nextSibling;
-      if (node.nodeType === TEXT_NODE && next && next.nodeType === TEXT_NODE) {
-        node.nodeValue = (node.nodeValue ?? '') + (next.nodeValue ?? '');
-        removeNode(next);
+      const next: Item | null = node.next;
+      if (isText(node) && next && isText(next)) {
+        // Collect the whole run first: joining one piece at a time would copy the text each time.
+        const parts = [node.text];
+        let after: Item | null = next;
+        while (after && isText(after)) {
+          parts.push(after.text);
+          const following: Item | null = after.next;
+          removeNode(after);
+          after = following;
+        }
+        node.text = parts.join('');
         continue;
       }
-      if (sameInline(node, next)) {
-        while (next.firstChild) node.appendChild(next.firstChild);
+      if (next && sameInline(node, next)) {
+        moveChildren(next, node);
         removeNode(next);
         continue;
       }
       // Emphasis either side of a space is one emphasised phrase.
-      if (
-        next &&
-        MARKS.has(tagOf(node)) &&
-        isBlankText(next) &&
-        sameInline(node, next.nextSibling)
-      ) {
-        node.appendChild(next);
+      if (next && MARKS.has(node.tag) && isBlankText(next) && sameInline(node, next.next)) {
+        appendChild(node, next);
         continue;
       }
-      if (node.nodeType === ELEMENT_NODE) parents.push(node as Element);
+      if (!isText(node)) parents.push(node);
       node = next;
     }
   }
@@ -390,15 +515,15 @@ function mergeAdjacent(root: Element): void {
  * Pass 4: non-breaking spaces become spaces, whitespace runs collapse to one space, and each block
  * (and each line either side of a `br`) loses its leading and trailing space.
  */
-function tidyText(root: Element): void {
+function tidyText(root: Item): void {
   // True at the start of a block or after a space: the next leading space is dropped.
   let afterSpace = true;
-  let trailing: Node | null = null;
+  let trailing: Item | null = null;
   const endRun = (): void => {
     if (trailing) {
-      const text = (trailing.nodeValue ?? '').replace(/ $/, '');
+      const text = trailing.text.replace(/ $/, '');
       if (text === '') removeNode(trailing);
-      else trailing.nodeValue = text;
+      else trailing.text = text;
     }
     trailing = null;
     afterSpace = true;
@@ -408,27 +533,26 @@ function tidyText(root: Element): void {
   pushChildren(stack, root);
   for (let frame = stack.pop(); frame; frame = stack.pop()) {
     const { node } = frame;
-    if (node.nodeType === TEXT_NODE) {
-      let text = (node.nodeValue ?? '').replace(/[ \t\n\r\f\u00a0]+/g, ' ');
+    if (isText(node)) {
+      let text = node.text.replace(/[ \t\n\r\f\u00a0]+/g, ' ');
       if (afterSpace && text.startsWith(' ')) text = text.slice(1);
       if (text === '') {
         removeNode(node);
         continue;
       }
-      if (text !== node.nodeValue) node.nodeValue = text;
+      node.text = text;
       afterSpace = text.endsWith(' ');
       trailing = afterSpace ? node : null;
       continue;
     }
-    if (node.nodeType !== ELEMENT_NODE) continue;
-    const tag = tagOf(node);
+    const tag = node.tag;
     if (TEXT_BOUNDARIES.has(tag)) {
       endRun();
     } else if (tag === 'img') {
       afterSpace = false;
       trailing = null;
     }
-    if (!frame.exit && node.firstChild) {
+    if (!frame.exit && node.first) {
       stack.push({ node, exit: true });
       pushChildren(stack, node);
     }
@@ -437,24 +561,138 @@ function tidyText(root: Element): void {
 }
 
 /** Pass 5: a paragraph that holds nothing but one image is an image block. */
-function liftLoneImages(root: Element): void {
-  for (const child of Array.from(root.childNodes)) {
-    if (tagOf(child) !== 'p') continue;
-    const only = child.firstChild;
-    if (only && only === child.lastChild && tagOf(only) === 'img') {
-      root.replaceChild(only, child);
+function liftLoneImages(root: Item): void {
+  for (const child of childrenOf(root)) {
+    if (child.tag !== 'p') continue;
+    const only = child.first;
+    if (only && only === child.last && only.tag === 'img') {
+      insertBefore(root, only, child);
+      removeNode(child);
     }
   }
 }
 
-/** Mutates `root` in place and returns it. */
+/**
+ * A snapshot of the DOM children. Stepping from sibling to sibling can cost a search of the parent
+ * on every step, which adds up when one element has tens of thousands of children.
+ */
+function domChildrenOf(parent: Node): Node[] {
+  const first = parent.firstChild;
+  if (!first) return [];
+  if (first === parent.lastChild) return [first];
+  return Array.from(parent.childNodes);
+}
+
+/** Copies the element and text nodes under `root` into a working tree. The DOM is only read. */
+function readTree(root: Node): Item {
+  const top = makeElement('#root');
+  const stack: { node: Node; parent: Item }[] = [];
+  const push = (domParent: Node, parent: Item): void => {
+    // One snapshot per parent. Sibling pointers can cost a search of the parent on every step.
+    const children = domChildrenOf(domParent);
+    for (let i = children.length - 1; i >= 0; i -= 1) {
+      const node = children[i];
+      if (node) stack.push({ node, parent });
+    }
+  };
+  push(root, top);
+  for (let frame = stack.pop(); frame; frame = stack.pop()) {
+    const { node, parent } = frame;
+    if (node.nodeType === TEXT_NODE) {
+      appendChild(parent, makeText(node.nodeValue ?? ''));
+      continue;
+    }
+    // Comments and anything else that is not content are left out.
+    if (node.nodeType !== ELEMENT_NODE) continue;
+    const el = node as Element;
+    const attributes: Attribute[] = [];
+    if (el.hasAttributes()) {
+      for (const attribute of Array.from(el.attributes)) {
+        attributes.push([attribute.name, attribute.value]);
+      }
+    }
+    const item = makeElement(
+      el.tagName.toLowerCase(),
+      attributes.length > 0 ? attributes : NO_ATTRIBUTES,
+    );
+    appendChild(parent, item);
+    push(el, item);
+  }
+  return top;
+}
+
+/** A subtree this many levels tall is cut loose on its own while the root is being emptied. */
+const MAX_REMOVAL_HEIGHT = 200;
+
+/**
+ * Empties `root`. Removing a node can recurse through everything under it, so a very tall subtree
+ * is first cut into pieces of a bounded height, deepest piece first.
+ */
+function removeAllChildren(root: Node): void {
+  const heights = new Map<Node, number>();
+  const stack: { node: Node; children: Node[] | null }[] = [{ node: root, children: null }];
+  for (let frame = stack.pop(); frame; frame = stack.pop()) {
+    const { node } = frame;
+    if (!frame.children) {
+      const children = domChildrenOf(node);
+      if (children.length === 0) continue;
+      stack.push({ node, children });
+      for (const child of children) stack.push({ node: child, children: null });
+      continue;
+    }
+    // Every child has been visited. A child that was cut loose no longer counts.
+    let height = 0;
+    for (const child of frame.children) {
+      const below = heights.get(child);
+      if (below !== undefined) {
+        height = Math.max(height, below + 1);
+        heights.delete(child);
+      } else if (child.parentNode === node) {
+        height = Math.max(height, 1);
+      }
+    }
+    if (height >= MAX_REMOVAL_HEIGHT && node !== root) node.parentNode?.removeChild(node);
+    else heights.set(node, height);
+  }
+  while (root.firstChild) root.removeChild(root.firstChild);
+}
+
+/**
+ * Builds the DOM for the working tree under `root`. Each node is attached while it is still
+ * empty, parent before child, so no call ever has to walk an existing subtree.
+ */
+function writeTree(top: Item, root: Node): void {
+  const doc = root.ownerDocument;
+  if (!doc) return;
+  const stack: { item: Item; parent: Node }[] = [];
+  const push = (from: Item, parent: Node): void => {
+    for (let child = from.last; child; child = child.previous) stack.push({ item: child, parent });
+  };
+  push(top, root);
+  for (let frame = stack.pop(); frame; frame = stack.pop()) {
+    const { item, parent } = frame;
+    if (isText(item)) {
+      parent.appendChild(doc.createTextNode(item.text));
+      continue;
+    }
+    const el = doc.createElement(item.tag);
+    for (const [name, value] of item.attributes) el.setAttribute(name, value);
+    parent.appendChild(el);
+    push(item, el);
+  }
+}
+
+/** Replaces the content of `root` with its normalized form and returns `root`. */
 export function normalize(root: HTMLElement): HTMLElement {
-  restructure(root);
-  do removeEmptyElements(root);
-  while (trimBreaks(root));
-  flattenNestedMarks(root);
-  mergeAdjacent(root);
-  tidyText(root);
-  liftLoneImages(root);
+  const top = readTree(root);
+  restructure(top);
+  do removeEmptyElements(top);
+  while (trimBreaks(top));
+  flattenNestedMarks(top);
+  mergeAdjacent(top);
+  tidyText(top);
+  liftLoneImages(top);
+  removeAllChildren(root);
+  writeTree(top, root);
   return root;
 }

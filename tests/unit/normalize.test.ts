@@ -222,3 +222,89 @@ describe('normalize: output the tool made earlier', () => {
     expect(hrefs).toContain('mailto:cranfordpack137@gmail.com');
   });
 });
+
+describe('normalize: deep and very large input', () => {
+  /** Runs sanitize first, then times normalize on its own. */
+  function timed(html: string): { root: HTMLElement; elapsed: number } {
+    const { root } = sanitize(html);
+    const started = performance.now();
+    normalize(root);
+    return { root, elapsed: performance.now() - started };
+  }
+
+  it('flattens 3000 nested layout tables without overflowing the stack', () => {
+    const depth = 3000;
+    const html = '<table><tr><td>'.repeat(depth) + 'deep item' + '</td></tr></table>'.repeat(depth);
+    const { root, elapsed } = timed(html);
+    expect(root.innerHTML).toBe('<p>deep item</p>');
+    expect(elapsed).toBeLessThan(1000);
+  });
+
+  it('unwraps 3000 nested spans in under a second', () => {
+    const depth = 3000;
+    const { root, elapsed } = timed('<span>'.repeat(depth) + 'deep' + '</span>'.repeat(depth));
+    expect(root.innerHTML).toBe('<p>deep</p>');
+    expect(elapsed).toBeLessThan(1000);
+  });
+
+  it('flattens 3000 nested bold tags to one strong in under a second', () => {
+    const depth = 3000;
+    const { root, elapsed } = timed('<b>'.repeat(depth) + 'deep' + '</b>'.repeat(depth));
+    expect(root.innerHTML).toBe('<p><strong>deep</strong></p>');
+    expect(elapsed).toBeLessThan(1000);
+  });
+
+  it('handles 1 MB of unclosed bold, italic and link tags in under a second', () => {
+    const count = 30000;
+    const html = '<b><i><a href="https://x.org">t'.repeat(count);
+    expect(html.length).toBeGreaterThan(900 * 1024);
+    // The other test files run at the same moment and compete for the processor, so a slow run
+    // is tried again, up to three times.
+    let result = timed(html);
+    for (let attempt = 1; attempt < 3 && result.elapsed >= 1000; attempt += 1) result = timed(html);
+    const { root, elapsed } = result;
+    expect(elapsed).toBeLessThan(1000);
+    // Every letter survives, in blocks of the usual kind, and the links keep their address.
+    expect(root.textContent).toBe('t'.repeat(count));
+    for (const el of Array.from(root.children)) expect(el.tagName).toBe('P');
+    expect(root.querySelector('b, i, span, div')).toBeNull();
+    const links = Array.from(root.querySelectorAll('a'));
+    expect(links.length).toBeGreaterThan(0);
+    for (const a of links) expect(a.getAttribute('href')).toBe('https://x.org');
+  }, 30000);
+
+  it('keeps 3000 nested lists as lists', () => {
+    const depth = 3000;
+    const { root, elapsed } = timed('<ul><li>'.repeat(depth) + 'deep' + '</li></ul>'.repeat(depth));
+    expect(elapsed).toBeLessThan(1000);
+    // Walk down by hand: a deep tree must not be read with a recursive DOM call.
+    let levels = 0;
+    let node: Element | null = root.firstElementChild;
+    while (node && (node.tagName === 'UL' || node.tagName === 'LI')) {
+      levels += 1;
+      const next: Element | null = node.firstElementChild;
+      if (!next) expect(node.firstChild?.nodeValue).toBe('deep');
+      node = next;
+    }
+    expect(levels).toBe(depth * 2);
+  });
+
+  it('settles a deep chain of list items that hold only a line break in under a second', () => {
+    // Each item is empty once the list inside it has gone, so the whole chain goes, inside out.
+    const depth = 3000;
+    const html = '<ul><li><br>'.repeat(depth) + '</li></ul>'.repeat(depth) + '<p>kept</p>';
+    const { root, elapsed } = timed(html);
+    expect(elapsed).toBeLessThan(1000);
+    expect(root.innerHTML).toBe('<p>kept</p>');
+  });
+
+  it('replaces the content of a root that holds 3000 nested wrappers and a wide run', () => {
+    const depth = 3000;
+    const html =
+      '<div>'.repeat(depth) + '<p>a</p>'.repeat(2000) + '</div>'.repeat(depth) + '<p>last</p>';
+    const { root, elapsed } = timed(html);
+    expect(elapsed).toBeLessThan(2000);
+    expect(root.children.length).toBe(2001);
+    expect(root.lastElementChild?.textContent).toBe('last');
+  });
+});

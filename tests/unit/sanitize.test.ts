@@ -16,6 +16,43 @@ function details(html: string, code: IssueCode): (string | undefined)[] {
     .map((issue) => issue.detail);
 }
 
+describe('sanitize: time budget for a very large paste', () => {
+  // First in the file on purpose. About two thirds of this time is the DOM parser, and a heap
+  // already filled by the other large tests slows it further with work that is not sanitize's.
+  // The other test files run at the same moment and compete for the processor, so a slow run
+  // is tried again, up to three times. Work that grows with the square of the paste size fails
+  // every time.
+  it('handles 1 MB of unclosed bold, italic and link tags in under 2 seconds', () => {
+    const count = 30000;
+    const html = '<b><i><a href="https://x.org">t'.repeat(count);
+    expect(html.length).toBeGreaterThan(900 * 1024);
+    let result = sanitize('');
+    let elapsed = Infinity;
+    for (let attempt = 0; attempt < 3 && elapsed >= 2000; attempt += 1) {
+      const started = performance.now();
+      result = sanitize(html);
+      elapsed = performance.now() - started;
+    }
+    const { root, issues } = result;
+    expect(elapsed).toBeLessThan(2000);
+    expect(issues).toEqual([]);
+    // Counted by hand: a selector query over this many nodes takes longer than the work itself.
+    let links = 0;
+    let letters = 0;
+    const pending: Node[] = [root];
+    for (let node = pending.pop(); node; node = pending.pop()) {
+      if (node.nodeType === 3) letters += (node.nodeValue ?? '').length;
+      else if ((node as Element).tagName === 'A') {
+        links += 1;
+        expect((node as Element).getAttribute('href')).toBe('https://x.org');
+      }
+      for (const child of Array.from(node.childNodes)) pending.push(child);
+    }
+    expect(links).toBe(count);
+    expect(letters).toBe(count);
+  }, 30000);
+});
+
 describe('sanitize: dropped elements', () => {
   it('drops script, style and iframe with their contents and reports each tag once', () => {
     const { root, issues } = sanitize(
@@ -391,6 +428,76 @@ describe('sanitize: hostile and malformed input', () => {
     ]);
   });
 
+  it('unwraps 3000 nested elements that are not on the allow list in under a second', () => {
+    const depth = 3000;
+    const html = '<section><article>'.repeat(depth) + 'deep' + '</article></section>'.repeat(depth);
+    const started = performance.now();
+    const { root } = sanitize(html);
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(root.childNodes.length).toBe(1);
+    expect(root.firstChild?.nodeValue).toBe('deep');
+  });
+
+  it('removes hidden and dropped content that is thousands of levels deep', () => {
+    const deep = '<div>'.repeat(9000) + 'secret' + '</div>'.repeat(9000);
+    const html = `<p>Hi</p><div style="display:none">${deep}</div><form>${deep}</form><p>Bye</p>`;
+    const started = performance.now();
+    const { root, issues } = sanitize(html);
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(root.textContent).toBe('HiBye');
+    expect(issues.map((issue) => issue.detail)).toEqual(['form']);
+  });
+
+  it('checks a link with no destination that wraps thousands of levels', () => {
+    const depth = 9000;
+    const html = `<a>${'<div>'.repeat(depth)}words${'</div>'.repeat(depth)}</a><a><img src="https://x.org/a.jpg" alt="A"></a>`;
+    const started = performance.now();
+    const { root, issues } = sanitize(html);
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(issues.map((issue) => issue.code)).toEqual(['link-no-destination']);
+    // Walk by hand: a tree this deep must not be read with a recursive DOM call.
+    const tags = new Set<string>();
+    const pending: Node[] = [root];
+    for (let node = pending.pop(); node; node = pending.pop()) {
+      if (node.nodeType === 1) tags.add((node as Element).tagName);
+      pending.push(...Array.from(node.childNodes));
+    }
+    expect(Array.from(tags).sort()).toEqual(['BODY', 'DIV', 'IMG']);
+    expect(sanitize(html).issues).toEqual(issues);
+  });
+
+  it.each([1, 199, 200, 201, 202, 399, 400, 401, 1000])(
+    'keeps %i nested blocks whole when the element around them is unwrapped',
+    (depth) => {
+      // Tall content is moved in pieces. No depth may lose a piece or put one in the wrong place.
+      const html =
+        `<p>before</p><section>lead${'<div>'.repeat(depth)}<b>core</b> text` +
+        `${'</div>'.repeat(depth)}<p>after</p>tail</section><p>end</p>`;
+      const { root } = sanitize(html);
+      const top = Array.from(root.childNodes);
+      expect(top.map((node) => node.nodeName)).toEqual(['P', '#text', 'DIV', 'P', '#text', 'P']);
+      expect(top.map((node) => (node.nodeType === 3 ? node.nodeValue : ''))).toEqual([
+        '',
+        'lead',
+        '',
+        '',
+        'tail',
+        '',
+      ]);
+      let levels = 0;
+      let node: Node | undefined = top[2];
+      while (node && node.nodeName === 'DIV') {
+        levels += 1;
+        const children: Node[] = Array.from(node.childNodes);
+        if (levels < depth) expect(children.map((child) => child.nodeName)).toEqual(['DIV']);
+        else expect(children.map((child) => child.nodeName)).toEqual(['B', '#text']);
+        node = children[0];
+      }
+      expect(levels).toBe(depth);
+      expect(node?.textContent).toBe('core');
+    },
+  );
+
   it('writes messages in plain words with no em dashes', () => {
     const { issues } = sanitize(
       '<script>1</script><a href="http://x.org">a</a><a href="javascript:1">b</a><a href="x.org">c</a>' +
@@ -472,5 +579,95 @@ describe('sanitize: November 2026 letter as pasted', () => {
       ['06-nico-recipe-bannock-closeup.jpg', '426', null],
       ['07-david-tarp-shelter.jpg', '492', null],
     ]);
+  });
+});
+
+describe('sanitize: control characters', () => {
+  const NUL = String.fromCharCode(0);
+  /** Every C0 control character except tab, newline and carriage return, plus delete. */
+  const CONTROLS = Array.from({ length: 32 }, (_, code) => code)
+    .filter((code) => code !== 9 && code !== 10 && code !== 13)
+    .concat(0x7f)
+    .map((code) => String.fromCharCode(code));
+
+  function hasControl(text: string): boolean {
+    return CONTROLS.some((control) => text.includes(control));
+  }
+
+  it('strips NUL from text', () => {
+    const { root } = sanitize(`<p>Pack${NUL} 137${NUL}${NUL} news</p>`);
+    expect(root.querySelector('p')?.textContent).toBe('Pack 137 news');
+  });
+
+  it('strips every other C0 control character and delete from text', () => {
+    // Form feed is left out here: it is white space between words (see the next test).
+    const noise = CONTROLS.filter((control) => control !== '\f').join('');
+    const { root } = sanitize(`<p>Pa${noise}ck <b>me${noise}et${noise}ing</b></p>${noise}`);
+    expect(root.textContent).toBe('Pack meeting');
+    expect(hasControl(root.textContent ?? '')).toBe(false);
+  });
+
+  it('keeps tab, newline and carriage return in text', () => {
+    const { root } = sanitize('<p>one\ttwo\nthree\rfour</p>');
+    // The parser may rewrite a carriage return as a newline. Either way the words stay apart.
+    expect(root.textContent).toMatch(/^one\ttwo\nthree[\r\n]four$/);
+  });
+
+  it('turns a form feed into a space so the words either side stay apart', () => {
+    const { root } = sanitize('<p>one\ftwo</p>');
+    expect(root.textContent).toBe('one two');
+  });
+
+  it('drops a text node that held only control characters', () => {
+    const { root } = sanitize(`<p>${NUL}\u0001\u001f</p>`);
+    expect(root.querySelector('p')?.childNodes.length).toBe(0);
+  });
+
+  it('strips control characters from alt text', () => {
+    const noise = CONTROLS.filter((control) => control !== '\f').join('');
+    const { root, issues } = sanitize(
+      `<img src="https://x.org/a.jpg" alt="Cam${noise}pfire\tcircle">` +
+        `<img src="https://x.org/b.jpg" alt="${NUL}\u0001">`,
+    );
+    const alts = Array.from(root.querySelectorAll('img')).map((img) => img.getAttribute('alt'));
+    expect(alts).toEqual(['Campfire\tcircle', '']);
+    // An alt made only of control characters is no description at all.
+    expect(issues.map((issue) => [issue.code, issue.detail])).toEqual([
+      ['image-no-alt', 'https://x.org/b.jpg'],
+    ]);
+  });
+
+  it('strips control characters from href and src, tab and newline included', () => {
+    const noise = CONTROLS.join('') + '\t\n\r';
+    const { root, issues } = sanitize(
+      `<a href="https://x.org/${noise}cal">c</a><img src="https://x.org/${noise}a.jpg" alt="A">` +
+        `<a href="java${NUL}script:alert(1)">bad</a>`,
+    );
+    expect(root.querySelector('a')?.getAttribute('href')).toBe('https://x.org/cal');
+    expect(root.querySelector('img')?.getAttribute('src')).toBe('https://x.org/a.jpg');
+    expect(root.querySelectorAll('a').length).toBe(1);
+    expect(issues.map((issue) => [issue.code, issue.detail])).toEqual([
+      ['blocked-url', 'javascript:alert(1)'],
+    ]);
+  });
+
+  it('leaves no control character in any text node or attribute value', () => {
+    const noise = CONTROLS.join('');
+    const { root, issues } = sanitize(
+      `<div title="${noise}">a${noise}b<a href="mailto:x@y.org?subject=Hi${noise}">m${noise}</a>` +
+        `<img src="https://x.org/a.jpg" alt="x${noise}y" width="5${NUL}52" height="${NUL}"></div>`,
+    );
+    const pending: Node[] = [root];
+    for (let node = pending.pop(); node; node = pending.pop()) {
+      if (node.nodeType === 3) expect(hasControl(node.nodeValue ?? '')).toBe(false);
+      if (node.nodeType === 1) {
+        for (const attribute of Array.from((node as Element).attributes)) {
+          expect(hasControl(attribute.value)).toBe(false);
+        }
+      }
+      pending.push(...Array.from(node.childNodes));
+    }
+    for (const issue of issues)
+      expect(hasControl(`${issue.message}${issue.detail ?? ''}`)).toBe(false);
   });
 });
