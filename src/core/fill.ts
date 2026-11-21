@@ -3,12 +3,48 @@
  * the chosen layout, running the smart helpers on the way. Each helper fills a field and marks it
  * "check me" when unsure. None blocks the user.
  *
- * Contract owned by the orchestrator (Phase 3). The bodies below are a minimal stand-in so the UI
- * can be built in parallel; parser-engineer replaces them with the real fill and helpers.
+ * The exported types and signatures are the contract with the UI and are owned by the
+ * orchestrator. The helpers live in `./helpers`, one small pure module each. Everything here is
+ * pure: the parsed model and the forms passed in are never changed.
  */
 import type { CalendarDate } from './dates';
-import type { AnnouncementForm, DateListForm, RichText } from './forms';
-import type { Block, Inline, Layout } from './model';
+import { matchLeadingDate } from './dates';
+import type {
+  AnnouncementForm,
+  ButtonField,
+  CallToActionForm,
+  DateListForm,
+  DateRow,
+  DateSection,
+  HelpWantedForm,
+  ImageField,
+  LinkItem,
+  LinkListForm,
+  MessageForm,
+  RichText,
+} from './forms';
+import { dateLabel, readLeadingDate } from './helpers/dates';
+import { formFields, getAt, isRichText, setAt } from './helpers/paths';
+import { contactNote, readContact } from './helpers/people';
+import { isShouting, shoutStart, toSentenceCase } from './helpers/shouting';
+import { smallFixes } from './helpers/small-fixes';
+import { addTag, RESCHEDULED, takeTags } from './helpers/tags';
+import {
+  capitalize,
+  isLinkOnly,
+  joinLines,
+  linksOf,
+  plain,
+  sentence,
+  sliceRich,
+  splitLines,
+  squash,
+  textOf,
+  trimRich,
+} from './helpers/text';
+import { sourceNote, stripSiteName } from './helpers/title-cleanup';
+import { isManageLink, unlinkedServices } from './helpers/warnings';
+import type { Block, Inline, Layout, ListBlock } from './model';
 import type { ParseResult } from './pipeline';
 
 /** A path to one field of a form, such as ['sections', 1, 'rows', 2, 'date']. */
@@ -86,37 +122,871 @@ export function emptyForm(layout: Layout): AnnouncementForm {
   }
 }
 
-function blockRuns(block: Block): Inline[][] {
-  if (block.type === 'paragraph' || block.type === 'heading') return [block.runs];
-  if (block.type === 'list') return block.items.map((i) => i.runs);
-  return [];
+/* ---------- reading the content model ---------- */
+
+/** One line of pasted text: a heading, a paragraph or a list item. */
+interface Unit {
+  kind: 'heading' | 'para' | 'item';
+  runs: Inline[];
 }
 
-/** Stand-in: puts every line of text into paragraphs. Replaced in Phase 3 by parser-engineer. */
+function listUnits(list: ListBlock): Unit[] {
+  return list.items.flatMap((item) => [
+    { kind: 'item' as const, runs: item.runs },
+    ...item.children.flatMap(listUnits),
+  ]);
+}
+
+/** Every line of text in the model, in order. Lines with no visible text are left out. */
+function unitsOf(blocks: Block[]): Unit[] {
+  const units = blocks.flatMap((b): Unit[] => {
+    if (b.type === 'heading') return [{ kind: 'heading', runs: b.runs }];
+    if (b.type === 'paragraph') return [{ kind: 'para', runs: b.runs }];
+    if (b.type === 'list') return listUnits(b);
+    return [];
+  });
+  return units
+    .map((u) => ({ kind: u.kind, runs: trimRich(u.runs) }))
+    .filter((u) => squash(textOf(u.runs)) !== '');
+}
+
+const lineText = (runs: Inline[]) => squash(textOf(runs));
+
+/** A local "check me" note: the path is added once the field's place in the form is known. */
+interface Note {
+  field: string;
+  kind: CheckKind;
+  message: string;
+}
+
+const TITLE_MAX_LENGTH = 60;
+
+/** True for a short line with no link, no date and no sentence ending: it reads as a title. */
+function isShortLine(runs: Inline[], options: FillOptions): boolean {
+  const text = lineText(runs);
+  return (
+    text !== '' &&
+    text.length <= TITLE_MAX_LENGTH &&
+    !/[.,:;]$/.test(text) &&
+    linksOf(runs).length === 0 &&
+    matchLeadingDate(text, options.today, options.programYearStartMonth) === null
+  );
+}
+
+/**
+ * The title: the first line when it is a heading, or when it is short and more text follows.
+ * Returns the remaining lines.
+ */
+function takeTitle(units: Unit[], options: FillOptions): { title: string; rest: Unit[] } {
+  const first = units[0];
+  if (first === undefined) return { title: '', rest: units };
+  if (first.kind === 'heading') return { title: lineText(first.runs), rest: units.slice(1) };
+  if (first.kind !== 'para') return { title: '', rest: units };
+  const lines = splitLines(first.runs);
+  const head = lines[0];
+  if (head === undefined || (lines.length === 1 && units.length === 1))
+    return { title: '', rest: units };
+  if (!isShortLine(head, options)) return { title: '', rest: units };
+  const left = joinLines(lines.slice(1));
+  return {
+    title: lineText(head),
+    rest: left.length > 0 ? [{ kind: 'para', runs: left }, ...units.slice(1)] : units.slice(1),
+  };
+}
+
+/** A heading keeps its place in free text as a bold line. */
+function unitRuns(unit: Unit): Inline[] {
+  if (unit.kind !== 'heading') return unit.runs;
+  return unit.runs.map((r) =>
+    r.kind === 'text' && !r.marks.includes('strong')
+      ? { ...r, marks: [...r.marks, 'strong' as const].sort() }
+      : r,
+  );
+}
+
+function linkButton(runs: Inline[]): ButtonField | undefined {
+  const link = linksOf(runs)[0];
+  return link === undefined ? undefined : { text: squash(link.text), url: link.href };
+}
+
+/* ---------- Date list ---------- */
+
+interface BuiltRow {
+  row: DateRow;
+  notes: Note[];
+}
+
+/** Builds one Date list row from a line: date, event, link, tags and note (spec 7.4). */
+function buildRow(runs: Inline[], options: FillOptions): BuiltRow {
+  const notes: Note[] = [];
+  const dated = readLeadingDate(runs, options);
+  const rest = dated === null ? trimRich(runs) : dated.rest;
+  const text = textOf(rest);
+  const link = linksOf(rest)[0];
+  const row: DateRow = { event: '', url: '', tags: [], note: [] };
+
+  if (dated !== null) {
+    row.date = dated.date;
+    if (dated.yearAssumed)
+      notes.push({
+        field: 'date',
+        kind: 'year-assumed',
+        message: `The year ${dated.date.start.year} was assumed for this date, so please check it.`,
+      });
+    if (dated.date.struck === true) {
+      row.tags = addTag(row.tags, RESCHEDULED);
+      notes.push({
+        field: 'date',
+        kind: 'rescheduled',
+        message: 'This date is crossed out, so please add the new date.',
+      });
+    }
+  }
+
+  // The event is the link text, or the whole line when there is no link. What follows it is
+  // looked at for tags, a contact and shouting, and the rest becomes the note.
+  let eventText: string;
+  let afterStart: number;
+  if (link !== undefined) {
+    eventText = text.slice(0, link.end);
+    afterStart = link.end;
+    row.url = link.href;
+  } else {
+    const shout = shoutStart(text);
+    afterStart = shout > 0 ? shout : text.length;
+    eventText = text.slice(0, afterStart);
+  }
+
+  const eventTags = takeTags(eventText);
+  // A leading arrow or bullet, as in "=> Sign up", is not part of the name.
+  const event = squash(eventText.slice(eventTags.start, eventTags.end)).replace(
+    /^(?:[=-]+>|[>\u2192\u00bb\u2022*])\s*/,
+    '',
+  );
+  if (event !== '') {
+    row.event = event;
+    for (const tag of eventTags.tags) row.tags = addTag(row.tags, tag);
+  } else {
+    row.event = squash(eventText);
+  }
+
+  const after = text.slice(afterStart);
+  const contact = dated === null && link !== undefined ? readContact(after) : null;
+  if (contact !== null) {
+    row.note = plain(contactNote(contact));
+    notes.push({
+      field: 'note',
+      kind: 'contact',
+      message: 'The name after the dash was read as the contact, so please check it.',
+    });
+  } else if (squash(after) !== '') {
+    const afterTags = takeTags(after);
+    for (const tag of afterTags.tags) row.tags = addTag(row.tags, tag);
+    const noteRuns = trimRich(
+      sliceRich(rest, afterStart + afterTags.start, afterStart + afterTags.end),
+    );
+    const head = noteRuns[0];
+    if (head?.kind === 'text' && head.href === undefined)
+      head.text = head.text.replace(/^[\s:;,–-]+/, '');
+    const noteText = lineText(noteRuns);
+    if (isShouting(noteText)) {
+      row.note = plain(toSentenceCase(noteText));
+      notes.push({
+        field: 'note',
+        kind: 'shouting',
+        message: 'The capital letters were changed to normal writing, so please check the wording.',
+      });
+    } else if (/[\p{L}\p{N}]/u.test(noteText)) {
+      row.note = trimRich(noteRuns);
+    }
+  }
+
+  if (isShouting(row.event)) {
+    row.event = toSentenceCase(row.event);
+    notes.push({
+      field: 'event',
+      kind: 'shouting',
+      message: 'The capital letters were changed to normal writing, so please check the wording.',
+    });
+  }
+  return { row, notes };
+}
+
+/** "Save the Date (details to come)" gives the name and a subtitle, which only a quiet panel shows. */
+function newSection(heading: string): DateSection {
+  const m = /^(.*\S)\s*\(([^()]+)\)$/.exec(heading);
+  const sub = m?.[2]?.trim() ?? '';
+  if (m?.[1] === undefined || sub === '')
+    return { name: heading, style: 'plain', subtitle: '', rows: [] };
+  return {
+    name: m[1],
+    style: 'quiet',
+    subtitle: capitalize(sub) + (/[.!?]$/.test(sub) ? '' : '.'),
+    rows: [],
+  };
+}
+
+function fillDateList(units: Unit[], options: FillOptions, checks: CheckMe[]): DateListForm {
+  const form: DateListForm = { layout: 'date-list', label: '', title: '', sections: [] };
+  let rest = units;
+
+  // The first heading is the title when it is the only heading, or when a section heading comes
+  // straight after it. Otherwise every heading names a section and the title is left to the user.
+  const headings = units.flatMap((u, i) => (u.kind === 'heading' ? [i] : []));
+  if (headings[0] === 0 && (headings.length === 1 || headings[1] === 1)) {
+    form.title = lineText((units[0] as Unit).runs);
+    rest = units.slice(1);
+  }
+
+  let section: DateSection | undefined;
+  const open = (): DateSection => {
+    if (section === undefined) {
+      section = { name: '', style: 'plain', subtitle: '', rows: [] };
+      form.sections.push(section);
+    }
+    return section;
+  };
+
+  for (const unit of rest) {
+    if (unit.kind === 'heading') {
+      section = newSection(lineText(unit.runs));
+      form.sections.push(section);
+      continue;
+    }
+    let last: DateRow | undefined;
+    for (const line of splitLines(unit.runs)) {
+      const startsRow =
+        last === undefined ||
+        linksOf(line).length > 0 ||
+        matchLeadingDate(textOf(line), options.today, options.programYearStartMonth) !== null;
+      if (!startsRow && last !== undefined) {
+        // A plain line under a row is that row's note.
+        last.note = joinLines([last.note, line]);
+        continue;
+      }
+      const target = open();
+      const { row, notes } = buildRow(line, options);
+      const at = ['sections', form.sections.length - 1, 'rows', target.rows.length];
+      target.rows.push(row);
+      for (const n of notes)
+        checks.push({ path: [...at, n.field], kind: n.kind, message: n.message });
+      last = row;
+    }
+  }
+  return form;
+}
+
+/* ---------- Link list ---------- */
+
+function fillLinkList(
+  units: Unit[],
+  image: ImageField | undefined,
+  options: FillOptions,
+  checks: CheckMe[],
+): LinkListForm {
+  const { title, rest } = takeTitle(units, options);
+  const form: LinkListForm = { layout: 'link-list', label: '', title, intro: [], items: [] };
+  if (image !== undefined) form.image = image;
+  const intro: Inline[][] = [];
+
+  for (const unit of rest) {
+    const links = linksOf(unit.runs);
+    const text = lineText(unit.runs);
+    const first = links[0];
+    if (first === undefined) {
+      // Plain paragraphs are the intro. A heading or a list line keeps its place in the list.
+      if (unit.kind === 'para') intro.push(unit.runs);
+      else form.items.push({ text, url: '', note: '' });
+      continue;
+    }
+
+    const raw = textOf(unit.runs);
+    const linkLength = links.reduce((sum, l) => sum + squash(l.text).length, 0);
+    let note: string;
+    // Words leading into the link, as in "See our list of ...", only read well as a sentence.
+    const before = squash(raw.slice(0, first.start));
+    const leadIn =
+      before.split(' ').length > 2 &&
+      matchLeadingDate(before, options.today, options.programYearStartMonth) === null;
+    const contact = links.length === 1 ? readContact(raw.slice(first.end)) : null;
+    if (contact !== null && before === '') {
+      note = contactNote(contact);
+      checks.push({
+        path: ['items', form.items.length, 'note'],
+        kind: 'contact',
+        message: 'The name after the dash was read as the contact, so please check it.',
+      });
+    } else if (linkLength * 2 >= text.length && !leadIn) {
+      // Mostly link: the few words around it are the note.
+      const around = links.reduceRight((s, l) => s.slice(0, l.start) + ' ' + s.slice(l.end), raw);
+      note = squash(around).replace(/^[\s:;,–-]+|[\s:;,–-]+$/g, '');
+      if (!/[\p{L}\p{N}]/u.test(note)) note = '';
+    } else {
+      // A sentence with a link in it: the whole sentence is the note.
+      note = text;
+    }
+
+    links.forEach((link, i) => {
+      const item: LinkItem = { text: squash(link.text), url: link.href, note: i === 0 ? note : '' };
+      const cleaned = stripSiteName(item.text);
+      if (cleaned !== null) {
+        item.text = cleaned.text;
+        checks.push({
+          path: ['items', form.items.length, 'text'],
+          kind: 'title-cleanup',
+          message: `The site name "${cleaned.site}" was removed from the end of this link.`,
+        });
+      }
+      if (item.note === '') item.note = sourceNote(item.url);
+      form.items.push(item);
+    });
+  }
+  form.intro = joinLines(intro);
+  return form;
+}
+
+/* ---------- Message and Call to action ---------- */
+
+/** Removes the first line that is only a link and returns it as a button. */
+function takeButtonLine(units: Unit[]): { button?: ButtonField; rest: Unit[] } {
+  for (const [i, unit] of units.entries()) {
+    const lines = splitLines(unit.runs);
+    const at = lines.findIndex(isLinkOnly);
+    const line = lines[at];
+    if (line === undefined) continue;
+    const left = joinLines(lines.filter((_l, j) => j !== at));
+    const rest = [...units.slice(0, i), ...units.slice(i + 1)];
+    if (left.length > 0) rest.splice(i, 0, { kind: unit.kind, runs: left });
+    const button = linkButton(line);
+    return button === undefined ? { rest: units } : { button, rest };
+  }
+  return { rest: units };
+}
+
+function fillMessage(units: Unit[], options: FillOptions): MessageForm {
+  const { title, rest } = takeTitle(units, options);
+  const form: MessageForm = { layout: 'message', label: '', title, paragraphs: [] };
+  const hrefs = new Set(rest.flatMap((u) => linksOf(u.runs).map((l) => l.href)));
+  let body = rest;
+  if (hrefs.size === 1) {
+    const taken = takeButtonLine(rest);
+    if (taken.button !== undefined) {
+      form.button = taken.button;
+      body = taken.rest;
+    }
+  }
+  form.paragraphs = body.map(unitRuns);
+  return form;
+}
+
+function fillCallToAction(units: Unit[], options: FillOptions): CallToActionForm {
+  const { title, rest } = takeTitle(units, options);
+  const taken = takeButtonLine(rest);
+  // With no line that is only a link, the first link is the button and stays in the sentence.
+  const button = taken.button ??
+    rest.map((u) => linkButton(u.runs)).find((b) => b !== undefined) ?? { text: '', url: '' };
+  return {
+    layout: 'call-to-action',
+    label: '',
+    title,
+    paragraph: joinLines(taken.rest.map(unitRuns)),
+    button,
+  };
+}
+
+/* ---------- Help wanted ---------- */
+
+const DEFAULT_BADGE = 'Highest need';
+const BADGE_WORDS =
+  /^(highest|high|greatest|biggest|top|most|urgent|immediate)\b.{0,20}\b(needs?|needed|priority|priorities|urgent)$|^urgent$/i;
+const ASK_TITLE_MAX_LENGTH = 80;
+
+interface Line {
+  heading: boolean;
+  runs: Inline[];
+}
+
+const isMailto = (href: string) => /^mailto:/i.test(href);
+
+/** The line that holds the ask's button: an email link first, a line that is only a link first. */
+function findButtonLine(lines: Line[]): number {
+  const has = (test: (l: Line) => boolean) => lines.findIndex(test);
+  const mail = (l: Line) => linksOf(l.runs).some((x) => isMailto(x.href));
+  const order = [
+    has((l) => isLinkOnly(l.runs) && mail(l)),
+    has(mail),
+    has((l) => isLinkOnly(l.runs)),
+    has((l) => linksOf(l.runs).length > 0),
+  ];
+  return order.find((i) => i !== -1) ?? -1;
+}
+
+function fillHelpWanted(units: Unit[], options: FillOptions): HelpWantedForm {
+  const form = emptyForm('help-wanted') as HelpWantedForm;
+  let rest = units;
+  const first = units[0];
+  if (
+    first !== undefined &&
+    !(first.kind === 'heading' && BADGE_WORDS.test(lineText(first.runs)))
+  ) {
+    const taken = takeTitle(units, options);
+    form.title = taken.title;
+    rest = taken.rest;
+  }
+
+  // The intro runs up to the first heading or list. With neither, it is the first paragraph.
+  let introEnd = rest.findIndex((u) => u.kind !== 'para');
+  if (introEnd === -1) introEnd = Math.min(1, rest.length);
+  form.intro = joinLines(rest.slice(0, introEnd).map((u) => u.runs));
+
+  let lines: Line[] = rest
+    .slice(introEnd)
+    .flatMap((u) => splitLines(u.runs).map((runs) => ({ heading: u.kind === 'heading', runs })));
+
+  const at = findButtonLine(lines);
+  const buttonLine = lines[at];
+  if (buttonLine === undefined) {
+    // No link after the intro: the intro's email link, or its first link, is the button.
+    const links = linksOf(form.intro);
+    const link = links.find((l) => isMailto(l.href)) ?? links[0];
+    if (link !== undefined) form.ask.button = { text: squash(link.text), url: link.href };
+  } else {
+    const links = linksOf(buttonLine.runs);
+    const link = links.find((l) => isMailto(l.href)) ?? (links[0] as (typeof links)[number]);
+    form.ask.button = { text: squash(link.text), url: link.href };
+
+    // The next line with another link is the secondary button. It and what follows are the outro.
+    const next = lines.findIndex(
+      (l, i) => i > at && linksOf(l.runs).some((x) => x.href !== link.href),
+    );
+    const nextLine = lines[next];
+    if (nextLine !== undefined) {
+      const other = linksOf(nextLine.runs).find((x) => x.href !== link.href);
+      if (other !== undefined) form.secondary = { text: squash(other.text), url: other.href };
+      const outro = lines.slice(isLinkOnly(nextLine.runs) ? next + 1 : next);
+      form.outro = joinLines(outro.map((l) => l.runs));
+      lines = lines.slice(0, next);
+    }
+    if (isLinkOnly(buttonLine.runs)) lines = lines.filter((l) => l !== buttonLine);
+  }
+
+  const badge = lines.findIndex((l) => l.heading && BADGE_WORDS.test(lineText(l.runs)));
+  const badgeLine = lines[badge];
+  if (badgeLine !== undefined) {
+    form.ask.badge = capitalize(lineText(badgeLine.runs).toLowerCase());
+    lines = lines.filter((l) => l !== badgeLine);
+  }
+
+  // The ask's title: a heading, or a short first line that is all bold.
+  const head = lines[0];
+  if (head !== undefined) {
+    const text = lineText(head.runs);
+    const allBold = head.runs.every((r) => r.kind !== 'text' || r.marks.includes('strong'));
+    const short = text.length <= ASK_TITLE_MAX_LENGTH && linksOf(head.runs).length === 0;
+    if (head.heading || (allBold && short && lines.length > 1)) {
+      form.ask.title = text;
+      lines = lines.slice(1);
+    }
+  }
+  form.ask.paragraphs = lines.map((l) =>
+    l.heading ? unitRuns({ kind: 'heading', runs: l.runs }) : l.runs,
+  );
+  return form;
+}
+
+/* ---------- checks and suggestions that read the finished form ---------- */
+
+/** The field that holds the main text of a form, for a problem that has no field of its own. */
+function mainField(form: AnnouncementForm): FieldPath {
+  switch (form.layout) {
+    case 'message':
+      return ['paragraphs'];
+    case 'call-to-action':
+      return ['paragraph'];
+    case 'date-list':
+      return ['sections'];
+    case 'link-list':
+    case 'help-wanted':
+      return ['intro'];
+  }
+}
+
+function reviewForm(form: AnnouncementForm): { checks: CheckMe[]; suggestions: Suggestion[] } {
+  const checks: CheckMe[] = [];
+  const suggestions: Suggestion[] = [];
+  const fields = formFields(form);
+
+  const urls: string[] = [];
+  for (const f of fields) {
+    if (f.kind === 'url') urls.push(f.value);
+    if (f.kind === 'rich')
+      for (const run of f.value)
+        if (run.kind === 'text' && run.href !== undefined) urls.push(run.href);
+  }
+
+  const manage: CheckMe['message'] =
+    'This link opens a TroopTrack page for leaders, so parents may not be able to open it.';
+  for (const f of fields) {
+    if (f.kind === 'url') {
+      if (isManageLink(f.value))
+        checks.push({ path: f.path, kind: 'manage-link', message: manage });
+      continue;
+    }
+    if (f.kind === 'rich') {
+      const hasManage = f.value.some(
+        (r) => r.kind === 'text' && r.href !== undefined && isManageLink(r.href),
+      );
+      if (hasManage) checks.push({ path: f.path, kind: 'manage-link', message: manage });
+    }
+    const texts =
+      f.kind === 'text' ? [f.value] : f.value.flatMap((r) => (r.kind === 'text' ? [r.text] : []));
+
+    for (const name of unlinkedServices(texts.join(''), urls))
+      checks.push({
+        path: f.path,
+        kind: 'service-no-link',
+        message: `${name} is mentioned here, but there is no link to it.`,
+      });
+
+    const seen = new Set<string>();
+    for (const text of texts)
+      for (const fix of smallFixes(text)) {
+        if (seen.has(fix.from)) continue;
+        seen.add(fix.from);
+        suggestions.push({ path: f.path, message: fix.message, from: fix.from, to: fix.to });
+      }
+  }
+  return { checks, suggestions };
+}
+
+/**
+ * Builds a form for the chosen layout from a parsed paste and runs the smart helpers (spec 7.4).
+ * Works for any of the five layouts, since the user may pick one other than the suggestion.
+ * Nothing pasted is silently dropped: text with no field of its own goes to the closest free-text
+ * field, and a picture the layout cannot show is reported.
+ */
 export function fillForm(parsed: ParseResult, layout: Layout, options: FillOptions): FillResult {
-  void options;
-  const lines: RichText[] = parsed.model.blocks.flatMap(blockRuns);
-  const form = emptyForm(layout);
-  if (form.layout === 'message') form.paragraphs = lines;
-  else if (form.layout === 'call-to-action') form.paragraph = lines[0] ?? [];
-  else if (form.layout === 'link-list' || form.layout === 'help-wanted')
-    form.intro = lines[0] ?? [];
-  return { form, checks: [], suggestions: [] };
+  const { blocks } = parsed.model;
+  const units = unitsOf(blocks);
+  const images = blocks.flatMap((b) => (b.type === 'image' ? [b] : []));
+  const picture = images[0];
+  const built: CheckMe[] = [];
+
+  let form: AnnouncementForm;
+  switch (layout) {
+    case 'message':
+      form = fillMessage(units, options);
+      break;
+    case 'call-to-action':
+      form = fillCallToAction(units, options);
+      break;
+    case 'link-list':
+      form = fillLinkList(
+        units,
+        picture === undefined ? undefined : { src: picture.src, alt: picture.alt },
+        options,
+        built,
+      );
+      break;
+    case 'date-list':
+      form = fillDateList(units, options, built);
+      break;
+    case 'help-wanted':
+      form = fillHelpWanted(units, options);
+      break;
+  }
+  // A deep copy, so the form shares nothing with the parsed model.
+  form = structuredClone(form);
+
+  const checks: CheckMe[] = [];
+  if (form.label.trim() === '')
+    checks.push({
+      path: ['label'],
+      kind: 'unsure',
+      message: 'Add a short label for the top of the card.',
+    });
+  if (form.title.trim() === '')
+    checks.push({ path: ['title'], kind: 'unsure', message: 'Add a title for this announcement.' });
+  checks.push(...built);
+
+  if (form.layout === 'link-list' && form.image !== undefined && form.image.alt.trim() === '')
+    checks.push({
+      path: ['image', 'alt'],
+      kind: 'pasted-problem',
+      message: 'The picture needs a short description for people who cannot see it.',
+    });
+  const shown = form.layout === 'link-list' ? 1 : 0;
+  if (images.length > shown)
+    checks.push({
+      path: mainField(form),
+      kind: 'unsure',
+      message:
+        shown === 0
+          ? 'This layout has no place for the pasted picture, so it was left out.'
+          : 'This layout shows one picture, so the other pasted pictures were left out.',
+    });
+  if (parsed.issues.some((issue) => issue.code === 'link-no-destination'))
+    checks.push({
+      path: mainField(form),
+      kind: 'pasted-problem',
+      message: 'A pasted link had no destination, so its words were kept as plain text.',
+    });
+
+  const review = reviewForm(form);
+  checks.push(...review.checks);
+  return {
+    form,
+    checks: checks.map((c) => ({ ...c, message: sentence(c.message) })),
+    suggestions: review.suggestions.map((s) => ({ ...s, message: sentence(s.message) })),
+  };
+}
+
+/* ---------- switching layout ---------- */
+
+/** One piece of a form's content, in reading order, in a shape every layout can take. */
+type Entry =
+  | { kind: 'text'; runs: RichText }
+  | { kind: 'heading'; text: string }
+  | { kind: 'row'; row: DateRow }
+  | { kind: 'button'; button: ButtonField };
+
+const hasText = (runs: RichText) => lineText(runs) !== '';
+const isBlankButton = (b: ButtonField | undefined): b is undefined =>
+  b === undefined || (b.text.trim() === '' && b.url.trim() === '');
+
+function entriesOf(form: AnnouncementForm): Entry[] {
+  const out: Entry[] = [];
+  const text = (runs: RichText) => {
+    if (hasText(runs)) out.push({ kind: 'text', runs });
+  };
+  const heading = (value: string) => {
+    if (value.trim() !== '') out.push({ kind: 'heading', text: value });
+  };
+  const button = (b: ButtonField | undefined) => {
+    if (!isBlankButton(b)) out.push({ kind: 'button', button: b });
+  };
+
+  switch (form.layout) {
+    case 'message':
+      form.paragraphs.forEach(text);
+      button(form.button);
+      break;
+    case 'call-to-action':
+      text(form.paragraph);
+      button(form.button);
+      break;
+    case 'link-list':
+      text(form.intro);
+      for (const item of form.items)
+        if (item.text.trim() !== '' || item.url.trim() !== '' || item.note.trim() !== '')
+          out.push({
+            kind: 'row',
+            row: { event: item.text, url: item.url, tags: [], note: plain(item.note) },
+          });
+      break;
+    case 'date-list':
+      for (const section of form.sections) {
+        heading(section.name);
+        text(plain(section.subtitle));
+        for (const row of section.rows) out.push({ kind: 'row', row });
+      }
+      break;
+    case 'help-wanted':
+      text(form.intro);
+      // The default pill text is not content. A pill the user typed is.
+      if (form.ask.badge.trim() !== DEFAULT_BADGE) text(plain(form.ask.badge.trim()));
+      heading(form.ask.title);
+      form.ask.paragraphs.forEach(text);
+      button(form.ask.button);
+      text(form.outro);
+      button(form.secondary);
+      break;
+  }
+  return out;
+}
+
+/** A row as one line of text: "Sat Nov 21 Event (Virtual)", then the note on the next line. */
+function rowToRich(row: DateRow): RichText {
+  const head: Inline[] = [];
+  const date = dateLabel(row.date);
+  if (date !== '') {
+    head.push({ kind: 'text', text: date, marks: row.date?.struck === true ? ['strike'] : [] });
+    if (row.event.trim() !== '') head.push(...plain(' '));
+  }
+  if (row.event.trim() !== '') {
+    const event: Inline = { kind: 'text', text: row.event, marks: [] };
+    if (row.url.trim() !== '') event.href = row.url;
+    head.push(event);
+  } else if (row.url.trim() !== '') {
+    head.push({ kind: 'text', text: row.url, marks: [], href: row.url });
+  }
+  const tags = row.tags.map((t) => t.text.trim()).filter((t) => t !== '');
+  if (tags.length > 0) head.push(...plain(` (${tags.join(', ')})`));
+  return joinLines([head, row.note]);
+}
+
+/** A button as a line of text: a link, or plain words when it has no destination. */
+function buttonToRich(button: ButtonField): RichText {
+  const text = button.text.trim() === '' ? button.url : button.text;
+  const run: Inline = { kind: 'text', text, marks: [] };
+  if (button.url.trim() !== '') run.href = button.url;
+  return [run];
+}
+
+const headingToRich = (text: string): RichText => plain(text, ['strong']);
+
+/** A line of text as a Date list row. A second and later link are kept in the note. */
+function richToRow(runs: RichText): DateRow {
+  const links = linksOf(runs);
+  const row: DateRow = { event: lineText(runs), url: links[0]?.href ?? '', tags: [], note: [] };
+  if (links.length > 1) {
+    row.url = '';
+    row.note = links.flatMap((link, i): Inline[] => [
+      ...(i > 0 ? plain(', ') : []),
+      { kind: 'text', text: squash(link.text), marks: [], href: link.href },
+    ]);
+  }
+  return row;
+}
+
+const buttonToRow = (button: ButtonField): DateRow => ({
+  event: button.text.trim() === '' ? button.url : button.text,
+  url: button.url,
+  tags: [],
+  note: [],
+});
+
+function entryToRich(entry: Entry): RichText {
+  switch (entry.kind) {
+    case 'text':
+      return entry.runs;
+    case 'heading':
+      return headingToRich(entry.text);
+    case 'row':
+      return rowToRich(entry.row);
+    case 'button':
+      return buttonToRich(entry.button);
+  }
+}
+
+function rowToItem(row: DateRow): LinkItem {
+  const parts = [dateLabel(row.date), ...row.tags.map((t) => t.text.trim()), lineText(row.note)];
+  return { text: row.event, url: row.url, note: parts.filter((p) => p !== '').join(', ') };
+}
+
+function buildFrom(layout: Layout, source: AnnouncementForm, entries: Entry[]): AnnouncementForm {
+  const card = { label: source.label, title: source.title };
+  const buttons = entries.flatMap((e) => (e.kind === 'button' ? [e.button] : []));
+
+  switch (layout) {
+    case 'message': {
+      const form: MessageForm = { layout, ...card, paragraphs: [] };
+      // One button stays a button. Several become links in the text, in their place.
+      const only = buttons.length === 1 ? buttons[0] : undefined;
+      if (only !== undefined) form.button = only;
+      form.paragraphs = entries
+        .filter((e) => only === undefined || e.kind !== 'button')
+        .map(entryToRich);
+      return form;
+    }
+    case 'call-to-action': {
+      const first = buttons[0];
+      const rest = entries.filter((e) => e.kind !== 'button' || e.button !== first);
+      return {
+        layout,
+        ...card,
+        paragraph: joinLines(rest.map(entryToRich)),
+        button: first ?? { text: '', url: '' },
+      };
+    }
+    case 'link-list': {
+      const form: LinkListForm = { layout, ...card, intro: [], items: [] };
+      const intro: RichText[] = [];
+      for (const e of entries) {
+        if (e.kind === 'text') intro.push(e.runs);
+        else if (e.kind === 'heading') form.items.push({ text: e.text, url: '', note: '' });
+        else if (e.kind === 'row') form.items.push(rowToItem(e.row));
+        else form.items.push(rowToItem(buttonToRow(e.button)));
+      }
+      form.intro = joinLines(intro);
+      return form;
+    }
+    case 'date-list': {
+      const form: DateListForm = { layout, ...card, sections: [] };
+      let section: DateSection | undefined;
+      const add = (row: DateRow) => {
+        if (section === undefined) {
+          section = { name: '', style: 'plain', subtitle: '', rows: [] };
+          form.sections.push(section);
+        }
+        section.rows.push(row);
+      };
+      for (const e of entries) {
+        if (e.kind === 'heading') {
+          section = { name: e.text, style: 'plain', subtitle: '', rows: [] };
+          form.sections.push(section);
+        } else if (e.kind === 'row') add(e.row);
+        else if (e.kind === 'text') add(richToRow(e.runs));
+        else add(buttonToRow(e.button));
+      }
+      return form;
+    }
+    case 'help-wanted': {
+      const form = { ...(emptyForm('help-wanted') as HelpWantedForm), ...card };
+      const [main, second] = buttons;
+      if (main !== undefined) form.ask.button = main;
+      if (second !== undefined) form.secondary = second;
+      let introDone = false;
+      let titleDone = false;
+      for (const [i, e] of entries.entries()) {
+        if (e.kind === 'button' && (e.button === main || e.button === second)) continue;
+        if (e.kind === 'text' && !introDone && i === 0) {
+          form.intro = e.runs;
+          introDone = true;
+        } else if (e.kind === 'heading' && !titleDone) {
+          form.ask.title = e.text;
+          titleDone = true;
+        } else {
+          form.ask.paragraphs.push(entryToRich(e));
+        }
+      }
+      return form;
+    }
+  }
 }
 
 /**
  * Converts a form to another layout, carrying over every piece of content the target layout has a
  * field for (spec 7.2: switching layout never loses content). The UI also keeps the last form of
  * each layout the user visited, so switching back restores their edits exactly.
- * Stand-in: carries the label and title only. Replaced in Phase 3 by parser-engineer.
+ *
+ * Text, links, rows and buttons always find a place: a row becomes a line of text or a link item,
+ * a paragraph becomes a row, a spare button becomes a link. Only Link list has a field for a
+ * picture. Pure: the form passed in is never changed and the result shares nothing with it.
  */
 export function switchLayout(form: AnnouncementForm, layout: Layout): AnnouncementForm {
   if (form.layout === layout) return form;
-  return { ...emptyForm(layout), label: form.label, title: form.title } as AnnouncementForm;
+  const next = buildFrom(layout, form, entriesOf(form));
+  return structuredClone(next);
 }
 
-/** Applies one suggestion: replaces `from` with `to` in the text at `path`. Returns a new form. */
+/**
+ * Applies one suggestion: replaces `from` with `to` in the plain text or rich text at `path`.
+ * Returns a new form. When the text no longer holds `from`, the form is returned unchanged.
+ */
 export function applySuggestion(form: AnnouncementForm, suggestion: Suggestion): AnnouncementForm {
-  void suggestion;
+  const { path, from, to } = suggestion;
+  if (from === '' || path.length === 0) return form;
+  const value = getAt(form, path);
+  if (typeof value === 'string') {
+    return value.includes(from) ? setAt(form, path, value.split(from).join(to)) : form;
+  }
+  if (isRichText(value)) {
+    if (!value.some((run) => run.kind === 'text' && run.text.includes(from))) return form;
+    const next = value.map((run) =>
+      run.kind === 'text' ? { ...run, text: run.text.split(from).join(to) } : run,
+    );
+    return setAt(form, path, next);
+  }
   return form;
 }
