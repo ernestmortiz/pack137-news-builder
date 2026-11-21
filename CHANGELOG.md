@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Announcement Converter screen (Phase 3): paste the old HTML, get a suggested layout and a filled-in form, fix anything marked "Check me", see a live preview at 250, 375 and 600px, and copy the new HTML. Previews never load images from the web.
+- Smart helpers: dates with weekday and assumed year, Rescheduled for struck dates, Virtual, In person, TBD and Please RSVP tags, all-caps text turned into a note, "Contact: name", site names removed from link titles, warnings for TroopTrack /manage/ links and services mentioned with no link.
+- One-tap suggestions, refreshed after every edit: "&" to "and", "On going" to "Ongoing", doubled spaces, and sentence case for headings and buttons. Pack names that keep their capitals are listed in pack.config.ts.
+- Undo and Redo for every change, one typed character at a time, with Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y.
+- Email links show who they send to, including hidden copies, in plain words.
+- Randomized scenario tests and browser tests run in CI.
 - Renderer (Phase 2): turns a filled-in form for any of the five layouts into email-safe HTML. All five approved weekly announcements render to their approved output. The forms and the comparison rule are in [ADR 0005](docs/decisions/0005-announcement-forms-and-golden-rule.md).
 - The output linter now checks only real markup, so ordinary text such as "id=5" no longer fails it. It also flags buttons under 44px and divs nested inside divs.
 - When links are nested around the same text, only the outermost link is kept.
