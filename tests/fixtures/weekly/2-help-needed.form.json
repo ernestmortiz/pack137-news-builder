@@ -1,0 +1,81 @@
+{
+  "layout": "help-wanted",
+  "label": "Volunteer",
+  "title": "The pack could use your help",
+  "intro": [
+    {
+      "kind": "text",
+      "text": "Thank you to every family who already pitches in. If you can help with any of the items below, reach out to your den leader, ",
+      "marks": []
+    },
+    {
+      "kind": "text",
+      "text": "pack leadership",
+      "marks": [],
+      "href": "https://pack137.trooptrack.com/manage/troops/23117?tab=leadership"
+    },
+    {
+      "kind": "text",
+      "text": ", or email ",
+      "marks": []
+    },
+    {
+      "kind": "text",
+      "text": "cranfordpack137@gmail.com",
+      "marks": [],
+      "href": "mailto:cranfordpack137@gmail.com"
+    },
+    {
+      "kind": "text",
+      "text": " and tell us which one.",
+      "marks": []
+    }
+  ],
+  "ask": {
+    "badge": "Highest need",
+    "title": "Legal and finance help",
+    "paragraphs": [
+      [
+        {
+          "kind": "text",
+          "text": "The Committee is exploring forming a 501(c)(3) nonprofit. It would strengthen the pack's stability and give us more freedom in how we run programs and manage funds.",
+          "marks": []
+        }
+      ],
+      [
+        {
+          "kind": "text",
+          "text": "If you or a family member is an ",
+          "marks": []
+        },
+        {
+          "kind": "text",
+          "text": "attorney, CPA, or finance pro",
+          "marks": [
+            "strong"
+          ]
+        },
+        {
+          "kind": "text",
+          "text": ", the Committee would love a brief consultation on the steps to set this up.",
+          "marks": []
+        }
+      ]
+    ],
+    "button": {
+      "text": "I'm interested",
+      "url": "mailto:cranfordpack137@gmail.com?subject=Help with nonprofit formation"
+    }
+  },
+  "outro": [
+    {
+      "kind": "text",
+      "text": "Not your area? There are plenty of other ways to help, big and small.",
+      "marks": []
+    }
+  ],
+  "secondary": {
+    "text": "See all help needed",
+    "url": "https://docs.google.com/document/d/1mqVaYO5F8So2iky9BOOVeYJt0FRYvKrhFxNu5W96m_8/edit?tab=t.0#heading=h.ev8ig2pzg6y3"
+  }
+}

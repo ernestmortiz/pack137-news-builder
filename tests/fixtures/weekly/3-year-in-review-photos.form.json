@@ -1,0 +1,16 @@
+{
+  "layout": "call-to-action",
+  "label": "Share your photos",
+  "title": "Year-in-Review Poster Board",
+  "paragraph": [
+    {
+      "kind": "text",
+      "text": "It's never too soon to share your favorite pack memories. Every photo you send helps tell this year's story, so thank you for adding yours.",
+      "marks": []
+    }
+  ],
+  "button": {
+    "text": "Upload your photos",
+    "url": "https://forms.gle/PvVux1W4764mSD6T7"
+  }
+}
