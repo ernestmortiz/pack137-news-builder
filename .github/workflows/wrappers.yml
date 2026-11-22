@@ -3,14 +3,20 @@ name: Wrappers
 # download and try them before a tag is pushed. Also checks the real app on Linux with a smoke
 # test (see tests/wrapper/smoke.mjs). Nothing here signs anything or uses a secret.
 #
-# The installers are unsigned test builds. They are kept for 7 days.
+# The installers are unsigned test builds. They are kept for 7 days. They are only built for
+# branches in this repository (or a manual run): a pull request from a fork could put anything
+# in an installer, and these are meant to be installed and tried.
 on:
   pull_request:
     paths:
       - 'src-tauri/**'
+      - 'src/ui/**'
+      - 'index.html'
       - 'package.json'
       - 'package-lock.json'
       - 'vite.config.ts'
+      - 'tests/wrapper/**'
+      - 'scripts/wrapper-smoke.sh'
       - '.github/workflows/wrappers.yml'
   workflow_dispatch:
 # Read-only: these jobs install and run third-party code, so the token can change nothing.
@@ -35,13 +41,18 @@ jobs:
             xvfb webkit2gtk-driver
       - run: npm ci
       # Pinned, and built from the locked dependency list of that release.
+      - name: Install the Rust release pinned in src-tauri/rust-toolchain.toml
+        run: rustup toolchain install
+        working-directory: src-tauri
       - run: cargo install tauri-driver --version 2.1.0 --locked
       - run: npm run build
       - name: Unit tests of the download and navigation rules
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+        run: cargo test --locked
+        working-directory: src-tauri
       - name: Smoke test of the real app
         run: scripts/wrapper-smoke.sh
   windows:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: windows-latest
     defaults:
       run:
@@ -55,7 +66,20 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Install the Rust release pinned in src-tauri/rust-toolchain.toml
+        run: rustup toolchain install
+        working-directory: src-tauri
+      # Refuse a Cargo.lock that does not match Cargo.toml, so the build uses only the locked
+      # crates, then run the wrapper's own tests. They compile the app, which embeds dist/, so the
+      # web build comes first.
+      - run: npm run build
+      - run: cargo fetch --locked
+        working-directory: src-tauri
+      - run: cargo test --locked
+        working-directory: src-tauri
       - run: npx tauri build
+      - name: Check the built page carries the strict policy
+        run: grep -q "connect-src 'none'" dist/index.html
       - name: Name the installer
         run: |
           found="$(find src-tauri/target/release/bundle/nsis -name '*-setup.exe')"
@@ -77,6 +101,7 @@ jobs:
             release/*.exe.sha256
           retention-days: 7
   macos:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -87,8 +112,23 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Install the Rust release pinned in src-tauri/rust-toolchain.toml
+        run: rustup toolchain install
+        working-directory: src-tauri
+      # Inside src-tauri, so the targets are added to the Rust release pinned there.
       - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+        working-directory: src-tauri
+      # Refuse a Cargo.lock that does not match Cargo.toml, so the build uses only the locked
+      # crates, then run the wrapper's own tests. They compile the app, which embeds dist/, so the
+      # web build comes first.
+      - run: npm run build
+      - run: cargo fetch --locked
+        working-directory: src-tauri
+      - run: cargo test --locked
+        working-directory: src-tauri
       - run: npx tauri build --target universal-apple-darwin
+      - name: Check the built page carries the strict policy
+        run: grep -q "connect-src 'none'" dist/index.html
       - name: Name the disk image
         run: |
           found="$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -name '*.dmg')"
