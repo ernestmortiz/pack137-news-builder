@@ -265,7 +265,7 @@ Each helper fills a form field and marks it "check me" when unsure. None blocks 
 
 Source of truth: `pack137-stories-november.html`, the November 2026 issue supplied by the project owner on 2026-11-21. Store it in `/tests/fixtures/monthly/` as the reference issue. The list below was read from that file.
 
-Outer structure: grey-page background table, then a white 600px card with 10px corners and 24px side padding. Sections stack inside the card in this order.
+Outer structure: grey-page background table, then a white 600px card with 12px corners (as in the November issue and section 6) and 24px side padding. Sections stack inside the card in this order.
 
 | # | Section | Required | Fields |
 |---|---|---|---|
