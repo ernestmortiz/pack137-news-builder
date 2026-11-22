@@ -6,13 +6,20 @@
  * renderer, so the two cannot drift. Pure: a form in, a list out.
  */
 import { altTextProblems } from './alt-text';
+import { containsDate } from './dates';
 import { isEmptyRich, rowIsShown, safeUrl, safeWebUrl } from '../templates/components';
 
 export { rowIsShown };
 import type { AnnouncementForm, ButtonField, RichText } from './forms';
 
 export type FormWarningCode =
-  'button-no-link' | 'empty-section' | 'link-not-valid' | 'image-no-alt' | 'image-alt';
+  | 'button-no-link'
+  | 'empty-section'
+  | 'link-not-valid'
+  | 'image-no-alt'
+  | 'image-alt'
+  | 'row-no-date'
+  | 'title-has-date';
 
 export interface FormWarning {
   code: FormWarningCode;
@@ -100,6 +107,15 @@ function warningsFor(form: AnnouncementForm): FormWarning[] {
     }
     case 'date-list': {
       const out: FormWarning[] = [];
+      // Owner request, 2026-11-22: a date in the title repeats the list's dates. The title is the
+      // volunteer's copy, so it is only pointed out, never changed.
+      const dated = form.sections.some((s) => s.rows.some((r) => r.date !== undefined));
+      if (dated && containsDate(form.title))
+        out.push({
+          code: 'title-has-date',
+          where: 'Title',
+          message: 'The title has a date, and the dates are now in the list. Shorten the title?',
+        });
       form.sections.forEach((section, si) => {
         const name =
           section.name.trim() !== '' ? `${section.name.trim()} section` : `Section ${si + 1}`;
@@ -114,6 +130,12 @@ function warningsFor(form: AnnouncementForm): FormWarning[] {
         section.rows.forEach((row, ri) => {
           if (!rowIsShown(row)) return;
           const where = `${name}, row ${ri + 1}`;
+          if (row.date === undefined && row.url.trim() === '')
+            out.push({
+              code: 'row-no-date',
+              where,
+              message: `${where} has no date and no link. Add a date, or move this text into another row's note.`,
+            });
           if (badLink(row.url)) out.push(badLinkWarning(where));
           out.push(...richWarnings(row.note, `${where} note`));
         });
