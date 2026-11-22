@@ -1,0 +1,48 @@
+name: Release
+# Pushing a version tag (for example v1.0.0) builds the web app and attaches it to a GitHub
+# release as a zip. The zip works when unzipped and opened from disk, and on any static host
+# (spec 3 and 13). The desktop and Android builds join this workflow in Phases 7 and 8.
+on:
+  push:
+    tags: ['v*.*.*']
+permissions:
+  contents: write
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check the tag matches package.json
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match package.json version ${version}."
+            exit 1
+          fi
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - name: Zip the web build
+        run: |
+          name="pack137-news-builder-${GITHUB_REF_NAME}-web"
+          rm -rf "release/${name}"
+          mkdir -p "release/${name}"
+          cp -r dist/. "release/${name}/"
+          cp docs/using-the-web-build.md "release/${name}/HOW-TO-USE.md"
+          (cd release && zip -r -q "${name}.zip" "${name}")
+          echo "ZIP=release/${name}.zip" >> "$GITHUB_ENV"
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" "${ZIP}" \
+            --title "Pack 137 News Builder ${GITHUB_REF_NAME}" \
+            --notes "Web build: unzip and open index.html, or put the folder on any web host. See HOW-TO-USE.md inside the zip and CHANGELOG.md."
