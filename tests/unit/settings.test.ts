@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   defaultSettings,
+  isBareEmail,
   validateSettings,
   type PackSettings,
   type SettingsResult,
@@ -450,5 +451,139 @@ describe('validateSettings: hostile input', () => {
     });
     expect(result.settings).toEqual(defaultSettings());
     expect(JSON.stringify(result).length).toBeLessThan(10_000);
+  });
+});
+
+describe('isBareEmail: the one email rule (review N2)', () => {
+  it('accepts plain addresses', () => {
+    for (const address of [
+      'pack@x.org',
+      'cranfordpack137+volunteer@gmail.com',
+      'first.last_name~x@sub.example-host.org',
+      `${'a'.repeat(254 - '@x.org'.length)}@x.org`,
+    ]) {
+      expect(isBareEmail(address)).toBe(true);
+      const email = { contact: address, volunteer: address, feedback: address };
+      expect(validateSettings(withValues({ email })).problems).toEqual([]);
+    }
+  });
+
+  it('refuses everything validateSettings refuses, and does not trim', () => {
+    for (const address of [
+      'pack@x.org?bcc=evil@x.org',
+      'mailto:pack@x.org',
+      'pack@x.org,evil@x.org',
+      'pack@x.org;evil@x.org',
+      'pack@x.org&bcc=evil@x.org',
+      'Pack <pack@x.org>',
+      'pa ck@x.org',
+      'pack@x.org\n',
+      ' pack@x.org',
+      'pack@x.org ',
+      'pack@evil@x.org',
+      'pack@x.org%3Fbcc=evil',
+      'pack@localhost',
+      'pack@x.org/path',
+      'päck@x.org',
+      'pack@x.org‮',
+      '@x.org',
+      'pack@',
+      '',
+      `${'a'.repeat(250)}@x.org`,
+    ]) {
+      expect(isBareEmail(address), address).toBe(false);
+    }
+  });
+
+  it('answers false for anything that is not text, without throwing', () => {
+    for (const value of [undefined, null, 42, {}, ['pack@x.org']]) {
+      expect(isBareEmail(value as unknown as string)).toBe(false);
+    }
+  });
+});
+
+describe('validateSettings: hidden characters in labels (review N11)', () => {
+  const HIDDEN = [
+    '\u0000',
+    '\u0007',
+    '\u001B',
+    '\u007F',
+    '\u0085',
+    '\u009F',
+    '‎',
+    '‏',
+    '‪',
+    '‫',
+    '‬',
+    '‭',
+    '‮',
+    '⁦',
+    '⁧',
+    '⁨',
+    '⁩',
+  ];
+
+  it.each(
+    HIDDEN.map((ch) => [
+      `U+${(ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}`,
+      ch,
+    ]),
+  )('removes %s from a label and says so', (_name, ch) => {
+    const result = validateSettings(
+      withValues({
+        standingLinks: [
+          { label: 'One', url: 'https://example.org/1' },
+          { label: `Cal${ch}en${ch}dar`, url: 'https://example.org/2' },
+        ],
+      }),
+    );
+    expect(result.settings.standingLinks).toEqual([
+      { label: 'One', url: 'https://example.org/1' },
+      { label: 'Calendar', url: 'https://example.org/2' },
+    ]);
+    expect(result.problems.map((p) => p.path)).toEqual([['standingLinks', 1, 'label']]);
+    expectPlain(result);
+    expect(validateSettings(result.settings).problems).toEqual([]);
+  });
+
+  it('removes a link whose label is nothing but hidden characters', () => {
+    const result = validateSettings(
+      withValues({
+        standingLinks: [
+          { label: 'One', url: 'https://example.org/1' },
+          { label: '‮‏\u0001', url: 'https://example.org/2' },
+        ],
+      }),
+    );
+    expect(result.settings.standingLinks).toEqual([{ label: 'One', url: 'https://example.org/1' }]);
+    expect(result.problems.map((p) => p.path)).toEqual([['standingLinks', 1, 'label']]);
+    expectPlain(result);
+  });
+
+  it('measures the label after the hidden characters are gone, and trims what they hid', () => {
+    const result = validateSettings(
+      withValues({
+        standingLinks: [
+          { label: `${'x'.repeat(60)}‮`, url: 'https://example.org/1' },
+          { label: '‮ Calendar ‬', url: 'https://example.org/2' },
+        ],
+      }),
+    );
+    expect(result.settings.standingLinks).toEqual([
+      { label: 'x'.repeat(60), url: 'https://example.org/1' },
+      { label: 'Calendar', url: 'https://example.org/2' },
+    ]);
+    expect(paths(result)).toEqual(['standingLinks.0.label', 'standingLinks.1.label']);
+  });
+
+  it('leaves ordinary labels alone, accents and other scripts included', () => {
+    const links = [
+      { label: 'Café calendar', url: 'https://example.org/1' },
+      { label: 'שלום', url: 'https://example.org/2' },
+      { label: 'Pack 137: join us!', url: 'https://example.org/3' },
+    ];
+    const result = validateSettings(withValues({ standingLinks: links }));
+    expect(result.problems).toEqual([]);
+    expect(result.settings.standingLinks).toEqual(links);
   });
 });

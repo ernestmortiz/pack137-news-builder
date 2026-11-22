@@ -6,7 +6,7 @@ import { color, fontStack, radius } from '../../config/tokens';
 import { formatDate, formatDateTime, isValidDate } from '../../core/dates';
 import { emDashesToCommas } from '../../core/helpers/text';
 import { LETTER_HEADINGS, type LetterForm } from '../../core/letter';
-import { defaultSettings, type PackSettings } from '../../core/settings';
+import { defaultSettings, isBareEmail, type PackSettings } from '../../core/settings';
 import { anchor, esc, escAttr, isEmptyRich, lines, richText, safeUrl } from '../components';
 import {
   BODY_TEXT,
@@ -209,14 +209,6 @@ function encodeValue(text: string): string {
       }
     })
     .join('');
-}
-
-/**
- * A bare email address: one @, text on both sides, and none of the characters that could add a mailto
- * parameter or break an attribute (whitespace, ? & # , ; : quotes, angle brackets, backslash, %).
- */
-export function isBareEmail(value: string): boolean {
-  return /^[^\s@?&#,;:'"`<>\\%]+@[^\s@?&#,;:'"`<>\\%]+$/.test(value);
 }
 
 /**

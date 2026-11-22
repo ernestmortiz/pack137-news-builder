@@ -92,10 +92,13 @@ export function pill(parts: string[]): string {
   );
 }
 
-/** Whole pixels from 1 to `max`; anything else (or no width) is `max`. */
+/**
+ * Whole pixels from 40 to `max`; no width, or one that is not a number, is `max`. Nothing narrower
+ * than 40 is drawn: it could not be seen and would only serve to track who opens the letter.
+ */
 export function photoWidth(width: number | undefined, max: number): number {
   if (width === undefined || !Number.isFinite(width)) return max;
-  return Math.min(max, Math.max(1, Math.round(width)));
+  return Math.min(max, Math.max(40, Math.round(width)));
 }
 
 /**

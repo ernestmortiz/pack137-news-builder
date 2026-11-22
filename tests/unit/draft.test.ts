@@ -11,6 +11,7 @@ import {
   DRAFT_MIGRATIONS,
   DRAFT_VERSION,
   MAX_DRAFT_BYTES,
+  draftLinkWarnings,
   nextIssueFrom,
   readDraft,
   readDraftWith,
@@ -20,6 +21,7 @@ import {
 } from '../../src/core/draft';
 import { emptyLetter, type LetterForm } from '../../src/core/letter';
 import { defaultSettings } from '../../src/core/settings';
+import { photoWidth } from '../../src/templates/letter/layout';
 import { budget } from './budget';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -1013,7 +1015,7 @@ describe('readDraft: speed', () => {
     const paragraph = (i: number) => ({
       kind: 'paragraph' as const,
       text: [
-        { kind: 'text' as const, text: `Paragraph ${i} `.repeat(40), marks: [] },
+        { kind: 'text' as const, text: `Paragraph ${i} `.repeat(170), marks: [] },
         { kind: 'text' as const, text: 'bold words', marks: ['strong' as const] },
         { kind: 'break' as const },
         {
@@ -1028,7 +1030,9 @@ describe('readDraft: speed', () => {
       kind: 'contributor' as const,
       name: `Contributor ${b}`,
       role: 'Den leader',
-      parts: Array.from({ length: 60 }, (_, p) => paragraph(b * 100 + p)),
+      // 15 paragraphs a block, 1,600 entries in the story: a real letter this size has long
+      // paragraphs, since the whole letter holds at most 2,000 entries (review S3).
+      parts: Array.from({ length: 15 }, (_, p) => paragraph(b * 100 + p)),
     }));
     let text = JSON.stringify({
       kind: DRAFT_KIND,
@@ -1137,5 +1141,633 @@ describe('nextIssueFrom', () => {
     const result = opened(writeDraft(next, defaultSettings(), SAVED));
     expect(result.notes).toEqual([]);
     expect(result.draft.letter).toEqual(next);
+  });
+});
+
+/* ---------- Phase 5 security review fixes ---------- */
+
+/** Entries of the whole letter, as the total budget counts them (review S3). */
+function countEntries(letter: LetterForm): number {
+  let n = letter.story.blocks.length;
+  for (const block of letter.story.blocks) {
+    if (block.kind === 'contributor') {
+      n += block.parts.length;
+      for (const part of block.parts) if (part.kind === 'list') n += part.items.length;
+    } else if (block.kind === 'stats') n += block.stats.length;
+    else if (block.kind === 'sidebar') n += block.body.length;
+  }
+  n += letter.closing.paragraphs.length + letter.closing.thanks.length;
+  return (
+    n + letter.around.items.length + letter.comingUp.items.length + letter.horizon.items.length
+  );
+}
+
+/** Text runs of the whole letter. */
+function countRuns(letter: LetterForm): number {
+  let n = letter.intro.length + letter.comingUp.howToHelp.length;
+  for (const block of letter.story.blocks) {
+    if (block.kind === 'contributor') {
+      for (const part of block.parts) {
+        if (part.kind === 'paragraph') n += part.text.length;
+        else for (const item of part.items) n += item.text.length;
+      }
+    } else if (block.kind === 'sidebar') for (const p of block.body) n += p.length;
+  }
+  for (const p of [...letter.closing.paragraphs, ...letter.closing.thanks]) n += p.length;
+  for (const item of letter.around.items) n += item.text.length;
+  for (const item of letter.comingUp.items) n += item.text.length;
+  return n;
+}
+
+describe('readDraft: a budget for the whole letter (review S3)', () => {
+  const run = { kind: 'text', text: 'x', marks: [] };
+  const horizonItem = { date: { year: 2027, month: 1, day: 9 }, text: 'x' };
+
+  /** A letter of exactly 2,000 entries: 1,000 in the story and 200 in each of five lists. */
+  function fullLetter(): LooseLetter {
+    const l = looseLetter();
+    const many = <T>(item: T): T[] => Array.from({ length: 200 }, () => item);
+    l.story.blocks = Array.from({ length: 100 }, () => ({
+      kind: 'contributor',
+      name: 'N',
+      role: '',
+      parts: Array.from({ length: 9 }, () => ({ kind: 'paragraph', text: [run] })),
+    }));
+    l.closing.paragraphs = many([run]);
+    l.closing.thanks = many([run]);
+    l.around.items = many({ lead: 'L', text: [run], link: { text: '', url: '' } });
+    l.comingUp.items = many({
+      date: { year: 2026, month: 12, day: 6 },
+      text: [run],
+      link: { text: '', url: '' },
+    });
+    l.horizon.items = many(horizonItem);
+    return l;
+  }
+
+  it("reads the reviewer's file (100 blocks of 200 lists of 10 empty bullets) within the budget, fast", () => {
+    const bullet = '{"lead":"","text":[]}';
+    const part = `{"kind":"list","items":[${Array.from({ length: 10 }, () => bullet).join(',')}]}`;
+    const block = `{"kind":"contributor","name":"","role":"","parts":[${Array.from({ length: 200 }, () => part).join(',')}]}`;
+    const letter = looseLetter();
+    letter.story.blocks = '@@BLOCKS@@';
+    const text = fileOf(letter).replace(
+      '"@@BLOCKS@@"',
+      () => `[${Array.from({ length: 100 }, () => block).join(',')}]`,
+    );
+    expect(text.length).toBeGreaterThan(4_900_000);
+    expect(text.length).toBeLessThan(MAX_DRAFT_BYTES);
+
+    const start = performance.now();
+    const result = opened(text);
+    const took = performance.now() - start;
+    expect(took).toBeLessThan(budget(1000));
+    expect(countEntries(result.draft.letter)).toBeLessThanOrEqual(2000);
+    expect(countEntries(result.draft.letter)).toBeGreaterThan(1900);
+    expect(result.draft.letter.story.blocks).toHaveLength(100);
+    expect(result.notes.filter((n) => /2,000/.test(n))).toHaveLength(1);
+    expect(result.notes).toHaveLength(1);
+
+    // What was kept is a clean draft: reading it again changes nothing.
+    const again = opened(writeDraft(result.draft.letter, result.draft.settings, SAVED));
+    expect(again.notes).toEqual([]);
+    expect(again.draft.letter).toEqual(result.draft.letter);
+  });
+
+  it('keeps a letter of exactly 2,000 entries whole, without a note', () => {
+    const result = opened(fileOf(fullLetter()));
+    expect(result.notes).toEqual([]);
+    expect(countEntries(result.draft.letter)).toBe(2000);
+  });
+
+  it('cuts entry 2,001 with one note', () => {
+    const l = fullLetter();
+    const blocks = l.story.blocks as { parts: unknown[] }[];
+    blocks[0]?.parts.push({ kind: 'paragraph', text: [run] });
+    const result = opened(fileOf(l));
+    expect(countEntries(result.draft.letter)).toBe(2000);
+    expect(result.notes).toHaveLength(1);
+    expect(result.notes[0]).toMatch(/2,000/);
+  });
+
+  it('counts the two stats of a stat band', () => {
+    const l = fullLetter();
+    const blocks = l.story.blocks as unknown[];
+    blocks[99] = {
+      kind: 'stats',
+      stats: [
+        { value: '1', text: 'a' },
+        { value: '2', text: 'b' },
+      ],
+    };
+    // Block 100 gave up 9 paragraphs and took 2 stats: 1,993 entries, so there is room.
+    expect(countEntries(opened(fileOf(l)).draft.letter)).toBe(1993);
+    const first = blocks[0] as { parts: unknown[] };
+    for (let i = 0; i < 20; i++) first.parts.push({ kind: 'paragraph', text: [run] });
+    const result = opened(fileOf(l));
+    expect(countEntries(result.draft.letter)).toBeLessThanOrEqual(2000);
+    expect(result.notes.some((n) => /2,000/.test(n))).toBe(true);
+  });
+
+  it('keeps at most 20,000 text runs in all, with one note', () => {
+    const result = openedWith((l) => {
+      l.story.blocks = Array.from({ length: 100 }, () => ({
+        kind: 'contributor',
+        name: 'N',
+        role: '',
+        parts: [{ kind: 'paragraph', text: Array.from({ length: 1000 }, () => run) }],
+      }));
+    });
+    expect(countRuns(result.draft.letter)).toBe(20000);
+    expect(result.notes).toHaveLength(1);
+    expect(result.notes[0]).toMatch(/20,000/);
+    const again = opened(writeDraft(result.draft.letter, result.draft.settings, SAVED));
+    expect(again.notes).toEqual([]);
+    expect(again.draft.letter).toEqual(result.draft.letter);
+  });
+
+  it('keeps exactly 20,000 text runs without a note', () => {
+    const result = openedWith((l) => {
+      l.intro = [];
+      l.closing.paragraphs = [];
+      l.closing.thanks = [];
+      l.around.items = [];
+      l.comingUp.items = [];
+      l.comingUp.howToHelp = [];
+      l.story.blocks = Array.from({ length: 20 }, () => ({
+        kind: 'contributor',
+        name: 'N',
+        role: '',
+        parts: [{ kind: 'paragraph', text: Array.from({ length: 1000 }, () => run) }],
+      }));
+    });
+    expect(result.notes).toEqual([]);
+    expect(countRuns(result.draft.letter)).toBe(20000);
+  });
+});
+
+describe('readDraft: long strings (review S3)', () => {
+  it('keeps a text of exactly 10,000 characters and cuts a longer one with a note', () => {
+    const exact = openedWith((l) => {
+      l.summary = 'a'.repeat(10000);
+    });
+    expect(exact.notes).toEqual([]);
+    expect(exact.draft.letter.summary).toHaveLength(10000);
+
+    const long = openedWith((l) => {
+      l.summary = 'a'.repeat(10001);
+    });
+    expect(long.draft.letter.summary).toBe('a'.repeat(10000));
+    expect(long.notes).toHaveLength(1);
+    expect(long.notes[0]).toMatch(/10,000/);
+  });
+
+  it('cuts long text everywhere: runs, names, descriptions, captions and plain fields', () => {
+    const big = 'b'.repeat(30000);
+    const result = openedWith((l) => {
+      l.greeting = big;
+      l.intro = [{ kind: 'text', text: big, marks: [] }];
+      l.story.title = big;
+      l.story.blocks = [
+        {
+          kind: 'contributor',
+          name: big,
+          role: big,
+          parts: [{ kind: 'list', items: [{ lead: big, text: [] }] }],
+        },
+        { kind: 'photo', photo: { src: 'https://example.org/a.jpg', alt: big, caption: big } },
+        {
+          kind: 'stats',
+          stats: [
+            { value: big, text: big },
+            { value: '', text: '' },
+          ],
+        },
+        { kind: 'sidebar', title: big, source: big, body: [] },
+      ];
+      l.closing.signer = big;
+      l.photoAsk.text = big;
+      l.around.items = [{ lead: big, text: [], link: { text: big, url: '' } }];
+      l.comingUp.button = { text: big, url: '' };
+      l.horizon.items = [{ date: { year: 2027, month: 1, day: 9 }, text: big }];
+      l.feedback.body = big;
+      l.signOff = big;
+    });
+    const longest = (value: unknown): number => {
+      if (typeof value === 'string') return value.length;
+      if (typeof value !== 'object' || value === null) return 0;
+      return Math.max(0, ...Object.values(value).map(longest));
+    };
+    expect(longest(result.draft.letter)).toBe(10000);
+    expect(result.notes.length).toBeGreaterThan(5);
+    for (const note of result.notes) expect(note).not.toContain('bbbb');
+  });
+
+  it('does not cut a character in half', () => {
+    const result = openedWith((l) => {
+      l.summary = 'a'.repeat(9999) + '\u{1F600}';
+    });
+    expect(result.draft.letter.summary).toBe('a'.repeat(9999));
+  });
+
+  it('drops addresses over 2,048 characters with a note and keeps one of exactly 2,048', () => {
+    const exact = 'https://example.org/' + 'a'.repeat(2048 - 'https://example.org/'.length);
+    const long = exact + 'a';
+    expect(exact).toHaveLength(2048);
+    const kept = openedWith((l) => {
+      l.photoAsk.url = exact;
+      l.intro = [{ kind: 'text', text: 'here', marks: [], href: exact }];
+    });
+    expect(kept.notes).toEqual([]);
+    expect(kept.draft.letter.photoAsk.url).toBe(exact);
+    expect(kept.draft.letter.intro[0]).toEqual({
+      kind: 'text',
+      text: 'here',
+      marks: [],
+      href: exact,
+    });
+
+    const result = openedWith((l) => {
+      l.photoAsk.url = long;
+      l.intro = [{ kind: 'text', text: 'here', marks: [], href: long }];
+      l.story.blocks = [{ kind: 'photo', photo: { src: long, alt: 'A', caption: '' } }];
+      l.around.items = [{ lead: 'L', text: [], link: { text: 'T', url: long } }];
+      l.comingUp.items = [
+        { date: { year: 2026, month: 12, day: 6 }, text: [], link: { text: 'T', url: long } },
+      ];
+      l.comingUp.button = { text: 'I can help', url: long };
+    });
+    const { letter } = result.draft;
+    expect(letter.photoAsk.url).toBe('');
+    expect(letter.intro).toEqual([{ kind: 'text', text: 'here', marks: [] }]);
+    expect(letter.story.blocks[0]).toEqual({
+      kind: 'photo',
+      photo: { src: '', alt: 'A', caption: '' },
+    });
+    expect(letter.around.items[0]?.link).toEqual({ text: 'T', url: '' });
+    expect(letter.comingUp.items[0]?.link).toEqual({ text: 'T', url: '' });
+    expect(letter.comingUp.button).toEqual({ text: 'I can help', url: '' });
+    expect(result.notes).toHaveLength(6);
+    for (const note of result.notes) {
+      expect(note).toMatch(/2,048/);
+      expect(note).not.toContain('example.org');
+    }
+  });
+});
+
+describe('readDraft: tiny photos (review N1)', () => {
+  const plain = { src: 'https://example.org/a.jpg', alt: 'A', caption: '' };
+
+  it('drops a width below 40 with a note, so the photo is shown at full width', () => {
+    for (const width of [1, 2, 39, 39.9]) {
+      const result = openedWith((l) => {
+        l.story.blocks = [
+          { kind: 'photo', photo: { ...plain, width } },
+          { kind: 'sidebar', title: 'T', source: '', body: [], photo: { ...plain, width } },
+        ];
+      });
+      const [photo, sidebar] = result.draft.letter.story.blocks;
+      expect(photo).toEqual({ kind: 'photo', photo: plain });
+      expect(sidebar?.kind === 'sidebar' && sidebar.photo).toEqual(plain);
+      expect(result.notes.length).toBeGreaterThan(0);
+      for (const note of result.notes) expect(note).toMatch(/width/);
+    }
+  });
+
+  it('keeps a width of 40', () => {
+    const result = openedWith((l) => {
+      l.story.blocks = [{ kind: 'photo', photo: { ...plain, width: 40 } }];
+    });
+    expect(result.notes).toEqual([]);
+    expect(result.draft.letter.story.blocks[0]).toEqual({
+      kind: 'photo',
+      photo: { ...plain, width: 40 },
+    });
+  });
+
+  it('the renderer never draws a photo narrower than 40', () => {
+    expect(photoWidth(1, 552)).toBe(40);
+    expect(photoWidth(0, 552)).toBe(40);
+    expect(photoWidth(-5, 552)).toBe(40);
+    expect(photoWidth(39.4, 552)).toBe(40);
+    expect(photoWidth(40, 552)).toBe(40);
+    expect(photoWidth(300, 552)).toBe(300);
+    expect(photoWidth(900, 552)).toBe(552);
+    expect(photoWidth(undefined, 552)).toBe(552);
+    expect(photoWidth(Number.NaN, 552)).toBe(552);
+  });
+});
+
+describe('nextIssueFrom: the last issue (review N8)', () => {
+  it('never gives a year above 2100, and what it gives opens as a clean draft', () => {
+    for (const issue of [
+      { year: 2101, month: 1 },
+      { year: 2100, month: 13 },
+      { year: 9999, month: 6 },
+      { year: Number.MAX_SAFE_INTEGER, month: 1 },
+      { year: Number.POSITIVE_INFINITY, month: 1 },
+    ]) {
+      const next = nextIssueFrom(fixture(), issue);
+      expect(next.issue).toEqual({ year: 2100, month: 12 });
+      const result = opened(writeDraft(next, defaultSettings(), SAVED));
+      expect(result.notes).toEqual([]);
+      expect(result.draft.letter.issue).toEqual({ year: 2100, month: 12 });
+    }
+  });
+
+  it('keeps December 2100 and the months before it as asked', () => {
+    expect(nextIssueFrom(fixture(), { year: 2100, month: 12 }).issue).toEqual({
+      year: 2100,
+      month: 12,
+    });
+    expect(nextIssueFrom(fixture(), { year: 2100, month: 11 }).issue).toEqual({
+      year: 2100,
+      month: 11,
+    });
+    expect(nextIssueFrom(fixture(), { year: 2027, month: 1 }).issue).toEqual({
+      year: 2027,
+      month: 1,
+    });
+  });
+
+  it('removes past items by the month it settled on', () => {
+    const letter = fixture();
+    letter.horizon.items = [
+      { date: { year: 2100, month: 11, day: 30 }, text: 'before' },
+      { date: { year: 2100, month: 12, day: 1 }, text: 'kept' },
+    ];
+    const next = nextIssueFrom(letter, { year: 2150, month: 3 });
+    expect(next.horizon.items.map((i) => i.text)).toEqual(['kept']);
+  });
+});
+
+describe('draftLinkWarnings (review S2)', () => {
+  const settings = defaultSettings();
+  const EVIL = 'outsider@evil.example';
+  const link = (href: string) => [{ kind: 'text' as const, text: 'here', marks: [], href }];
+
+  function warnings(change: (letter: LetterForm) => void): string[] {
+    const letter = fixture();
+    change(letter);
+    const lines = draftLinkWarnings(letter, settings);
+    expect(lines.length).toBeLessThanOrEqual(21);
+    for (const line of lines) {
+      expect(line).not.toBe('');
+      expect(line.length).toBeLessThan(200);
+      expect(line).not.toContain(EM_DASH);
+    }
+    return lines;
+  }
+
+  it('says nothing about the November 2026 letter or a blank letter', () => {
+    expect(warnings(() => undefined)).toEqual([]);
+    expect(draftLinkWarnings(emptyLetter({ year: 2026, month: 12 }), settings)).toEqual([]);
+  });
+
+  it('does not change the letter or the settings', () => {
+    const letter = fixture();
+    letter.intro = link(`mailto:a@b.org?bcc=${EVIL}`);
+    const before = JSON.stringify([letter, settings]);
+    draftLinkWarnings(letter, settings);
+    expect(JSON.stringify([letter, settings])).toBe(before);
+  });
+
+  it('names a hidden copy in the intro', () => {
+    expect(
+      warnings((l) => {
+        l.intro = link(`mailto:pack@x.org?subject=Hi&bcc=${EVIL}`);
+      }),
+    ).toEqual([`A link in the intro sends a hidden copy (bcc) to ${EVIL}.`]);
+  });
+
+  it('names cc and to as well, whatever the capitals and escapes', () => {
+    const lines = warnings((l) => {
+      l.intro = [
+        ...link(`mailto:pack@x.org?CC=${EVIL}`),
+        ...link(`MAILTO:pack@x.org?%62%43c=second%40evil.example`),
+        ...link(`mailto:pack@x.org?subject=x&To=third@evil.example`),
+        ...link(`  mailto:pack@x.org?bcc=%zz${EVIL}`),
+      ];
+    });
+    expect(lines).toHaveLength(4);
+    expect(lines[0]).toBe(`A link in the intro sends a copy (cc) to ${EVIL}.`);
+    expect(lines[1]).toBe('A link in the intro sends a hidden copy (bcc) to second@evil.example.');
+    expect(lines[2]).toContain('third@evil.example');
+    expect(lines[2]).toMatch(/another address/);
+    expect(lines[3]).toContain(EVIL);
+  });
+
+  it('names more than one address before the question mark', () => {
+    for (const href of [
+      `mailto:pack@x.org,${EVIL}`,
+      `mailto:pack@x.org%2C${EVIL}?subject=Hi`,
+      `mailto:pack@x.org;${EVIL}`,
+      `mailto:pack@x.org%3b${EVIL}`,
+    ]) {
+      const lines = warnings((l) => {
+        l.intro = link(href);
+      });
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toMatch(/^A link in the intro emails more than one address: /);
+      expect(lines[0]).toContain(EVIL);
+      expect(lines[0]).toContain('pack@x.org');
+    }
+  });
+
+  it('leaves ordinary links alone', () => {
+    expect(
+      warnings((l) => {
+        l.intro = [
+          ...link('mailto:pack@x.org'),
+          ...link('mailto:pack@x.org?subject=Hello%20there&body=cc%20and%20bcc%3Dx'),
+          ...link('https://example.org/?bcc=someone@example.org&cc=x'),
+          ...link('mailto:pack@x.org?bcc='),
+          ...link('not a link'),
+          ...link(''),
+        ];
+      }),
+    ).toEqual([]);
+  });
+
+  it('looks at every link in the letter and says where each one is', () => {
+    const bad = `mailto:pack@x.org?bcc=${EVIL}`;
+    const lines = warnings((l) => {
+      l.intro = link(bad);
+      l.story.blocks = [
+        {
+          kind: 'contributor',
+          name: 'N',
+          role: '',
+          parts: [{ kind: 'paragraph', text: link(bad) }],
+        },
+        {
+          kind: 'contributor',
+          name: 'N',
+          role: '',
+          parts: [{ kind: 'list', items: [{ lead: 'L', text: link(bad) }] }],
+        },
+        { kind: 'sidebar', title: 'T', source: '', body: [link(bad)] },
+      ];
+      l.closing.paragraphs = [link(bad)];
+      l.closing.thanks = [link(bad)];
+      l.photoAsk.url = bad;
+      l.around.items = [
+        { lead: 'L', text: link(bad), link: { text: '', url: '' } },
+        { lead: 'L', text: [], link: { text: 'T', url: bad } },
+      ];
+      l.comingUp.items = [
+        { date: { year: 2026, month: 12, day: 6 }, text: link(bad), link: { text: '', url: '' } },
+        { date: { year: 2026, month: 12, day: 7 }, text: [], link: { text: 'T', url: bad } },
+      ];
+      l.comingUp.howToHelp = link(bad);
+      l.comingUp.button.url = `mailto:${settings.email.volunteer}?bcc=${EVIL}`;
+    });
+    const places = lines
+      .filter((line) => line.includes('hidden copy (bcc)'))
+      .map((line) => line.replace(` sends a hidden copy (bcc) to ${EVIL}.`, ''));
+    expect(places).toEqual([
+      'A link in the intro',
+      'A link in story block 1',
+      'A link in story block 2',
+      'A link in story block 3',
+      'A link in Closing and high fives',
+      'The photo ask link',
+      'A link in Around the pack, item 1',
+      'A link in Around the pack, item 2',
+      'A link in Coming up, item 1',
+      'A link in Coming up, item 2',
+      'A link in the Coming up how to help line',
+      'The "I can help" button',
+    ]);
+  });
+
+  it('says when the "I can help" button does not go to the volunteer address', () => {
+    expect(
+      warnings((l) => {
+        l.comingUp.button.url = `mailto:${EVIL}?subject=I%20can%20help`;
+      }),
+    ).toEqual([`The "I can help" button emails ${EVIL}, not your volunteer address.`]);
+    const web = warnings((l) => {
+      l.comingUp.button.url = 'https://evil.example/form';
+    });
+    expect(web).toHaveLength(1);
+    expect(web[0]).toContain('https://evil.example/form');
+    expect(web[0]).toMatch(/^The "I can help" button opens /);
+  });
+
+  it('follows the current settings, not the usual ones', () => {
+    const custom = {
+      ...settings,
+      email: { ...settings.email, volunteer: 'help@custom.example.net' },
+      photoFormUrl: 'https://example.net/photos',
+    };
+    const letter = fixture();
+    const lines = draftLinkWarnings(letter, custom);
+    expect(lines).toHaveLength(2);
+    expect(lines.join(' ')).toContain(settings.email.volunteer);
+    expect(lines.join(' ')).toContain(settings.photoFormUrl);
+    const mine = emptyLetter({ year: 2026, month: 12 }, custom);
+    expect(draftLinkWarnings(mine, custom)).toEqual([]);
+  });
+
+  it('accepts the volunteer address with another subject, in other capitals, or no button at all', () => {
+    for (const url of [
+      `mailto:${settings.email.volunteer}`,
+      `mailto:${settings.email.volunteer}?subject=Pinewood%20Derby&body=Count%20me%20in`,
+      `MAILTO:${settings.email.volunteer.toUpperCase()}?subject=I%20can%20help`,
+      `mailto:${settings.email.volunteer.replace('+', '%2B')}`,
+      '',
+      '   ',
+    ]) {
+      expect(
+        warnings((l) => {
+          l.comingUp.button.url = url;
+        }),
+      ).toEqual([]);
+    }
+  });
+
+  it('says when the photo ask does not go to the photo form', () => {
+    const web = warnings((l) => {
+      l.photoAsk.url = 'https://evil.example/upload';
+    });
+    expect(web).toEqual([
+      'The photo ask link opens https://evil.example/upload, not your photo form.',
+    ]);
+    const mail = warnings((l) => {
+      l.photoAsk.url = `mailto:${EVIL}`;
+    });
+    expect(mail).toEqual([`The photo ask link emails ${EVIL}, not your photo form.`]);
+    expect(
+      warnings((l) => {
+        l.photoAsk.url = `  ${settings.photoFormUrl} `;
+      }),
+    ).toEqual([]);
+    expect(
+      warnings((l) => {
+        l.photoAsk.url = '';
+      }),
+    ).toEqual([]);
+  });
+
+  it('shows the address and nothing else from the letter, cut short when it is very long', () => {
+    const lines = warnings((l) => {
+      l.intro = [
+        {
+          kind: 'text',
+          text: 'SECRET LINK TEXT',
+          marks: [],
+          href: `mailto:pack@x.org?subject=SECRET-SUBJECT&bcc=${'a'.repeat(5000)}@evil.example`,
+        },
+      ];
+      l.photoAsk.linkText = 'SECRET PHOTO TEXT';
+      l.photoAsk.url = `https://evil.example/${'p'.repeat(3000)}`;
+      l.comingUp.button.text = 'SECRET BUTTON TEXT';
+      l.comingUp.button.url = `mailto:‮${EVIL}\u0000\n${EM_DASH}?subject=x`;
+    });
+    expect(lines).toHaveLength(3);
+    const all = lines.join('\n');
+    expect(all).not.toContain('SECRET');
+    expect(all).not.toContain('‮');
+    expect(all).not.toContain('\u0000');
+    expect(all).toContain('https://evil.example/ppp');
+    expect(all).toContain(EVIL);
+    for (const line of lines) expect(line).not.toMatch(/[\n\r]/);
+  });
+
+  it('gives at most 20 lines and then counts the rest', () => {
+    const lines = warnings((l) => {
+      l.around.items = Array.from({ length: 50 }, (_, i) => ({
+        lead: 'L',
+        text: [],
+        link: { text: 'T', url: `mailto:pack@x.org?bcc=n${i}@evil.example` },
+      }));
+    });
+    expect(lines).toHaveLength(21);
+    expect(lines[19]).toContain('n19@evil.example');
+    expect(lines[20]).toBe('And 30 more.');
+  });
+
+  it('never throws on a letter that is not what it should be', () => {
+    const broken = { story: { blocks: [null, { kind: 'contributor' }] }, intro: 'x' };
+    expect(() => draftLinkWarnings(broken as unknown as LetterForm, settings)).not.toThrow();
+    expect(() =>
+      draftLinkWarnings(fixture(), { email: {} } as unknown as typeof settings),
+    ).not.toThrow();
+  });
+
+  it('is quick on a letter full of links', () => {
+    const letter = fixture();
+    letter.intro = Array.from({ length: 20000 }, (_, i) => ({
+      kind: 'text' as const,
+      text: 'x',
+      marks: [],
+      href: `mailto:pack@x.org?bcc=n${i}@evil.example&subject=${'s'.repeat(200)}`,
+    }));
+    const start = performance.now();
+    const lines = draftLinkWarnings(letter, settings);
+    expect(performance.now() - start).toBeLessThan(budget(1000));
+    expect(lines).toHaveLength(21);
+    expect(lines[20]).toBe('And 19980 more.');
   });
 });

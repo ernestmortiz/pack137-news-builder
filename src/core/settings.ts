@@ -92,11 +92,47 @@ export const MAX_URL_LENGTH = 2048;
  */
 const BARE_EMAIL = /^[A-Za-z0-9._+~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
 
+/**
+ * The one email rule, for the settings screen, draft files and the renderer alike: true when the
+ * value is exactly one bare address (BARE_EMAIL) of at most MAX_EMAIL_LENGTH characters. Nothing
+ * is trimmed here, so an address with a space or a line break at either end is not bare.
+ */
+export function isBareEmail(value: string): boolean {
+  return typeof value === 'string' && value.length <= MAX_EMAIL_LENGTH && BARE_EMAIL.test(value);
+}
+
 function bareEmail(value: unknown): string | null {
   if (typeof value !== 'string' || value.length > MAX_EMAIL_LENGTH + 64) return null;
   const address = value.trim();
-  if (address.length > MAX_EMAIL_LENGTH || !BARE_EMAIL.test(address)) return null;
-  return address;
+  return isBareEmail(address) ? address : null;
+}
+
+/**
+ * True for a character that has no place in a label: a control character (U+0000 to U+001F,
+ * U+007F to U+009F) or one that changes the direction text is shown in (U+200E, U+200F, U+202A to
+ * U+202E, U+2066 to U+2069). The second group can make a label read as something it is not.
+ */
+function isHiddenCharacter(code: number): boolean {
+  return (
+    code <= 0x1f ||
+    (code >= 0x7f && code <= 0x9f) ||
+    code === 0x200e ||
+    code === 0x200f ||
+    (code >= 0x202a && code <= 0x202e) ||
+    (code >= 0x2066 && code <= 0x2069)
+  );
+}
+
+/** The text without control and direction characters. Every one of them is a single UTF-16 unit. */
+export function withoutHiddenCharacters(text: string): string {
+  let out = '';
+  let from = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (!isHiddenCharacter(text.charCodeAt(i))) continue;
+    out += text.slice(from, i);
+    from = i + 1;
+  }
+  return from === 0 ? text : out + text.slice(from);
 }
 
 /**
@@ -163,16 +199,24 @@ function checkStandingLinks(raw: unknown, problems: SettingsProblem[]): Standing
       continue;
     }
     const rawLabel = own(item, 'label');
-    const label =
+    const typed =
       typeof rawLabel === 'string' && rawLabel.length <= MAX_LINK_LABEL_LENGTH * 4
         ? rawLabel.trim()
         : '';
+    // Trimmed again, since a hidden character at either end can shield a space from the first trim.
+    const label = withoutHiddenCharacters(typed).trim();
     if (label === '' || label.length > MAX_LINK_LABEL_LENGTH) {
       problems.push({
         path: ['standingLinks', i, 'label'],
         message: `Standing link ${i + 1} needs a label of 1 to ${MAX_LINK_LABEL_LENGTH} characters. It was removed.`,
       });
       continue;
+    }
+    if (label !== typed) {
+      problems.push({
+        path: ['standingLinks', i, 'label'],
+        message: `The label of standing link ${i + 1} had hidden characters in it. They were removed.`,
+      });
     }
     const url = webUrl(own(item, 'url'), false);
     if (url === null) {
@@ -277,7 +321,8 @@ function check(raw: unknown): SettingsResult {
  * Rules (ADR 0004, Settings): emails are bare addresses; URLs pass the same allow-list as links
  * in the output (https or http; the logo https only); the month is an integer from 1 to 12; at most
  * 12 standing links, each with a label and a usable URL. Bad standing links are dropped and the
- * good ones kept in order; when none are left the default links come back.
+ * good ones kept in order; when none are left the default links come back. Control characters and
+ * text direction characters are taken out of labels, with a problem saying so.
  * Surrounding spaces are trimmed without a problem. Values are otherwise kept as typed.
  */
 export function validateSettings(raw: unknown): SettingsResult {
