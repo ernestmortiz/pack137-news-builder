@@ -4,7 +4,12 @@ import { formatMonthYear } from '../core/dates';
 import type { DraftFile } from '../core/draft';
 import { emptyLetter } from '../core/letter';
 import type { LetterForm } from '../core/letter';
-import type { PackSettings, SettingsProblem, StandingLink } from '../core/settings';
+import {
+  defaultSettings,
+  type PackSettings,
+  type SettingsProblem,
+  type StandingLink,
+} from '../core/settings';
 import { mailtoDetails, mailtoSummary, type MailLine } from './paths';
 
 export const MONTH_NAMES = [
@@ -211,6 +216,34 @@ export function settingsDifferences(mine: PackSettings, theirs: PackSettings): S
   }
   return out.filter((d): d is SettingDifference => d !== null);
 }
+
+/** Names only (no values) of the settings that differ from the Pack 137 defaults. */
+export function differingSettingNames(settings: PackSettings): string[] {
+  const names = settingsDifferences(defaultSettings(), settings).map(
+    (d) => d.text.split(':')[0] ?? d.text,
+  );
+  return [...new Set(names)];
+}
+
+/** A short fingerprint (FNV-1a, 32 bit) of the JSON of validated settings. Not a secret, only a change marker. */
+export function settingsFingerprint(settings: PackSettings): string {
+  const text = JSON.stringify(settings);
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
+/** True when the settings differ from the defaults and this device has not seen exactly these before. */
+export function settingsChangedOutside(settings: PackSettings, seen: string | undefined): boolean {
+  if (differingSettingNames(settings).length === 0) return false;
+  return seen !== settingsFingerprint(settings);
+}
+
+export const SETTINGS_OUTSIDE_MESSAGE =
+  'Your settings were changed outside this tool or on another copy of it. Open Settings to check them.';
 
 export interface LinkReport {
   heading: string;

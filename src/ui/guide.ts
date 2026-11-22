@@ -3,7 +3,7 @@ import { el, svgEl } from './dom';
 
 /** Said once in each tool's help. The browser's own checker does the work; nothing is sent anywhere. */
 export const SPELLING_NOTE =
-  'Spelling is checked by your browser. Right-click an underlined word for suggestions.';
+  "Spelling is checked by your browser. Right-click an underlined word for suggestions. If you have turned on your browser's enhanced or cloud spell check, the browser may send what you type to its spelling service.";
 
 export const GUIDE_STEPS: string[] = [
   'In TroopTrack, open the announcement and press the "<>" code view button. Select all and copy.',

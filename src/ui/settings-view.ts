@@ -14,6 +14,7 @@ import { clear, debounce, el, uid } from './dom';
 import { kindOfInputType, markSpelling } from './field-kinds';
 import type { SettingsStore } from './app-settings';
 import {
+  differingSettingNames,
   emailLinkDetails,
   MONTH_NAMES,
   moveLink,
@@ -90,6 +91,23 @@ export function mountSettings(root: HTMLElement, store: SettingsStore): void {
 
   /* ---------- sections ---------- */
   const otherBox = el('div', { className: 'warnings' });
+  const differsBox = el('div', { className: 'warnings' });
+  differsBox.setAttribute('role', 'status');
+  function showDifferences(): void {
+    clear(differsBox);
+    const names = differingSettingNames(store.get());
+    differsBox.hidden = names.length === 0;
+    if (names.length === 0) return;
+    differsBox.append(
+      el('p', { textContent: 'These settings are different from the Pack 137 defaults.' }),
+      el(
+        'ul',
+        { className: 'warn-list' },
+        names.map((n) => el('li', { textContent: n })),
+      ),
+      el('p', { className: 'hint', textContent: 'Use the restore button below to put them back.' }),
+    );
+  }
   const savedNote = el('p', { className: 'hint' });
   savedNote.setAttribute('role', 'status');
 
@@ -341,8 +359,10 @@ export function mountSettings(root: HTMLElement, store: SettingsStore): void {
     } finally {
       ownChange = false;
     }
+    if (saved) store.markSeen();
     showProblems(result.problems);
     showEmailLinks(store.get());
+    showDifferences();
     savedNote.textContent = saved
       ? ''
       : 'Could not save on this device. Your changes still work until you close this page.';
@@ -452,6 +472,7 @@ export function mountSettings(root: HTMLElement, store: SettingsStore): void {
           'They are used by the weekly announcement and the monthly letter, and they travel inside a downloaded draft. Changes save by themselves.',
       }),
       savedNote,
+      differsBox,
       el('div', { className: 'row-actions' }, [restoreButton]),
       confirmBox,
     ]),
@@ -459,6 +480,7 @@ export function mountSettings(root: HTMLElement, store: SettingsStore): void {
     body,
   );
   redrawAll();
+  showDifferences();
 
   // The letter's feedback wording is part of the feedback link, so show it as it is typed.
   store.subscribeFeedback(() => showEmailLinks(store.get()));
@@ -469,5 +491,6 @@ export function mountSettings(root: HTMLElement, store: SettingsStore): void {
     applyLater.cancel();
     working = copyOf(settings);
     redrawAll();
+    showDifferences();
   });
 }

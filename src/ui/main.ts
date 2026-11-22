@@ -6,7 +6,12 @@ import { mountLetter } from './letter';
 import { createSettingsStore } from './app-settings';
 import { mountSettings } from './settings-view';
 import { createOtherTabGuard, guardStorage, isWatchedKey, OTHER_TAB_MESSAGE } from './other-tab';
-import { settingsRepairNotice, type RepairNotice } from './settings-logic';
+import {
+  SETTINGS_OUTSIDE_MESSAGE,
+  differingSettingNames,
+  settingsRepairNotice,
+  type RepairNotice,
+} from './settings-logic';
 import { createDeviceStorage } from './storage';
 import { installErrorNotice } from './error-notice';
 import { flushAll } from './safety';
@@ -54,7 +59,7 @@ function mount(app: HTMLElement): void {
   // Read once from the real storage so repairs are noticed, then every save goes through the guard.
   const settings = createSettingsStore(storage);
   const noticeBox = el('div', { className: 'notices' });
-  const addNotice = (notice: RepairNotice): void => {
+  const addNotice = (notice: RepairNotice, onDismiss?: () => void): void => {
     const dismiss = el('button', { type: 'button', className: 'btn', textContent: 'Dismiss' });
     const box = el('div', { className: 'warnings', role: 'status' }, [
       el('p', { textContent: notice.message }),
@@ -68,11 +73,20 @@ function mount(app: HTMLElement): void {
       ]),
       el('div', { className: 'row-actions' }, [dismiss]),
     ]);
-    dismiss.addEventListener('click', () => box.remove());
+    dismiss.addEventListener('click', () => {
+      onDismiss?.();
+      box.remove();
+    });
     noticeBox.append(box);
   };
   const settingsNotice = settingsRepairNotice(settings.loadProblems());
   if (settingsNotice) addNotice(settingsNotice);
+  if (settings.changedOutside()) {
+    addNotice(
+      { message: SETTINGS_OUTSIDE_MESSAGE, details: differingSettingNames(settings.get()) },
+      () => settings.markSeen(),
+    );
+  }
 
   // Another tab saved a draft or settings. Hold back saving here until the person chooses.
   const otherTab = el('div', { className: 'warnings', role: 'alert' });
@@ -190,7 +204,7 @@ function mount(app: HTMLElement): void {
       tabs,
       el('main', { id: 'main-content' }, [panels.converter, panels.monthly, panels.settings]),
       el('footer', {
-        textContent: `Version ${__APP_VERSION__}. Nothing you paste leaves this device.`,
+        textContent: `Version ${__APP_VERSION__}. This tool never sends what you paste or type anywhere.`,
       }),
     ]),
   );

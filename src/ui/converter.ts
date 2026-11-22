@@ -144,7 +144,7 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
     el('p', {
       id: 'paste-hint',
       className: 'hint',
-      textContent: 'Nothing you paste leaves this device.',
+      textContent: 'This tool never sends what you paste or type anywhere.',
     }),
     status,
     el('div', { className: 'row-actions' }, [startOver]),

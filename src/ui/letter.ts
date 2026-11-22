@@ -557,7 +557,10 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
     clear(choicePanel);
     const finish = (useSettings: boolean): void => {
       escapeChoice = null;
-      if (useSettings) settings.set(draft.settings);
+      if (useSettings) {
+        settings.set(draft.settings);
+        settings.markSeen();
+      }
       saving = true;
       showEditor(true);
       loadLetter(
