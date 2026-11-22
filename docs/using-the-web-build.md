@@ -102,10 +102,10 @@ An older saved draft may still hold a photo address. The tool shows that address
 
 Big photos from a phone or camera can be slow to upload. The tool can make a smaller copy for you. It does this on your computer. The photo is not sent anywhere.
 
-1. Press Shrink a photo for the letter, next to a photo address. In the announcement, the button is called Shrink a photo.
+1. In the monthly letter, press Shrink a photo for the letter, next to the photo description. In the announcement, press Shrink a photo, next to the photo address.
 2. Choose the photo from your computer or phone.
-3. Wait for the button to say Shrink a photo again. Your browser saves a new file that ends in `-letter.jpg`. Look in your Downloads folder.
-4. Upload that new file in TroopTrack. Copy its address and paste it into the photo address box.
+3. Wait for the button to show its name again. Your browser saves a new file that ends in `-letter.jpg`. Look in your Downloads folder.
+4. For the monthly letter, put that new file in with TroopTrack's image button, as in the steps above. For an announcement, upload it in TroopTrack, copy its address and paste it into the photo address box.
 
 The new copy is a JPEG, at most 1104 pixels wide and about 300 KB. Location and camera details are removed from it. Your original photo is not changed.
 
