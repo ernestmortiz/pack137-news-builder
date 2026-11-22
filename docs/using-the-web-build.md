@@ -78,6 +78,19 @@ If the Copy button does not work, the tool shows the code in a box. Click inside
 
 Photos do not show in the preview. Each photo shows as a grey box of the same size. This is on purpose. The tool does not load pictures from the internet. The copied code still includes each photo's address.
 
+## Shrinking a photo
+
+Big photos from a phone or camera can be slow to upload. The tool can make a smaller copy for you. It does this on your computer. The photo is not sent anywhere.
+
+1. Press Shrink a photo for the letter, next to a photo address. In the announcement, the button is called Shrink a photo.
+2. Choose the photo from your computer or phone.
+3. Wait for the button to say Shrink a photo again. Your browser saves a new file that ends in `-letter.jpg`. Look in your Downloads folder.
+4. Upload that new file in TroopTrack. Copy its address and paste it into the photo address box.
+
+The new copy is a JPEG, at most 1104 pixels wide and about 300 KB. Location and camera details are removed from it. Your original photo is not changed.
+
+If the tool says it cannot read the photo, save or export the photo as a JPEG and try again. Some photo types, such as HEIC, only open in Safari. Photos over 50 MB are not opened.
+
 ## Undo and redo
 
 - Ctrl+Z undoes your last change (Command+Z on a Mac).

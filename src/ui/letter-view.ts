@@ -23,6 +23,7 @@ import { el, uid } from './dom';
 import { markSpelling } from './field-kinds';
 import { createKit, type FormContext } from './form-kit';
 import { paragraphs } from './form-view';
+import { shrinkControl } from './photo-shrink';
 import {
   BLOCK_KINDS,
   blockName,
@@ -241,7 +242,7 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
       },
       { url: true, hint: PHOTO_URL_HINT },
     );
-    src.append(srcNote.node);
+    src.append(srcNote.node, shrinkControl('Shrink a photo for the letter'));
     const alt = kit.text(
       'Photo description (required)',
       [...path, 'alt'],
@@ -256,7 +257,8 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
     return [
       el('p', {
         className: 'hint step-note',
-        textContent: 'Upload the photo in TroopTrack, copy its address, paste it here.',
+        textContent:
+          'Upload the photo in TroopTrack, copy its address, paste it here. Photo too big? Use Shrink a photo first.',
       }),
       src,
       alt,

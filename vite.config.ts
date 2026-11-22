@@ -16,7 +16,7 @@ const BUILD_CSP = [
   "default-src 'none'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
+  "img-src 'self' data: blob:",
   "frame-src 'self' about:",
   "connect-src 'none'",
   "object-src 'none'",

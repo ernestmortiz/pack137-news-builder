@@ -301,6 +301,7 @@ Rules:
 - Section headings "Closing and high fives", "Around the pack", "Coming up" and "On the horizon" are fixed text. The feature story title is free text.
 - Dates in sections 9 and 10 use the date helper and the "Sun Dec 6, 8:00 pm" format.
 - Photos: the tool takes an image URL, not an upload, because TroopTrack hosts the image. Workflow shown on screen: upload the photo in TroopTrack, copy its address, paste it here. Alt text is required and must not name a child.
+- The tool can shrink a photo on the device before it is uploaded to TroopTrack: at most 1104 px wide, JPEG, about 300 KB, with location and camera details removed (owner, 2026-11-22).
 - TroopTrack file attachments (the PDF link under the November issue) are added in TroopTrack after pasting. The tool does not manage them.
 - No calendar-subscribe link in the template.
 

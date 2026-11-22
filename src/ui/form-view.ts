@@ -13,6 +13,7 @@ import type {
 } from '../core/forms';
 import { ALT_HELP, altFeedback } from './alt-ui';
 import { el } from './dom';
+import { shrinkControl } from './photo-shrink';
 import { markSpelling } from './field-kinds';
 import { createKit, type FormContext, type Kit } from './form-kit';
 import { dateWithYear, fromIsoDate, toIsoDate } from './paths';
@@ -346,6 +347,17 @@ function layoutFields(kit: Kit, form: AnnouncementForm, ctx: FormContext): HTMLE
         () => undefined,
         false,
       );
+      const pictureSrc = kit.text(
+        'Picture address',
+        ['image', 'src'],
+        () => form.image?.src ?? '',
+        (v) => setImage(form, { src: v }),
+        {
+          url: true,
+          hint: 'Upload the picture in TroopTrack, then paste its address here. Photo too big? Use Shrink a photo first. The preview shows a box instead of the picture.',
+        },
+      );
+      pictureSrc.append(shrinkControl('Shrink a photo'));
       return [
         cardFields(kit, form),
         kit.group('Intro', [
@@ -357,16 +369,7 @@ function layoutFields(kit: Kit, form: AnnouncementForm, ctx: FormContext): HTMLE
           ),
         ]),
         kit.group('Picture (optional)', [
-          kit.text(
-            'Picture address',
-            ['image', 'src'],
-            () => form.image?.src ?? '',
-            (v) => setImage(form, { src: v }),
-            {
-              url: true,
-              hint: 'Upload the picture in TroopTrack, then paste its address here. The preview shows a box instead of the picture.',
-            },
-          ),
+          pictureSrc,
           kit.text(
             'Picture description',
             ['image', 'alt'],
