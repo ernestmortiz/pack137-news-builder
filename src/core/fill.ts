@@ -375,7 +375,13 @@ function fillDateList(
   checks: CheckMe[],
   odd: OddNote[],
 ): DateListForm {
-  const form: DateListForm = { layout: 'date-list', label: '', title: '', sections: [] };
+  const form: DateListForm = {
+    layout: 'date-list',
+    label: '',
+    title: '',
+    sections: [],
+    madeOn: { ...options.today },
+  };
   let rest = units;
 
   // The first heading is the title when it is the only heading, or when a section heading comes
@@ -1171,7 +1177,12 @@ function dateListFromProse(
   entries: Entry[],
   options: FillOptions,
 ): DateListForm {
-  const form: DateListForm = { layout: 'date-list', ...card, sections: [] };
+  const form: DateListForm = {
+    layout: 'date-list',
+    ...card,
+    sections: [],
+    madeOn: { ...options.today },
+  };
   let section: DateSection | undefined;
   let last: DateRow | undefined;
   const add = (row: DateRow) => {
