@@ -26,7 +26,7 @@ interface TauriConfig {
     windows?: TauriWindow[];
     security?: { csp?: unknown; devCsp?: unknown; capabilities?: unknown[] };
   };
-  bundle?: { createUpdaterArtifacts?: unknown; macOS?: { signingIdentity?: unknown } };
+  bundle?: { createUpdaterArtifacts?: unknown; targets?: unknown; macOS?: unknown };
 }
 
 const config = JSON.parse(read('src-tauri/tauri.conf.json')) as TauriConfig;
@@ -78,9 +78,13 @@ describe('desktop wrapper configuration', () => {
     expect(windows[0]?.devtools ?? false).toBe(false);
   });
 
-  it('takes its version from package.json and has no updater or signing certificate', () => {
+  it('takes its version from package.json and has no updater', () => {
     expect(config.version).toBe('../package.json');
     expect(config.bundle?.createUpdaterArtifacts ?? false).toBe(false);
-    expect(config.bundle?.macOS?.signingIdentity).toBe('-');
+  });
+
+  it('builds the Windows installer only (Mac volunteers use the web build, ADR 0006)', () => {
+    expect(config.bundle?.targets).toEqual(['nsis']);
+    expect(config.bundle?.macOS).toBeUndefined();
   });
 });

@@ -1,6 +1,6 @@
 name: Wrappers
-# Builds the desktop installers on a pull request that touches the wrapper, so the owner can
-# download and try them before a tag is pushed. Also checks the real app on Linux with a smoke
+# Builds the Windows installer on a pull request that touches the wrapper, so the owner can
+# download and try it before a tag is pushed. Also checks the real app on Linux with a smoke
 # test (see tests/wrapper/smoke.mjs). Nothing here signs anything or uses a secret.
 #
 # The installers are unsigned test builds. They are published as a draft pre-release named
@@ -28,6 +28,11 @@ on:
 # change nothing. Only the publish job can write, and it runs nothing but the GitHub CLI.
 permissions:
   contents: read
+# One run per pull request at a time: a newer push cancels the older run, so two runs never
+# replace the same draft at once.
+concurrency:
+  group: wrappers-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   linux:
     # Pinned: the smoke test is proven on Ubuntu 24.04. On 26.04 the WebDriver package is named
@@ -106,85 +111,8 @@ jobs:
           path: release-windows
           key: test-installer-windows-${{ github.run_id }}
           enableCrossOsArchive: true
-  macos:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - name: Install the Rust release pinned in src-tauri/rust-toolchain.toml
-        run: rustup toolchain install
-        working-directory: src-tauri
-      # Inside src-tauri, so the targets are added to the Rust release pinned there.
-      - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
-        working-directory: src-tauri
-      # Refuse a Cargo.lock that does not match Cargo.toml, so the build uses only the locked
-      # crates, then run the wrapper's own tests. They compile the app, which embeds dist/, so the
-      # web build comes first.
-      - run: npm run build
-      - run: cargo fetch --locked
-        working-directory: src-tauri
-      - run: cargo test --locked
-        working-directory: src-tauri
-      - run: npx tauri build --target universal-apple-darwin
-      - name: Check the built page carries the strict policy
-        run: grep -q "connect-src 'none'" dist/index.html
-      # Diagnostic (temporary, Phase 7): install the app from the disk image the way a volunteer
-      # does, launch it, and if it is still starting after 20 s, record what its threads are doing.
-      # The owner's Mac shows the app hanging at launch; this shows whether a runner Mac does too.
-      - name: Launch check from the disk image (diagnostic)
-        continue-on-error: true
-        run: |
-          dmg="$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -name '*.dmg')"
-          mnt="$(mktemp -d)"
-          hdiutil attach -nobrowse -readonly -mountpoint "${mnt}" "${dmg}"
-          ls -la "${mnt}"
-          cp -R "${mnt}/Pack 137 News Builder.app" "${RUNNER_TEMP}/"
-          hdiutil detach "${mnt}"
-          app="${RUNNER_TEMP}/Pack 137 News Builder.app"
-          sw_vers
-          codesign -dv --verbose=2 "${app}" 2>&1 || true
-          plutil -p "${app}/Contents/Info.plist" || true
-          RUST_BACKTRACE=1 "${app}/Contents/MacOS/pack137-news-builder" > "${RUNNER_TEMP}/app.log" 2>&1 &
-          pid=$!
-          sleep 20
-          if kill -0 "${pid}" 2>/dev/null; then
-            echo "The app is still running after 20 s (pid ${pid})."
-            sample "${pid}" 5 -file "${RUNNER_TEMP}/sample.txt" || true
-            head -200 "${RUNNER_TEMP}/sample.txt" || true
-            screencapture -x "${RUNNER_TEMP}/screen.png" && echo "screenshot taken" || true
-            kill "${pid}" || true
-          else
-            wait "${pid}"; echo "The app exited by itself with code $?."
-          fi
-          echo "---- app output ----"
-          cat "${RUNNER_TEMP}/app.log"
-      - name: Name the disk image
-        run: |
-          found="$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -name '*.dmg')"
-          if [ "$(printf '%s\n' "${found}" | wc -l)" -ne 1 ] || [ -z "${found}" ]; then
-            echo "Expected exactly one disk image, found:"
-            echo "${found}"
-            exit 1
-          fi
-          version="$(node -p "require('./package.json').version")"
-          mkdir -p release-macos
-          name="pack137-news-builder-v${version}-macos.dmg"
-          cp "${found}" "release-macos/${name}"
-          (cd release-macos && shasum -a 256 "${name}" > "${name}.sha256")
-      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: release-macos
-          key: test-installer-macos-${{ github.run_id }}
-          enableCrossOsArchive: true
   publish:
-    needs: [windows, macos]
+    needs: [windows]
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
@@ -196,16 +124,9 @@ jobs:
           key: test-installer-windows-${{ github.run_id }}
           enableCrossOsArchive: true
           fail-on-cache-miss: true
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: release-macos
-          key: test-installer-macos-${{ github.run_id }}
-          enableCrossOsArchive: true
-          fail-on-cache-miss: true
       - name: Check the checksums
         run: |
           (cd release-windows && sha256sum --check ./*.sha256)
-          (cd release-macos && sha256sum --check ./*.sha256)
       # A draft is visible only to people with write access, creates no tag until published, and
       # is never shown to volunteers as the latest release. The previous test build for the same
       # pull request is deleted first, so there is one per pull request.
@@ -222,10 +143,10 @@ jobs:
             tag="test-build-manual"
             title="Test build from a manual run (not for volunteers)"
           fi
-          gh release delete "${tag}" --repo "${GITHUB_REPOSITORY}" --yes --cleanup-tag || true
-          gh release create "${tag}" release-windows/* release-macos/* \
+          gh release delete "${tag}" --repo "${GITHUB_REPOSITORY}" --yes || true
+          gh release create "${tag}" release-windows/* \
             --repo "${GITHUB_REPOSITORY}" \
             --draft --prerelease \
             --target "${TARGET}" \
             --title "${title}" \
-            --notes "Unsigned test installers built from commit ${TARGET}, for the owner to try before a release (release checklist Step 2c). Not for volunteers. Install steps: docs/installing-the-desktop-app.md. Replaced on the next run."
+            --notes "Unsigned test installer built from commit ${TARGET}, for the owner to try before a release (release checklist Step 2c). Not for volunteers. Install steps: docs/installing-the-desktop-app.md. Replaced on the next run."
