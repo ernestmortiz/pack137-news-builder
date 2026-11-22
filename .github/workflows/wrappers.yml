@@ -135,6 +135,36 @@ jobs:
       - run: npx tauri build --target universal-apple-darwin
       - name: Check the built page carries the strict policy
         run: grep -q "connect-src 'none'" dist/index.html
+      # Diagnostic (temporary, Phase 7): install the app from the disk image the way a volunteer
+      # does, launch it, and if it is still starting after 20 s, record what its threads are doing.
+      # The owner's Mac shows the app hanging at launch; this shows whether a runner Mac does too.
+      - name: Launch check from the disk image (diagnostic)
+        continue-on-error: true
+        run: |
+          dmg="$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -name '*.dmg')"
+          mnt="$(mktemp -d)"
+          hdiutil attach -nobrowse -readonly -mountpoint "${mnt}" "${dmg}"
+          ls -la "${mnt}"
+          cp -R "${mnt}/Pack 137 News Builder.app" "${RUNNER_TEMP}/"
+          hdiutil detach "${mnt}"
+          app="${RUNNER_TEMP}/Pack 137 News Builder.app"
+          sw_vers
+          codesign -dv --verbose=2 "${app}" 2>&1 || true
+          plutil -p "${app}/Contents/Info.plist" || true
+          RUST_BACKTRACE=1 "${app}/Contents/MacOS/pack137-news-builder" > "${RUNNER_TEMP}/app.log" 2>&1 &
+          pid=$!
+          sleep 20
+          if kill -0 "${pid}" 2>/dev/null; then
+            echo "The app is still running after 20 s (pid ${pid})."
+            sample "${pid}" 5 -file "${RUNNER_TEMP}/sample.txt" || true
+            head -200 "${RUNNER_TEMP}/sample.txt" || true
+            screencapture -x "${RUNNER_TEMP}/screen.png" && echo "screenshot taken" || true
+            kill "${pid}" || true
+          else
+            wait "${pid}"; echo "The app exited by itself with code $?."
+          fi
+          echo "---- app output ----"
+          cat "${RUNNER_TEMP}/app.log"
       - name: Name the disk image
         run: |
           found="$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -name '*.dmg')"
