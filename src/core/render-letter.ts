@@ -19,6 +19,7 @@ import {
 import { letterShell, mastheadRow } from '../templates/letter/shell';
 import { storyRows } from '../templates/letter/story';
 import { letterWords, readTimeText, type LetterForm } from './letter';
+import { defaultSettings, type PackSettings } from './settings';
 
 /** The summary with the read time appended, used for the summary line and the preview text. */
 function summaryText(letter: LetterForm): string {
@@ -41,7 +42,16 @@ function introRow(letter: LetterForm): string {
   );
 }
 
-export function renderLetter(letter: LetterForm): string {
+/**
+ * `settings` supplies the logo, footer links, pack emails and year-at-a-glance link (spec 9). It
+ * must come from validateSettings or defaultSettings. Phase 5: renderer-engineer wires it through;
+ * until then the pack.config.ts values are used.
+ */
+export function renderLetter(
+  letter: LetterForm,
+  settings: PackSettings = defaultSettings(),
+): string {
+  void settings;
   const summary = summaryText(letter);
   const rows = lines(
     mastheadRow(letter.issue),
