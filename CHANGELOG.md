@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Drafts and settings (Phase 5): the monthly letter autosaves on the device and says so, offers to keep working, start next month from it or start blank, and can be downloaded and opened as a draft file. A Settings tab holds the logo, footer links, pack emails, photo form, year at a glance and program year month, kept on the device and used by both features.
+- Draft files and stored values are treated as untrusted: size and total budgets, field-by-field checks, plain-word notes on anything replaced, a warning for every link that sends hidden copies, and "Keep my settings" as the default with every changed setting shown.
+- The em dash lint rule now also catches em dashes in regular expressions and escapes.
 - Monthly Letter Editor (Phase 4): every Pack 137 Stories section in order, optional sections that switch off, story blocks (contributor, photo, stat band, sidebar box) that can be added, removed and reordered, dated Coming up and On the horizon items, a live read time ("About a 10 minute read.", words divided by 230), preview at three widths, copy, warnings for empty required sections, and its own undo and redo.
 - The November 2026 issue, rebuilt from a draft, matches the corrected reference in text, links and section order, and none of the November defects come back.
 - Every email pattern, weekly and monthly, now holds up in Outlook for Windows. The monthly letter keeps the Outlook-only font block from the November issue.
