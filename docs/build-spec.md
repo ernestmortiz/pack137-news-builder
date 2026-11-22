@@ -171,7 +171,7 @@ Link row (Link list layout, Ongoing and References sections): same cell, with th
 Tags (small pills after an event name). Spaces in tag text are written as `&nbsp;`. Outlook for Windows drops their padding and corners and shows them as shaded text; that is accepted.
 
 ```html
-<!-- quiet: Virtual, In person, TBD. Background #E3E6F5 on white, #FFFFFF inside a colored panel -->
+<!-- quiet: Virtual, In person, TBD. Background #E3E6F5 on white. Inside a colored panel: background #FFFFFF with border:1px solid #151B4D and padding:1px 7px (same size), so the tag still shows where a mail app drops white backgrounds (owner, 2026-11-22) -->
 <span style="display:inline-block;white-space:nowrap;background-color:#E3E6F5;color:#151B4D;font-size:11px;font-weight:700;text-transform:uppercase;padding:2px 8px;border-radius:8px;">{{tag}}</span>
 <!-- strong: Please RSVP, Rescheduled, Highest need -->
 <span style="display:inline-block;white-space:nowrap;background-color:#151B4D;color:#F9B93E;font-size:11px;font-weight:700;text-transform:uppercase;padding:2px 8px;border-radius:8px;">{{tag}}</span>
