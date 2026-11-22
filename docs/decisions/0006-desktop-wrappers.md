@@ -25,7 +25,7 @@ Further locks in the wrapper:
 - Navigation allows only the one origin Tauri serves on each platform.
 - New windows and permission requests are refused. Developer tools are off in release builds. No updater: the app never uses the internet.
 - The Windows installer downloads Microsoft WebView2 only on a PC that lacks it, which Windows 10 and 11 rarely do. That is the only network use, at install time. Shipping WebView2 inside the installer would add about 130 MB for every volunteer.
-- Test installers are built only from branches in this repository, never from forks.
+- Test installers are built only from branches in this repository, never from forks. They are published as a draft pre-release for the owner (owner decision, 2026-11-22), because the account's artifact storage quota was full. Build jobs hand files to the one job that can write through the Actions cache, which is outside that quota; the release workflow does the same.
 
 Packaging:
 

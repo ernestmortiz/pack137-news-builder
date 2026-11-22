@@ -71,7 +71,7 @@ Needs Node 22 and the toolchain below.
 
 It needs `webkit2gtk-driver` and `xvfb` from apt, and `cargo install tauri-driver --version 2.1.0 --locked`. It uses a private home folder, so it never touches the real Downloads folder. Set `SKIP_BUILD=1` to reuse a built app. `.github/workflows/wrappers.yml` runs it on pull requests that touch this folder, the UI, `index.html`, the build config or the test itself. `tests/unit/wrapper-config.test.ts` runs in the main CI on every push and fails if a capability, plugin, CSP string or extra Rust dependency appears.
 
-Install a test installer from `wrappers.yml` only when it was built from a branch in this repository. The installer jobs do not run for pull requests from forks, because a fork could put anything in an installer.
+`wrappers.yml` publishes its test installers as a draft pre-release named `test-build-pr-<number>`, replaced on each run and visible only to people with write access. The build jobs hand the files to the publish job through the Actions cache, keyed by run, because artifacts count against the account's storage quota and the cache does not; `release.yml` does the same. Only the publish job can write. Install a test installer only when it was built from a branch in this repository. The installer jobs do not run for pull requests from forks, because a fork could put anything in an installer.
 
 Known limits:
 

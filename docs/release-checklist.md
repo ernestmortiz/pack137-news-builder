@@ -96,7 +96,7 @@ If any of these fail, do not tag the release. Tell the project owner which brows
 
 ## Step 2c: Check the desktop apps
 
-Every pull request that changes the desktop app builds test installers. Open the pull request's "Wrappers" run in the Actions tab and download `test-windows-installer` and `test-macos-disk-image` from the bottom of the page. If nothing in the desktop app changed since the last release, test the installers from the last release instead.
+Every pull request that changes the desktop app builds test installers. When its "Wrappers" run is green, open the Releases page. A draft called "Test build for pull request #N (not for volunteers)" holds the Windows `.exe` and the Mac `.dmg`. Only people who can change the project see drafts. Each new run replaces it. Delete the draft once the pull request is merged. If nothing in the desktop app changed since the last release, test the installers from the last release instead.
 
 On a Windows PC and on a Mac, install the app by following `docs/installing-the-desktop-app.md`, with the internet turned off after installing, and check:
 

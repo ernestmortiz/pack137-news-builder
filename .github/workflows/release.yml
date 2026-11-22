@@ -9,9 +9,10 @@ name: Release
 # Rust crates) with a read-only token that is not kept on disk. Only the publish job can write,
 # and it runs nothing but the GitHub CLI on the finished files. No signing keys, certificates or
 # tokens are used anywhere. Nothing is cached between runs except the npm download cache that
-# setup-node keeps. Actions are pinned to commit SHAs (v4). Files pass from the build jobs to
-# the publish job as artifacts, which count against the account's artifact storage quota, so
-# they are kept for 1 day only; the release itself holds the published copies.
+# setup-node keeps. Actions are pinned to commit SHAs. Files pass from the build jobs to the
+# publish job through the Actions cache under keys unique to this run, not as artifacts: the
+# cache is outside the account's artifact storage quota, so a full quota cannot stop a release.
+# The publish job checks each file against its checksum before attaching it.
 on:
   push:
     tags: ['v*.*.*']
@@ -53,14 +54,12 @@ jobs:
           cp docs/using-the-web-build.md "release/${name}/HOW-TO-USE.md"
           cp docs/installing-the-desktop-app.md release/INSTALLING-THE-DESKTOP-APP.md
           (cd release && zip -r -q "${name}.zip" "${name}" && sha256sum "${name}.zip" > "${name}.zip.sha256")
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+          mkdir -p release-web
+          mv release/*.zip release/*.zip.sha256 release/INSTALLING-THE-DESKTOP-APP.md release-web/
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          name: release-files
-          path: |
-            release/*.zip
-            release/*.zip.sha256
-            release/INSTALLING-THE-DESKTOP-APP.md
-          retention-days: 1
+          path: release-web
+          key: release-web-${{ github.run_id }}
   windows:
     runs-on: windows-latest
     permissions:
@@ -108,17 +107,15 @@ jobs:
             echo "${found}"
             exit 1
           fi
-          mkdir -p release
+          mkdir -p release-windows
           name="pack137-news-builder-${GITHUB_REF_NAME}-windows-setup.exe"
-          cp "${found}" "release/${name}"
-          (cd release && sha256sum "${name}" > "${name}.sha256")
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+          cp "${found}" "release-windows/${name}"
+          (cd release-windows && sha256sum "${name}" > "${name}.sha256")
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          name: release-windows
-          path: |
-            release/*.exe
-            release/*.exe.sha256
-          retention-days: 1
+          path: release-windows
+          key: release-windows-${{ github.run_id }}
+          enableCrossOsArchive: true
   macos:
     runs-on: macos-latest
     permissions:
@@ -166,33 +163,48 @@ jobs:
             echo "${found}"
             exit 1
           fi
-          mkdir -p release
+          mkdir -p release-macos
           name="pack137-news-builder-${GITHUB_REF_NAME}-macos.dmg"
-          cp "${found}" "release/${name}"
-          (cd release && shasum -a 256 "${name}" > "${name}.sha256")
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+          cp "${found}" "release-macos/${name}"
+          (cd release-macos && shasum -a 256 "${name}" > "${name}.sha256")
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          name: release-macos
-          path: |
-            release/*.dmg
-            release/*.dmg.sha256
-          retention-days: 1
+          path: release-macos
+          key: release-macos-${{ github.run_id }}
+          enableCrossOsArchive: true
   publish:
     needs: [build, windows, macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          pattern: release-*
-          merge-multiple: true
-          path: release
+          path: release-web
+          key: release-web-${{ github.run_id }}
+          fail-on-cache-miss: true
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: release-windows
+          key: release-windows-${{ github.run_id }}
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: release-macos
+          key: release-macos-${{ github.run_id }}
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
+      - name: Check the checksums
+        run: |
+          (cd release-web && sha256sum --check ./*.sha256)
+          (cd release-windows && sha256sum --check ./*.sha256)
+          (cd release-macos && sha256sum --check ./*.sha256)
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" release/* \
+          gh release create "${GITHUB_REF_NAME}" release-web/* release-windows/* release-macos/* \
             --repo "${GITHUB_REPOSITORY}" \
             --title "Pack 137 News Builder ${GITHUB_REF_NAME}" \
             --notes "Web build: unzip and open index.html, or put the folder on any web host. See HOW-TO-USE.md inside the zip. Windows installer: the .exe file. Mac: the .dmg file. The installers are not signed, so Windows and macOS show a warning the first time. INSTALLING-THE-DESKTOP-APP.md shows what to click. Each .sha256 file lets you check that its download was not changed. See CHANGELOG.md for what changed."
