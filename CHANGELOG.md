@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.1.0 (2026-11-22)
+
+The first published release. It includes the 1.0.0 web release below, which was signed off but not published on its own.
+
+- Android app (Phase 8): an Android installer (`.apk`) for Android 10 and later, signed with the pack's release key. It wraps the same web build, asks for no permissions, never uses the internet and saves drafts and shrunk photos into Downloads. It was tested on an Android 14 emulator in CI (paste, copy, saving, the photo picker, saved work after a restart, the narrow screen); there was no real-phone test (owner decision). The install guide covers "Install unknown apps".
+- Style choices: any button can be Navy (the default) or Gold, and a Message or Call to action paragraph can sit in a pale-yellow box.
+- Date list dates show as a navy date pill above the event, such as SUN FEB 1.
 - Converter fixes from the owner's first hands-on test (Scout Sunday announcement):
   - Long web addresses no longer stretch the email on phones. Any long unbroken text now wraps inside the card, in every layout and the monthly letter.
   - A link whose text is a long address gets a one-tap suggestion to show the site's name instead, such as signupgenius.com.
@@ -12,7 +19,7 @@
 - No Mac app: current macOS will not run an app that Apple has not notarized, which needs a paid Apple Developer ID. Mac volunteers use the web version in Safari, which works offline with every feature.
 - A test installer is built on every pull request that changes the desktop app and published as a draft pre-release for the owner, and a smoke test checks the real app on Linux. Release files pass between jobs through the Actions cache, so a full artifact storage quota cannot block a release.
 
-## 1.0.0 (2026-11-22)
+## 1.0.0 (2026-11-22, signed off; published as part of 1.1.0)
 
 - Web release hardening (Phase 6): the web build works when unzipped and opened from disk with no internet; a strict page policy (no outgoing connections); spell check by the browser; faster typing in very large fields; a plain-words error notice; an accessibility pass (skip links, keyboard use, focus, live regions, 44px targets, contrast).
 - Photos in the monthly letter: photos are inserted with TroopTrack's editor. The letter marks each one as a photo spot with its description and caption, and a Finish photos step takes the code back from TroopTrack and gives each photo its description and a phone-safe width.

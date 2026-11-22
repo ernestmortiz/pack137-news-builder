@@ -1,6 +1,6 @@
 # Installing the desktop app
 
-This guide is for the Pack 137 News Builder on a Windows PC. Mac volunteers use the web version; see the Mac section. It is also attached to every release, as `INSTALLING-THE-DESKTOP-APP.md`.
+This guide is for the Pack 137 News Builder on a Windows PC or an Android phone or tablet. Mac volunteers use the web version; see the Mac section. It is also attached to every release, as `INSTALLING-THE-DESKTOP-APP.md`.
 
 The desktop app is the same tool as the web version, in its own window. It does the same things. Use the web version if you do not need an installed app. See `using-the-web-build.md`.
 
@@ -11,6 +11,7 @@ You do not need to know HTML. You do need to click through one warning the first
 Get the files from the project owner, or from the Releases page of the pack's project on GitHub. Pick the one for your computer.
 
 - Windows PC: the file that ends in `-windows-setup.exe`.
+- Android phone or tablet: the file that ends in `.apk`.
 - Mac: there is no Mac app. Use the web zip instead, the file that ends in `-web.zip`. See the Mac section below.
 
 Each file has a matching `.sha256` file. You can ignore it. It is only there for people who want to check that the download was not changed.
@@ -42,6 +43,38 @@ Read this first. Your saved work lives inside the app, on this computer. Uninsta
 1. Open Settings, then Apps, then Installed apps.
 2. Find Pack 137 News Builder. Click the three dots, then Uninstall.
 3. If the uninstaller asks whether to delete the app data, that is your saved work. Leave the box empty to keep it. Tick it to remove it.
+
+## Android
+
+The Android app is the same tool as the web version. It is made for the weekly announcement converter and fits a phone screen. The monthly letter opens and works too, but it is roomier on a tablet or a computer.
+
+### Install
+
+1. On your phone, open the Releases page or the link the project owner sent you, and download the `.apk` file. Your phone may say "This type of file can harm your device". That is the same kind of warning as on Windows. Choose OK or Download anyway.
+2. Open the file. You can tap the download notice, or open the Files app and look in Downloads.
+3. Android will say it cannot install apps from this source. Tap Settings. Turn on Allow from this source. This is for the app you opened the file from, such as Chrome or Files. Then go back.
+4. Tap Install.
+5. Google Play Protect may say "App blocked to protect your device" or "Unknown developer". It does not mean anything is wrong. This file did not come from Google Play, so Google does not know the app. Tap More details, then Install anyway. If it offers to scan the app first, either choice is fine.
+6. Tap Open, or find Pack 137 News Builder with your other apps.
+
+The app asks Android for no permissions. You can turn "Install unknown apps" off again for the browser or Files afterwards, in Settings.
+
+### Where your work is saved
+
+- Your work is saved inside the app, on this phone only. It is a separate place from your web browser. Work you did in the web version is not in the app, and the other way round.
+- Download draft on the monthly letter screen saves a `.json` file into your Downloads folder. Open the Files app, then Downloads. Press it again and the new file gets a number, such as `pack137-letter-2026-12 (1).json`. Nothing is written over. Shrink a photo for the letter saves its small photo in Downloads in the same way.
+- To carry on later, press Open draft and choose that file.
+
+### Uninstall
+
+Read this first. Uninstalling the app removes the work saved inside it. Open the monthly letter and press Download draft first, so you have a copy in Downloads. Files in Downloads stay after you uninstall.
+
+1. Press and hold the Pack 137 News Builder icon.
+2. Tap App info, then Uninstall.
+
+### Updating
+
+There is no automatic update. Each test or release file may be signed with a different key. If Android says the app cannot be installed over the old one, press Download draft first, uninstall the old app as above, then install the new one and press Open draft to get your letter back.
 
 ## Mac
 

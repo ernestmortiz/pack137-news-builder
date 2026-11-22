@@ -212,8 +212,10 @@ export function button(field: ButtonField | undefined, variant: 'primary' | 'sec
   if (field === undefined || field.text.trim() === '') return '';
   const href = safeUrl(field.url);
   if (href === null) return '';
-  const bg = variant === 'primary' ? color.navy : color.lavender;
-  const fg = variant === 'primary' ? color.white : color.navy;
+  // Gold (owner decision 2026-11-22) replaces either variant and always takes navy text.
+  const gold = field.color === 'gold';
+  const bg = gold ? color.gold : variant === 'primary' ? color.navy : color.lavender;
+  const fg = gold || variant === 'secondary' ? color.navy : color.white;
   const style =
     `display:inline-block;padding:13px 22px;font-family:${fontStack};color:${fg};font-size:16px;font-weight:700;` +
     `line-height:18px;text-decoration:none;border-radius:${radius.control}px;`;
@@ -256,8 +258,8 @@ export function sectionHeading(name: string): string {
 }
 
 /** A 20px gap, used before a panel that follows other content. */
-export function spacer(): string {
-  return '<div style="height:20px;line-height:20px;font-size:1px;mso-line-height-rule:exactly;">&nbsp;</div>';
+export function spacer(height = 20): string {
+  return `<div style="height:${height}px;line-height:${height}px;font-size:1px;mso-line-height-rule:exactly;">&nbsp;</div>`;
 }
 
 /** Font stack, ink color and body size for a td in a nested table; Outlook does not inherit them. */
@@ -274,6 +276,48 @@ export function panel(bg: 'goldPale' | 'lavender', inner: string): string {
     '  </tr>',
     '</table>',
   );
+}
+
+/**
+ * Paragraphs with the optional yellow box (owner decision 2026-11-22). Empty paragraphs are
+ * dropped first and never make a box. Consecutive boxed paragraphs share one goldPale panel, with
+ * 14px between them and margin 0 on the last. Plain paragraphs keep the usual margins (14px, the
+ * last 16px before a button). A box is followed by a 14px spacer when text or a button comes
+ * after it, so nothing touches the box. Returns one HTML string per block.
+ */
+export function boxedParagraphs(
+  items: { runs: RichText; boxed: boolean }[],
+  hasButton: boolean,
+): string[] {
+  const shown = items.filter((item) => !isEmptyRich(item.runs));
+  const blocks: string[] = [];
+  let i = 0;
+  while (i < shown.length) {
+    const boxed = shown[i]?.boxed === true;
+    let end = i;
+    while (end + 1 < shown.length && (shown[end + 1]?.boxed === true) === boxed) end++;
+    const group = shown.slice(i, end + 1);
+    const hasNext = end + 1 < shown.length;
+    if (boxed) {
+      blocks.push(
+        panel(
+          'goldPale',
+          lines(
+            ...group.map((g, k) => paragraph(g.runs, k < group.length - 1 ? '0 0 14px 0' : '0')),
+          ),
+        ),
+      );
+      if (hasNext || hasButton) blocks.push(spacer(14));
+    } else {
+      group.forEach((g, k) => {
+        const last = k === group.length - 1;
+        const margin = !last || hasNext ? '0 0 14px 0' : hasButton ? '0 0 16px 0' : '0';
+        blocks.push(paragraph(g.runs, margin));
+      });
+    }
+    i = end + 1;
+  }
+  return blocks;
 }
 
 /** The card shell: navy header with the label pill and title, then the body cell. */

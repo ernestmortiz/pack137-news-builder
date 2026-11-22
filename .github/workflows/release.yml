@@ -117,8 +117,124 @@ jobs:
           path: release-windows
           key: release-windows-${{ github.run_id }}
           enableCrossOsArchive: true
+  # Android, in two jobs (Phase 8). The build job runs the third-party build tools with no access
+  # to the signing key and hands the unsigned APK on through the cache. The sign job runs only the
+  # Android SDK's own zipalign and apksigner, and is the only job that can read the key: it uses
+  # the "android-release" environment, whose secrets the owner set up and which only accepts
+  # release tags (v*). The key never appears in the repository or in a pull request run.
+  android-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Check the tag matches package.json
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match package.json version ${version}."
+            exit 1
+          fi
+      - run: npm ci
+      - name: Install the Rust release pinned in src-tauri/rust-toolchain.toml, and its Android target
+        run: |
+          rustup toolchain install
+          rustup target add aarch64-linux-android
+        working-directory: src-tauri
+      - run: npm run build
+      - run: cargo fetch --locked
+        working-directory: src-tauri
+      - run: cargo test --locked
+        working-directory: src-tauri
+      - name: Point the Tauri CLI at the runner's Android NDK
+        run: echo "NDK_HOME=${ANDROID_NDK_HOME}" >> "${GITHUB_ENV}"
+      # Release build, unsigned: no signing config exists in the project.
+      - run: npx tauri android build --apk --target aarch64
+      - name: Check the built page carries the strict policy
+        run: grep -q "connect-src 'none'" dist/index.html
+      - name: Hand on the unsigned APK
+        run: |
+          found="$(find src-tauri/gen/android/app/build/outputs/apk -name '*release*.apk')"
+          if [ "$(printf '%s\n' "${found}" | wc -l)" -ne 1 ] || [ -z "${found}" ]; then
+            echo "Expected exactly one release APK, found:"
+            echo "${found}"
+            exit 1
+          fi
+          mkdir -p release-android-unsigned
+          cp "${found}" release-android-unsigned/unsigned.apk
+          (cd release-android-unsigned && sha256sum unsigned.apk > unsigned.apk.sha256)
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: release-android-unsigned
+          key: release-android-unsigned-${{ github.run_id }}
+  android-sign:
+    needs: android-build
+    runs-on: ubuntu-24.04
+    environment: android-release
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: release-android-unsigned
+          key: release-android-unsigned-${{ github.run_id }}
+          fail-on-cache-miss: true
+      - name: Check the unsigned APK is the one the build job made
+        run: (cd release-android-unsigned && sha256sum --check unsigned.apk.sha256)
+      # zipalign, then apksigner with the pack's key. The key file lives only in this step's
+      # temporary folder and is deleted at once.
+      - name: Sign with the pack's release key
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "${ANDROID_KEYSTORE_B64}" ] || [ -z "${ANDROID_KEYSTORE_PASSWORD}" ]; then
+            echo "The android-release environment has no signing key. See docs/release-checklist.md."
+            exit 1
+          fi
+          tools="$(ls -d "${ANDROID_HOME}"/build-tools/* | sort -V | tail -1)"
+          ks="${RUNNER_TEMP}/pack137-release.p12"
+          printf '%s' "${ANDROID_KEYSTORE_B64}" | base64 --decode > "${ks}"
+          mkdir -p release-android
+          name="pack137-news-builder-${GITHUB_REF_NAME}-android.apk"
+          "${tools}/zipalign" -p -f 4 release-android-unsigned/unsigned.apk "${RUNNER_TEMP}/aligned.apk"
+          "${tools}/apksigner" sign --ks "${ks}" --ks-type PKCS12 --ks-key-alias pack137 \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD --out "release-android/${name}" "${RUNNER_TEMP}/aligned.apk"
+          rm -f "${ks}" "${RUNNER_TEMP}/aligned.apk"
+          echo "APK_PATH=release-android/${name}" >> "${GITHUB_ENV}"
+      # The same checks as the test build, plus: signed with the pack's key, not a debug key.
+      - name: Check permissions, minimum Android version and signature
+        run: |
+          tools="$(ls -d "${ANDROID_HOME}"/build-tools/* | sort -V | tail -1)"
+          extra="$("${tools}/aapt2" dump permissions "${APK_PATH}" | grep '^uses-permission' | grep -v 'DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION' || true)"
+          if [ -n "${extra}" ]; then
+            echo "The APK asks for permissions it should not:"
+            echo "${extra}"
+            exit 1
+          fi
+          "${tools}/aapt2" dump badging "${APK_PATH}" | grep -E "^(min)?[sS]dkVersion:" | tee sdk.txt
+          grep -qE "^(sdkVersion|minSdkVersion):'29'" sdk.txt
+          "${tools}/apksigner" verify --verbose --print-certs "${APK_PATH}" | tee certs.txt
+          grep -q "CN=Pack 137 News Builder" certs.txt
+          if grep -q "CN=Android Debug" certs.txt; then echo "Signed with a debug key."; exit 1; fi
+          (cd release-android && sha256sum "$(basename "${APK_PATH}")" > "$(basename "${APK_PATH}").sha256")
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: release-android
+          key: release-android-${{ github.run_id }}
   publish:
-    needs: [build, windows]
+    needs: [build, windows, android-sign]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -134,15 +250,21 @@ jobs:
           key: release-windows-${{ github.run_id }}
           enableCrossOsArchive: true
           fail-on-cache-miss: true
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: release-android
+          key: release-android-${{ github.run_id }}
+          fail-on-cache-miss: true
       - name: Check the checksums
         run: |
           (cd release-web && sha256sum --check ./*.sha256)
           (cd release-windows && sha256sum --check ./*.sha256)
+          (cd release-android && sha256sum --check ./*.sha256)
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" release-web/* release-windows/* \
+          gh release create "${GITHUB_REF_NAME}" release-web/* release-windows/* release-android/* \
             --repo "${GITHUB_REPOSITORY}" \
             --title "Pack 137 News Builder ${GITHUB_REF_NAME}" \
-            --notes "Web build: unzip and open index.html, or put the folder on any web host. See HOW-TO-USE.md inside the zip. Windows installer: the .exe file. On a Mac, use the web build in Safari. The installer is not signed, so Windows shows a warning the first time. INSTALLING-THE-DESKTOP-APP.md shows what to click. Each .sha256 file lets you check that its download was not changed. See CHANGELOG.md for what changed."
+            --notes "Web build: unzip and open index.html, or put the folder on any web host. See HOW-TO-USE.md inside the zip. Windows installer: the .exe file. Android: the .apk file. On a Mac, use the web build in Safari. The Windows installer is not signed, so Windows shows a warning the first time; on Android, allow installs from your browser or Files app. INSTALLING-THE-DESKTOP-APP.md shows what to click. Each .sha256 file lets you check that its download was not changed. See CHANGELOG.md for what changed."

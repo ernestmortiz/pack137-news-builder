@@ -60,6 +60,10 @@ interface RepeaterOptions<T> {
   describe?(item: T): string;
   /** Other kinds of entry that can be added, each with its own button. */
   extraAdds?: { label: string; create(): T }[];
+  /** Called inside the same undo step after entries `from` and `to` swapped places. */
+  onMoved?(from: number, to: number): void;
+  /** Called inside the same undo step after the entry at `index` was removed. */
+  onRemoved?(index: number): void;
   /** A control shown just above the add button (for example a block-type picker). */
   beforeAdd?: HTMLElement;
 }
@@ -453,6 +457,22 @@ export function createKit(ctx: FormContext) {
         (v) => set({ ...current(), url: v }),
         { url: true, hint: 'Starts with https:// or mailto:' },
       ),
+      select(
+        'Button color',
+        [...path, 'color'],
+        [
+          { value: 'navy', label: 'Navy' },
+          { value: 'gold', label: 'Gold' },
+        ],
+        () => current().color ?? 'navy',
+        (v) => {
+          // Navy is the default, so choosing it removes the key.
+          const next: ButtonField = { ...current() };
+          if (v === 'gold') next.color = 'gold';
+          else delete next.color;
+          set(next);
+        },
+      ),
       warnHere(path),
     ]);
   }
@@ -514,6 +534,7 @@ export function createKit(ctx: FormContext) {
           if (other === undefined) return;
           ctx.begin();
           moveItem(o.items, i, to);
+          o.onMoved?.(i, to);
           ctx.swapped(o.arrayPath, Math.min(i, to), Math.max(i, to));
           ctx.step(`moved a ${noun} ${to > i ? 'down' : 'up'}`);
           build(() => {
@@ -531,6 +552,7 @@ export function createKit(ctx: FormContext) {
         remove.addEventListener('click', () => {
           ctx.begin();
           o.items.splice(i, 1);
+          o.onRemoved?.(i);
           ctx.removed(o.arrayPath, i);
           ctx.step(`removed a ${noun}`);
           build(() => root.querySelector<HTMLElement>('.add-button'));

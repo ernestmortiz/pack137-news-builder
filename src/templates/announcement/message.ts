@@ -1,19 +1,13 @@
 import type { MessageForm } from '../../core/forms';
-import { button, isEmptyRich, lines, paragraph } from '../components';
+import { boxedParagraphs, button, lines } from '../components';
 
 /**
  * Message: a short note with an optional button. No approved output exists; it follows Call to
  * action (ADR 0005): each paragraph 14px below, the last 16px below when a button follows and no
- * margin when it does not.
+ * margin when it does not. Boxed paragraphs (owner decision 2026-11-22) sit in a yellow panel.
  */
 export function messageBody(form: MessageForm): string {
-  const paragraphs = form.paragraphs.filter((p) => !isEmptyRich(p));
   const cta = button(form.button, 'primary');
-  const last = paragraphs.length - 1;
-  return lines(
-    ...paragraphs.map((runs, i) =>
-      paragraph(runs, i < last ? '0 0 14px 0' : cta === '' ? '0' : '0 0 16px 0'),
-    ),
-    cta,
-  );
+  const items = form.paragraphs.map((runs, i) => ({ runs, boxed: form.boxed?.[i] === true }));
+  return lines(...boxedParagraphs(items, cta !== ''), cta);
 }

@@ -32,7 +32,7 @@ Packaging:
 - **Windows:** an NSIS installer that installs for the current user, so no administrator password is needed.
 - **Build and checks:** the installer is built by CI on its Windows machine. The tag's version must match `package.json`, which is also the version the wrapper shows.
 
-Android: decided at the start of Phase 8. Tauri stays the first choice because the same no-bridge approach should carry over; Capacitor is the fallback the spec names.
+Android: Tauri, with the same no-bridge approach (see the Android section below).
 
 Revisit: if the owner wants a save dialog instead of saving into Downloads, the wrapper would need the dialog plugin on the Rust side only, still with nothing exposed to the page.
 
@@ -45,3 +45,18 @@ Current macOS will only run an app downloaded from the internet if Apple has not
 Decision: drop the Mac app. Mac volunteers use the web build in Safari, which works offline with every feature. The `.dmg` is removed from both workflows, the app config and the guides.
 
 Revisit if the pack funds an Apple Developer ID; signing and notarizing would then live only in CI secrets. Or, once the web build is hosted, Safari's File, Add to Dock gives Mac volunteers an app-like window with no signing (Phase 9).
+
+## Android
+
+Tauri 2 builds the Android app from the same code. The manifest asks for no permission at all (the web build is served from inside the app, so even the network permission is gone), backup to the cloud is off, and the minimum is Android 10.
+
+Saving files is the one place Android needed more than the desktop wrapper. The Android web view that Tauri uses has no download handler, so a hidden link with a Blob address (what Download draft and Shrink a photo use) does nothing. The page is not changed. Instead:
+
+- A small script, added from Rust on Android only, notices when the page presses such a link, reads the Blob and sends the file name and bytes to one named message channel, `pack137Save`.
+- Kotlin registers that one channel for the app's own origin, `http://tauri.localhost`, and for the main frame only. It saves a `.json` or `.jpg` file into the public Downloads folder through MediaStore, with the same name rules as Windows (plain letters, digits, spaces and `-_.()`, at most 120 characters, reserved names prefixed, ` (1)` when the name is taken), and refuses anything over 8 MB. A refused or failed save shows nothing, because the page already says "Look in your Downloads folder"; it is logged.
+
+So the page gains exactly one capability on Android: saving a `.json` or `.jpg` into Downloads. That equals what a download does on Windows. Nothing else is exposed: it cannot read a file, list a folder, write anywhere else, or call a Tauri command, and the manifest still has no permission (MediaStore needs none on Android 10 and later).
+
+Why no Tauri plugin: the dialog and fs plugins would add commands and a capability to the page, which is the surface this decision removes. A plugin would also ask for a save dialog the Windows app does not have, and "no feature in one build only" would break. A single message channel that carries one kind of message is smaller and can be read in one sitting (`src-tauri/src/android-save.js`, `MainActivity.kt`, `DownloadSaver.kt`, `SaveRules.kt`). `tests/unit/wrapper-config.test.ts` fails if the channel is registered for any other origin or the saver gains another way to write.
+
+Testing: the owner has no Android device, so the release gate is an emulator test in CI (`tests/wrapper/android-smoke.mjs`, job `android-emulator`). It runs the app on an emulator and checks the same things as the Windows smoke test, plus saving into Downloads, the picker opening, saved work surviving a restart and the 360 dp width. It does not prove behaviour on every phone's WebView.
