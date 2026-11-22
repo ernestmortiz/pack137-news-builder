@@ -136,7 +136,7 @@ describe('Date list remembers the day it was made (owner decision 2026-11-22: pa
     expect(form.dateStyle ?? 'tile').toBe('tile');
   });
 
-  it('switching to Date list with today\'s date records it', () => {
+  it("switching to Date list with today's date records it", () => {
     expect(fromLayout('message').madeOn).toEqual(OPTIONS.today);
   });
 });
