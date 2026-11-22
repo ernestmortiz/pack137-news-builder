@@ -459,7 +459,7 @@ describe('card shell', () => {
   it('uses the approved shell and omits an empty label and title', () => {
     const html = render(message());
     expect(html).toContain(
-      'align="center" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="max-width:600px;margin:0 auto;border-collapse:separate;background-color:#FFFFFF;border:1px solid #E3E6F5;border-radius:12px;font-family:Inter,Arial,Helvetica,sans-serif;"',
+      'align="center" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="max-width:600px;margin:0 auto;border-collapse:separate;background-color:#FFFFFF;border:1px solid #E3E6F5;border-radius:12px;font-family:Inter,Arial,Helvetica,sans-serif;word-break:break-word;"',
     );
     const bare = render(message({ label: ' ', title: '' }));
     expect(bare).not.toContain('letter-spacing');
@@ -578,10 +578,11 @@ describe('Date list layout', () => {
         }),
       ),
     );
-    expect(html).toContain('>Sat Feb 27 to Sun Feb 28</p>');
-    expect(html).toContain('><s>Tue Nov 24</s></p>');
-    expect(html).toContain('>Sat Nov 21</p>');
-    expect(html).not.toContain('Nov 21 to');
+    // Dates are navy pills (owner decision 2026-11-22).
+    expect(html).toContain('>SAT&nbsp;FEB&nbsp;27 TO SUN&nbsp;FEB&nbsp;28</td>');
+    expect(html).toContain('><s>TUE&nbsp;NOV&nbsp;24</s></td>');
+    expect(html).toContain('>SAT&nbsp;NOV&nbsp;21</td>');
+    expect(html).not.toContain('NOV&nbsp;21 TO');
   });
 
   it('plain section with a name: heading and a border on every row', () => {
@@ -612,15 +613,16 @@ describe('Date list layout', () => {
 
   it('highlight panel with no name and one row shows the row straight in the panel', () => {
     const html = render(dateList(section({ style: 'highlight', name: '', rows: [row()] })));
-    // The card, the label pill and the panel.
-    expect(html.match(/<table /g)).toHaveLength(3);
+    // The card, the label pill, the panel and the date pill.
+    expect(html.match(/<table /g)).toHaveLength(4);
     expect(html).not.toContain(
       'letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:8px;">Now',
     );
     const noName = render(
       dateList(section({ style: 'highlight', name: '', rows: [row(), row()] })),
     );
-    expect(noName.match(/<table /g)).toHaveLength(4);
+    // Card, label pill, panel, rows table and two date pills.
+    expect(noName.match(/<table /g)).toHaveLength(6);
   });
 
   it('quiet panel: heading, subtitle, white tags and a spacer after other content', () => {
@@ -777,4 +779,62 @@ describe('quiet tags inside colored panels (owner decision 2026-11-22, option a)
     expect(tag({ text: 'Please RSVP', strength: 'strong' }, true)).not.toContain('border:');
     expect(tag({ text: 'Virtual', strength: 'quiet' }, false)).toContain('padding:2px 8px;');
   });
+});
+
+describe('bare web address links (spec 6.1, 2026-11-22)', () => {
+  const url = 'https://www.signupgenius.com/go/4090F4CAEAE2AA4F58-61725464-stmichael';
+  const anchors = (html: string): string[] => html.match(/<a [^>]*>[^<]*<\/a>/g) ?? [];
+
+  it('adds word-break to an address link in an announcement paragraph only', () => {
+    const html = render(
+      message({
+        paragraphs: [
+          [
+            t('Sign up here: '),
+            t(url, { href: url }),
+            t(' or '),
+            t('Sign up', { href: 'https://example.org/s' }),
+          ],
+        ],
+      }),
+    );
+    const [address, words] = anchors(html);
+    expect(address).toContain(
+      `style="color:${color.navy};font-weight:700;text-decoration:underline;word-break:break-all;"`,
+    );
+    expect(words).not.toContain('word-break');
+    expect(words).toContain(
+      `style="color:${color.navy};font-weight:700;text-decoration:underline;"`,
+    );
+  });
+
+  it('applies the rule to www., and to no-space text with a dot and a slash', async () => {
+    const { looksLikeWebAddress } = await import('../../src/templates/components');
+    for (const s of [
+      'www.example.org',
+      'HTTP://x.org',
+      'example.org/a/b',
+      '<strong>https://a.b/c</strong>',
+    ])
+      expect(looksLikeWebAddress(s)).toBe(true);
+    for (const s of ['Sign up', 'Read the guide.', 'and/or', 'example.org', 'a. b/c'])
+      expect(looksLikeWebAddress(s)).toBe(false);
+  });
+});
+
+describe('card table wraps long unbroken text (spec 6.1, 2026-11-22)', () => {
+  const forms: [string, AnnouncementForm][] = [
+    ['message', message()],
+    ['call to action', cta()],
+    ['date list', dateList(section({ rows: [row()] }))],
+    ['help wanted', help()],
+    ['link list', linkList()],
+  ];
+  for (const [name, form] of forms) {
+    it(`${name}: the outer card table ends its style with word-break:break-word;`, () => {
+      const html = render(form);
+      const first = /^<table [^>]*style="([^"]*)"/.exec(html);
+      expect(first?.[1]).toMatch(/;word-break:break-word;$/);
+    });
+  }
 });

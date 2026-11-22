@@ -9,7 +9,7 @@ The full brief is `docs/build-spec.md`. Read it before writing code. This file r
 - No em dashes in copy, output HTML or docs.
 - No runtime AI calls, no network calls, no tracking. Pasted HTML is untrusted and is parsed inert.
 - Every emitted string must pass `lintOutput` in `src/core/lint-output.ts`.
-- One codebase for web, Windows, macOS and Android. No feature in one build only.
+- One codebase for web, Windows and Android (Mac volunteers use the web build, ADR 0006). No feature in one build only.
 - Never commit signing keys, certificates or tokens.
 
 ## How work runs
@@ -27,4 +27,4 @@ The full brief is `docs/build-spec.md`. Read it before writing code. This file r
 
 ## Status
 
-Phases 0 to 6 are complete and merged. The owner signed off the web release and 1.0.0 is tagged. Next: Phase 7, desktop wrappers.
+Phases 0 to 6 are complete and merged. The owner signed off the web release (1.0.0); the owner pushes the v1.0.0 tag. Phase 7 (Windows wrapper) is built and awaiting the owner's test of the Windows installer; the Mac app was dropped (ADR 0006). Next: Phase 8, Android.

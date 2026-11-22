@@ -31,8 +31,11 @@ describe('suggestions follow the current form', () => {
     expect(cased.ask.title).toBe('Legal and finance help');
     expect(itemsFor(suggestionsFor(cased), ['ask', 'title'])).toEqual([]);
 
-    // Typing a capital letter back in brings the suggestion back.
+    // One capital typed back in is not Title Case: the writer is using sentence case with a name.
     cased.ask.title = 'Legal and Finance help';
+    expect(itemsFor(suggestionsFor(cased), ['ask', 'title'])).toEqual([]);
+    // Capitals on every long word bring the suggestion back.
+    cased.ask.title = 'Legal and Finance Help';
     expect(itemsFor(suggestionsFor(cased), ['ask', 'title'])).toHaveLength(1);
   });
 });

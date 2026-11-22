@@ -94,6 +94,21 @@ The automatic browser tests run in Chrome only. Before each release, open the zi
 
 If any of these fail, do not tag the release. Tell the project owner which browser and step failed.
 
+## Step 2c: Check the desktop apps
+
+Every pull request that changes the desktop app builds test installers. When its "Wrappers" run is green, open the Releases page. A draft called "Test build for pull request #N (not for volunteers)" holds the Windows `.exe`. Only people who can change the project see drafts. Each new run replaces it. Delete the draft once the pull request is merged. If nothing in the desktop app changed since the last release, test the installer from the last release instead.
+
+On a Windows PC, install the app by following `docs/installing-the-desktop-app.md`, with the internet turned off after installing, and check:
+
+1. The warning appears once and the guide's steps get past it.
+2. The footer shows the version you plan to release.
+3. Pasting an announcement fills the form and the three previews. Copy new HTML puts the code on the clipboard; paste it into a text editor to check.
+4. Typing in the letter shows "Saved on this device". Quit the app, open it again, and the letter is offered back.
+5. Download draft saves a `.json` file into Downloads. A second press makes a file with " (1)" in its name. Open draft opens it again.
+6. Shrink a photo for the letter saves a `-letter.jpg` file into Downloads.
+
+If any of these fail, do not tag the release. Tell the project owner which computer and step failed.
+
 ## Step 3: Answer two questions
 
 This test must answer two questions. Write each answer down and send it to the project owner.
@@ -124,9 +139,9 @@ Write "Kept" if all of these are in the TroopTrack code and Outlook shows the bu
 3. Save both files. Commit them to the main branch with the message `chore: release 1.0.0`.
 4. Wait for the CI run on the main branch to be green. See Step 1.
 5. Create the tag. Run `git tag v1.0.0`, then `git push origin v1.0.0`. The tag must be a lowercase `v` followed by the version in `package.json`. If they do not match, the release stops with a message.
-6. Open the Actions tab. Open the "Release" run for the tag. It runs the checks again, runs the browser tests, builds the web files and makes the zip.
+6. Open the Actions tab. Open the "Release" run for the tag. It runs the checks again, runs the browser tests, builds the web files and makes the zip. Another job builds the Windows installer on a Windows machine. It takes longer, often 15 to 25 minutes.
 7. If the run fails, no release is made. Do not move or delete the tag yourself. Tell the project owner what the message said.
-8. When the run is green, open the Releases page. You should see a release called "Pack 137 News Builder v1.0.0" with the zip file and its checksum attached: `pack137-news-builder-v1.0.0-web.zip` and `pack137-news-builder-v1.0.0-web.zip.sha256`. The checksum lets anyone check that a copy of the zip passed around the pack was not changed.
+8. When the run is green, open the Releases page. You should see a release called "Pack 137 News Builder v1.0.0" with these files attached: `pack137-news-builder-v1.0.0-web.zip`, `pack137-news-builder-v1.0.0-windows-setup.exe`, a `.sha256` checksum file for each of the two, and `INSTALLING-THE-DESKTOP-APP.md`. A checksum lets anyone check that a copy passed around the pack was not changed.
 9. Download the zip. Test it the way a volunteer will. Unzip it, double-click `index.html`, and check the version shown in the tool matches the release. Try this with the internet turned off.
 10. Send the project owner the link to the release page. Wait for the owner's sign-off before you tell volunteers about it.
 
@@ -134,7 +149,10 @@ Write "Kept" if all of these are in the TroopTrack code and Outlook shows the bu
 
 - One zip file, attached to a GitHub release. Its name is `pack137-news-builder-vX.Y.Z-web.zip`, with the version number in place of X.Y.Z.
 - Inside the zip: one folder that holds the web files, including `index.html`, and a `HOW-TO-USE.md` file for volunteers.
-- The Windows, Mac and Android installers are not part of this release. They come in later phases.
+- A Windows installer, `pack137-news-builder-vX.Y.Z-windows-setup.exe`. It is unsigned, so `INSTALLING-THE-DESKTOP-APP.md` is attached as well. It shows volunteers how to get past the Windows warning.
+- No Mac app. Mac volunteers use the web zip in Safari (ADR 0006).
+- A `.sha256` checksum file for the zip and for the installer.
+- The Android installer is not part of the release yet. It comes in Phase 8.
 
 ## Good practice
 

@@ -240,3 +240,42 @@ export function matchLeadingDate(
   }
   return null;
 }
+
+/** A date found inside a sentence: where it starts in the text, and what was read. */
+export interface FoundDate extends DateMatch {
+  index: number;
+}
+
+/**
+ * Where a written date can begin inside running text: a weekday or a month name that starts with
+ * a capital letter and is not part of a longer word. Lower-case words are left alone, so "you may
+ * 2" is not read as May 2.
+ */
+const DATE_START =
+  /(?<![\p{L}\p{N}])(?:(?:Sun|Mon|Tues?|Wed(?:nes)?|Thu(?:rs?)?|Fri|Sat(?:ur)?)(?:day)?|Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sept?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)(?![\p{L}])/gu;
+
+/**
+ * Finds the first written date inside a sentence, such as "Scout Sunday on February 8th, 10am".
+ * Only word dates are read here: a bare "12/6" in prose is too easily something else. The year
+ * follows the same rule as a date at the start of a line (ADR 0003). Null when there is none.
+ */
+export function findDate(
+  text: string,
+  today: CalendarDate,
+  programYearStartMonth: number,
+): FoundDate | null {
+  for (const start of text.matchAll(DATE_START)) {
+    // A written date is short, so only a window is read: a huge paste stays quick.
+    const rest = text.slice(start.index, start.index + 80);
+    // matchLeadingDate also reads numeric dates; in prose only a word date counts.
+    if (!WORD_DATE.test(rest)) continue;
+    const match = matchLeadingDate(rest, today, programYearStartMonth);
+    if (match !== null) return { ...match, index: start.index };
+  }
+  return null;
+}
+
+/** True when the text holds a written date. Used where today's date is not known. */
+export function containsDate(text: string): boolean {
+  return findDate(text, { year: 2000, month: 1, day: 1 }, 1) !== null;
+}

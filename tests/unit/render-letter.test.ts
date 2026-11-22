@@ -862,3 +862,43 @@ describe('photoSpots: sidebar width cap', () => {
     ]);
   });
 });
+
+describe('bare web address links in the letter (spec 6.1, 2026-11-22)', () => {
+  const url = 'https://www.signupgenius.com/go/4090F4CAEAE2AA4F58-61725464-stmichael';
+  it('adds word-break to an address link in a story paragraph only', () => {
+    const l = base();
+    l.story.blocks = [
+      {
+        kind: 'contributor',
+        name: 'Justin Daly',
+        role: '',
+        parts: [
+          {
+            kind: 'paragraph',
+            text: [
+              t('Sign up: '),
+              t(url, { href: url }),
+              t(' or '),
+              t('Sign up', { href: 'https://example.org/s' }),
+            ],
+          },
+        ],
+      },
+    ];
+    const html = renderLetter(l, defaultSettings());
+    expect(lintOutput(html, { monthly: true })).toEqual([]);
+    const links = html.match(/<a [^>]*>[^<]*<\/a>/g) ?? [];
+    const address = links.find((a) => a.includes('signupgenius'));
+    const words = links.find((a) => a.includes('>Sign up<'));
+    expect(address).toContain('word-break:break-all;');
+    expect(words).toBeDefined();
+    expect(words).not.toContain('word-break');
+  });
+});
+
+describe('letter card wraps long unbroken text (spec 6.1, 2026-11-22)', () => {
+  it('the white card table carries word-break:break-word;', () => {
+    const html = renderLetter(base(), defaultSettings());
+    expect(html).toMatch(/<table [^>]*bgcolor="#FFFFFF" style="[^"]*;word-break:break-word;"/);
+  });
+});

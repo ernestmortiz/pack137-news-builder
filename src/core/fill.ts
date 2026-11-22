@@ -9,7 +9,7 @@
  */
 import { packConfig } from '../config/pack.config';
 import type { CalendarDate } from './dates';
-import { matchLeadingDate } from './dates';
+import { findDate, matchLeadingDate } from './dates';
 import type {
   AnnouncementForm,
   ButtonField,
@@ -27,8 +27,10 @@ import type {
 import { dateLabel, readLeadingDate, weekdayMismatchMessage } from './helpers/dates';
 import { cleanOddRich, cleanOddText, oddCharactersMessage } from './helpers/odd-characters';
 import { formFields, getAt, isRichText, setAt, type FormField } from './helpers/paths';
+import { longAddressIn, shortLinkText } from './helpers/long-links';
 import { contactNote, readContact } from './helpers/people';
-import { toSentenceCase as toHeadingCase } from './helpers/sentence-case';
+import { firstSentenceEnd, sentenceAround } from './helpers/sentences';
+import { looksLikeTitleCase, toSentenceCase as toHeadingCase } from './helpers/sentence-case';
 import { isShouting, shoutStart, toSentenceCase } from './helpers/shouting';
 import { smallFixes } from './helpers/small-fixes';
 import { addTag, RESCHEDULED, takeTags } from './helpers/tags';
@@ -94,7 +96,13 @@ export interface CheckMe {
   message: string;
 }
 
-/** A small fix offered, not applied (spec 7.4): "&" to "and", "On going" to "Ongoing", doubled spaces. */
+/**
+ * A small fix offered, not applied (spec 7.4): "&" to "and", "On going" to "Ongoing", doubled spaces.
+ *
+ * `path` leads to a plain text field, to a rich text field (the fix then covers every run of it),
+ * or to the text of one run of a rich text field, as in ['paragraphs', 2, 5, 'text']. The last is
+ * used for a fix that belongs to one link and must leave the same words elsewhere alone.
+ */
 export interface Suggestion {
   path: FieldPath;
   /** One plain sentence, such as 'Change "On going" to "Ongoing".' */
@@ -707,10 +715,58 @@ function headingFields(form: AnnouncementForm): { path: FieldPath; value: string
   return out;
 }
 
+const longLinkMessage = (host: string) =>
+  `Show this long link as "${host}"? The full address stays behind the link.`;
+
+/** The words shown for the link in `url`, when an object holds a link as words plus an address. */
+const LINK_TEXT_KEYS = ['text', 'event'] as const;
+
+/**
+ * Long bare links (helpers/long-links.ts): every link whose words are its own long address, with
+ * the host name to show instead. A link in rich text is one run, and the path leads to that run's
+ * text so the same address elsewhere in the paragraph is left alone. A button, a link item and a
+ * date row hold the words beside `url`; there the address may follow words the tool joined to it
+ * ("Sign up here: https://..."), and only the address is replaced. Read in the order of the form.
+ */
+function longLinks(value: unknown, path: FieldPath, out: Suggestion[]): void {
+  if (isRichText(value)) {
+    value.forEach((run, i) => {
+      if (run.kind !== 'text' || run.href === undefined) return;
+      const to = shortLinkText(run.text, run.href);
+      if (to !== undefined)
+        out.push({
+          path: [...path, i, 'text'],
+          message: longLinkMessage(to),
+          from: run.text.trim(),
+          to,
+        });
+    });
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((v, i) => longLinks(v, [...path, i], out));
+    return;
+  }
+  if (typeof value !== 'object' || value === null) return;
+  const fields = value as Record<string, unknown>;
+  const url = fields.url;
+  for (const [key, v] of Object.entries(fields)) {
+    if (typeof v !== 'string') {
+      longLinks(v, [...path, key], out);
+      continue;
+    }
+    if (typeof url !== 'string' || !LINK_TEXT_KEYS.some((k) => k === key)) continue;
+    const found = longAddressIn(v, url);
+    if (found !== undefined)
+      out.push({ path: [...path, key], message: longLinkMessage(found.to), ...found });
+  }
+}
+
 /**
  * Every suggestion for the form as it is now: the small fixes ("&" to "and", "On going" to
  * "Ongoing", doubled spaces) for each text field, then sentence case for each heading and button
- * (spec 6). Suggestions are offered and never applied by the tool. Call this again after an edit:
+ * (spec 6) that is written in Title Case, then shorter words for each long bare link.
+ * Suggestions are offered and never applied by the tool. Call this again after an edit:
  * a suggestion made before the edit may no longer fit, and applySuggestion then changes nothing.
  * Pure: the form is not changed.
  */
@@ -729,9 +785,11 @@ export function suggestionsFor(form: AnnouncementForm): Suggestion[] {
   for (const { path, value } of headingFields(form)) {
     if (value.trim() === '') continue;
     const to = toHeadingCase(value, packConfig.properNouns);
-    if (to !== value)
+    // Only for Title Case. A lower case word shows the writer's capitals are names (owner rule).
+    if (to !== value && looksLikeTitleCase(value, packConfig.properNouns))
       suggestions.push({ path, message: `Use sentence case: "${to.trim()}".`, from: value, to });
   }
+  longLinks(form, [], suggestions);
   return suggestions.map((s) => ({ ...s, message: sentence(s.message) }));
 }
 
@@ -1027,7 +1085,153 @@ function rowToItem(row: DateRow): LinkItem {
   return { text: row.event, url: row.url, note: parts.filter((p) => p !== '').join(', ') };
 }
 
-function buildFrom(layout: Layout, source: AnnouncementForm, entries: Entry[]): AnnouncementForm {
+/* ---------- Date list from prose (owner request, 2026-11-22) ---------- */
+
+/** An event name longer than this many words keeps its first sentence; the rest is the note. */
+const EVENT_MAX_WORDS = 12;
+/**
+ * A sentence without the date the row now shows: "Scout Sunday on February 8th, 10am-11am."
+ * becomes "Scout Sunday, 10am-11am." A leading "on", "this" or "next" goes with the date.
+ */
+function withoutDate(sentenceText: string, at: number, raw: string): string {
+  const before = sentenceText.slice(0, at).replace(/\s*\b(?:on|this|next)\s*$/i, '');
+  const after = sentenceText.slice(at + raw.length);
+  const joined = squash(`${before} ${after}`)
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/^[\s,;:–-]+/, '')
+    .replace(/,([.!?])$/, '$1');
+  return capitalize(joined);
+}
+
+/** The first written date in a line (findDate reads short windows, so a huge paste stays quick). */
+function dateInLine(text: string, options: FillOptions) {
+  return findDate(text, options.today, options.programYearStartMonth);
+}
+
+/** Two pieces of rich text as one, with a line break between them when both have text. */
+function appendNote(row: DateRow, runs: RichText): void {
+  const add = trimRich(runs);
+  if (lineText(add) === '') return;
+  if (row.note.length > 0) row.note.push({ kind: 'break' });
+  row.note.push(...add);
+}
+
+/**
+ * A row for a line of prose that holds a written date: the date, the sentence it is in as the
+ * event (without the date), and the rest of the line as the note, links and all. The event is
+ * never a link, so a long sentence is not one big underlined block; the link stays in the note.
+ */
+function proseRow(line: RichText, options: FillOptions): DateRow | null {
+  const text = textOf(line);
+  const found = dateInLine(text, options);
+  if (found === null) return null;
+  const { start, end } = sentenceAround(text, found.index);
+  const event = withoutDate(text.slice(start, end), found.index - start, found.raw);
+  const note = trimRich([...sliceRich(line, 0, start), ...plain(' '), ...sliceRich(line, end)]);
+  const date: DateRow['date'] = { start: found.start };
+  if (found.end !== undefined) date.end = found.end;
+  return { date, event, url: '', tags: [], note: lineText(note) === '' ? [] : note };
+}
+
+/** A line with no date as a row. A long one keeps its first sentence as the event name. */
+function undatedRow(line: RichText): DateRow {
+  const text = textOf(line);
+  const words = squash(text).split(' ').length;
+  if (words <= EVENT_MAX_WORDS || isLinkOnly(line)) return richToRow(line);
+  const cut = firstSentenceEnd(text);
+  return {
+    event: squash(text.slice(0, cut)),
+    url: '',
+    tags: [],
+    note: trimRich(sliceRich(line, cut)),
+  };
+}
+
+const sameDay = (a: DateRow, b: DateRow): boolean =>
+  a.date !== undefined &&
+  b.date !== undefined &&
+  a.date.start.year === b.date.start.year &&
+  a.date.start.month === b.date.start.month &&
+  a.date.start.day === b.date.start.day;
+
+const dayNumber = (row: DateRow): number => {
+  const d = row.date?.start;
+  return d === undefined ? 0 : d.year * 10_000 + d.month * 100 + d.day;
+};
+
+/**
+ * Date list from any form, reading dates written in the text (owner request, 2026-11-22). With
+ * today's date known: the title's date becomes a row (the title stays as written), each line with
+ * a written date becomes a row, a line without one becomes the note of the row before it, and the
+ * rows of a section are sorted by date when every row has one. Nothing is dropped: only the date
+ * words move, into the row's date.
+ */
+function dateListFromProse(
+  card: { label: string; title: string },
+  entries: Entry[],
+  options: FillOptions,
+): DateListForm {
+  const form: DateListForm = { layout: 'date-list', ...card, sections: [] };
+  let section: DateSection | undefined;
+  let last: DateRow | undefined;
+  const add = (row: DateRow) => {
+    if (section === undefined) {
+      section = { name: '', style: 'plain', subtitle: '', rows: [] };
+      form.sections.push(section);
+    }
+    section.rows.push(row);
+    if (row.date !== undefined) last = row;
+  };
+  const known = (row: DateRow) => form.sections.some((s) => s.rows.some((r) => sameDay(r, row)));
+
+  const titleRow = proseRow(plain(card.title), options);
+  if (titleRow !== null) {
+    titleRow.note = [];
+    add(titleRow);
+  }
+
+  for (const e of entries) {
+    if (e.kind === 'heading') {
+      section = { name: e.text, style: 'plain', subtitle: '', rows: [] };
+      form.sections.push(section);
+      last = undefined;
+    } else if (e.kind === 'row') add(e.row);
+    else if (e.kind === 'button') {
+      // A button goes under the event before it. When that note already has the same link, as
+      // when Call to action made a button of the paragraph's link, nothing is added twice.
+      if (last === undefined) add(buttonToRow(e.button));
+      else if (!linksOf(last.note).some((l) => l.href === e.button.url))
+        appendNote(last, buttonToRich(e.button));
+    } else {
+      for (const line of splitLines(e.runs)) {
+        if (lineText(line) === '') continue;
+        if (readLeadingDate(line, options) !== null) {
+          add(buildRow(line, options).row);
+          continue;
+        }
+        const row = proseRow(line, options);
+        if (row !== null && !known(row)) add(row);
+        else if (last !== undefined) appendNote(last, line);
+        else add(undatedRow(line));
+      }
+    }
+  }
+
+  for (const s of form.sections)
+    if (s.rows.length > 1 && s.rows.every((r) => r.date !== undefined))
+      s.rows = s.rows
+        .map((row, i) => ({ row, i }))
+        .sort((a, b) => dayNumber(a.row) - dayNumber(b.row) || a.i - b.i)
+        .map(({ row }) => row);
+  return form;
+}
+
+function buildFrom(
+  layout: Layout,
+  source: AnnouncementForm,
+  entries: Entry[],
+  options?: FillOptions,
+): AnnouncementForm {
   const card = { label: source.label, title: source.title };
   const buttons = entries.flatMap((e) => (e.kind === 'button' ? [e.button] : []));
 
@@ -1065,6 +1269,7 @@ function buildFrom(layout: Layout, source: AnnouncementForm, entries: Entry[]): 
       return form;
     }
     case 'date-list': {
+      if (options !== undefined) return dateListFromProse(card, entries, options);
       const form: DateListForm = { layout, ...card, sections: [] };
       let section: DateSection | undefined;
       const add = (row: DateRow) => {
@@ -1116,15 +1321,23 @@ function buildFrom(layout: Layout, source: AnnouncementForm, entries: Entry[]): 
  * Text, links, rows and buttons always find a place: a row becomes a line of text or a link item,
  * a paragraph becomes a row, a spare button becomes a link. Only Link list has a field for a
  * picture. Pure: the form passed in is never changed and the result shares nothing with it.
+ *
+ * With `options` (today's date), Date list reads dates written inside the text: see
+ * dateListFromProse. Without them it keeps the plain rule, one row per line.
  */
-export function switchLayout(form: AnnouncementForm, layout: Layout): AnnouncementForm {
+export function switchLayout(
+  form: AnnouncementForm,
+  layout: Layout,
+  options?: FillOptions,
+): AnnouncementForm {
   if (form.layout === layout) return form;
-  const next = buildFrom(layout, form, entriesOf(form));
+  const next = buildFrom(layout, form, entriesOf(form), options);
   return structuredClone(next);
 }
 
 /**
  * Applies one suggestion: replaces `from` with `to` in the plain text or rich text at `path`.
+ * A path to the text of one run, such as ['paragraphs', 2, 5, 'text'], changes that run only.
  * Returns a new form. When the text no longer holds `from`, the form is returned unchanged.
  */
 export function applySuggestion(form: AnnouncementForm, suggestion: Suggestion): AnnouncementForm {

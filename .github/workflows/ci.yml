@@ -30,4 +30,4 @@ jobs:
         with:
           name: web-build
           path: dist
-          retention-days: 5
+          retention-days: 1

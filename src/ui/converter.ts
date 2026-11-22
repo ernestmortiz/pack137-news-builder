@@ -369,7 +369,13 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
     begin();
     if (!sessions.has(next)) {
       // Cloned so that editing one layout can never change another layout's saved form.
-      const form = structuredClone(switchLayout(session.form, next));
+      // Today's date lets Date list read dates written in the text (owner request, 2026-11-22).
+      const form = structuredClone(
+        switchLayout(session.form, next, {
+          today: todayFrom(new Date()),
+          programYearStartMonth: settings.get().programYearStartMonth,
+        }),
+      );
       sessions.set(next, { form, checks: [] });
     }
     layout = next;

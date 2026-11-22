@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { packConfig } from '../../../src/config/pack.config';
-import { toSentenceCase } from '../../../src/core/helpers/sentence-case';
+import { looksLikeTitleCase, toSentenceCase } from '../../../src/core/helpers/sentence-case';
 
 const KEEP = packConfig.properNouns;
 const sc = (text: string) => toSentenceCase(text, KEEP);
@@ -128,5 +128,58 @@ describe('sentence case helper', () => {
     sc(' '.repeat(1_000_000) + 'A B');
     sc('pack '.repeat(200_000));
     expect(performance.now() - started).toBeLessThan(process.env.CI ? 6000 : 2000);
+  });
+});
+
+describe('looksLikeTitleCase: when sentence case is worth offering', () => {
+  const title = (text: string) => looksLikeTitleCase(text, KEEP);
+
+  it('is true when every ordinary word of four or more letters has a capital', () => {
+    for (const text of [
+      'Take Action Now',
+      'Coming Soon',
+      'Save the Date',
+      'Pack Calendar Update For December',
+      'Join Us at the Fair',
+      'Legal & Finance Help',
+      'Webelos Den 10 & Den 11 Upcoming Events',
+      'Please RSVP By Friday',
+      'Sign Up',
+      'TAKE ACTION NOW',
+    ])
+      expect(title(text), text).toBe(true);
+  });
+
+  it('is false when one ordinary word of four or more letters is in lower case', () => {
+    for (const text of [
+      'The First Presbyterian Church is having Scout Sunday on February 8th, 10am-11am.',
+      'Join us today for the Pinewood Derby',
+      'Legal and Finance help',
+      'Bring your Pinewood Derby car on Saturday',
+      'Thanks to Ryan Meier for the photos',
+    ])
+      expect(title(text), text).toBe(false);
+  });
+
+  it('does not count the words the helper keeps', () => {
+    // Names from the list, months, weekdays, short forms, inner capitals, links, digits.
+    expect(title('Pack Meeting At cranford On friday')).toBe(true);
+    expect(title('Pay With PayPal Or eBay')).toBe(true);
+    expect(title('Meet On Dec 6th At 10am')).toBe(true);
+    expect(title('See www.example.org For More')).toBe(true);
+    expect(title('Write To cubmaster@example.org Today')).toBe(true);
+    expect(title('Sign Up 4ever')).toBe(true);
+  });
+
+  it('counts each part of a hyphenated word', () => {
+    expect(title('First-Time Camper Night')).toBe(true);
+    expect(title('First-time Camper night')).toBe(false);
+  });
+
+  it('is quick on very long text', () => {
+    const long = 'Take Action Now '.repeat(60_000);
+    const start = performance.now();
+    expect(title(long)).toBe(true);
+    expect(performance.now() - start).toBeLessThan(2000);
   });
 });

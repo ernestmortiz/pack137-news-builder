@@ -5,6 +5,7 @@
 import { previewWidths } from '../config/tokens';
 import { el } from './dom';
 import { previewDocument } from './preview';
+import { fitScale } from './preview-scale';
 
 const PREVIEW_NAMES: Record<number, string> = {
   250: 'Small phone, with TroopTrack around it',
@@ -27,16 +28,30 @@ export function createPreviewFrames(label = 'Preview'): PreviewFrames {
     frame.setAttribute('sandbox', '');
     frame.title = `${label}, ${width} pixels wide`;
     frame.setAttribute('loading', 'eager');
-    const scroll = el('div', { className: 'frame-scroll' }, [frame]);
+    const sizer = el('div', { className: 'frame-sizer' }, [frame]);
+    const scroll = el('div', { className: 'frame-scroll' }, [sizer]);
     scroll.tabIndex = 0;
     scroll.setAttribute('role', 'region');
     scroll.setAttribute('aria-label', `${label} at ${width} pixels wide`);
-    const figure = el('figure', { className: 'preview' }, [
-      el('figcaption', {
-        textContent: `${PREVIEW_NAMES[width] ?? 'Preview'}: ${width}px wide`,
-      }),
-      scroll,
-    ]);
+    const baseCaption = `${PREVIEW_NAMES[width] ?? 'Preview'}: ${width}px wide`;
+    const caption = el('figcaption', { textContent: baseCaption });
+    const figure = el('figure', { className: 'preview' }, [caption, scroll]);
+    const height = 640;
+    // Show the frame smaller when the column is narrower than the frame. The iframe keeps its
+    // real width, so the email lays out as it would at that width; only the display shrinks.
+    const fit = () => {
+      const style = getComputedStyle(scroll);
+      const pad = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+      const scale = fitScale(width, scroll.clientWidth - pad);
+      sizer.style.width = `${Math.floor(width * scale)}px`;
+      sizer.style.height = `${Math.ceil(height * scale)}px`;
+      frame.style.transform = scale < 1 ? `scale(${scale})` : '';
+      figure.dataset.scale = String(scale);
+      const text = scale < 1 ? `${baseCaption} (shown smaller to fit)` : baseCaption;
+      if (caption.textContent !== text) caption.textContent = text;
+    };
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fit).observe(scroll);
+    fit();
     return { frame, figure };
   });
   return {

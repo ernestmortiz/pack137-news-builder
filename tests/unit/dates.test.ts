@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  containsDate,
+  findDate,
   formatDate,
   formatDateTime,
   formatMonthYear,
@@ -143,5 +145,49 @@ describe('formatTime, formatDateTime and formatMonthYear (monthly letter, spec 6
   it('formats a month and year as "November 2026"', () => {
     expect(formatMonthYear({ year: 2026, month: 11 })).toBe('November 2026');
     expect(formatMonthYear({ year: 2027, month: 1 })).toBe('January 2027');
+  });
+});
+
+describe('findDate: a date inside a sentence (Date list from prose, 2026-11-22)', () => {
+  const today = { year: 2026, month: 11, day: 22 };
+  const find = (text: string) => findDate(text, today, 8);
+
+  it('finds the date after "on" in the owner\'s title', () => {
+    const text = 'The First Presbyterian Church is having Scout Sunday on February 8th, 10am-11am.';
+    const hit = find(text);
+    expect(hit?.start).toEqual({ year: 2027, month: 2, day: 8 });
+    expect(hit?.raw).toBe('February 8th');
+    expect(text.slice(hit?.index, (hit?.index ?? 0) + (hit?.raw.length ?? 0))).toBe('February 8th');
+  });
+
+  it('skips a weekday word that is not part of a date ("Scout Sunday on")', () => {
+    const hit = find('they are also having a Scout Sunday on February 1st at the 9am mass.');
+    expect(hit?.raw).toBe('February 1st');
+    expect(hit?.start).toEqual({ year: 2027, month: 2, day: 1 });
+  });
+
+  it('includes a weekday written just before the month', () => {
+    expect(find('Join us on Saturday, Dec 5 for the hike.')?.raw).toBe('Saturday, Dec 5');
+  });
+
+  it('reads a range', () => {
+    const hit = find('Camp is Feb 27-28 this year.');
+    expect(hit?.raw).toBe('Feb 27-28');
+    expect(hit?.end).toEqual({ year: 2027, month: 2, day: 28 });
+  });
+
+  it('finds nothing in text without a date', () => {
+    expect(find('Please RSVP via the TroopTrack event.')).toBeNull();
+    expect(find('You may 2 or 3 friends bring.')).toBeNull();
+    expect(find('Meet at 8:45am at the Alden Street entrance.')).toBeNull();
+  });
+
+  it('does not read a month inside a word', () => {
+    expect(find('Bring a Decathlon 5 tent.')).toBeNull();
+  });
+
+  it('containsDate answers the same question without the year rule', () => {
+    expect(containsDate('Scout Sunday on February 8th, 10am-11am.')).toBe(true);
+    expect(containsDate('Scout Sunday')).toBe(false);
   });
 });

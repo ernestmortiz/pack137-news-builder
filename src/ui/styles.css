@@ -15,7 +15,7 @@ body {
   display: none !important;
 }
 .shell {
-  max-width: 1240px;
+  max-width: 1360px;
   margin: 0 auto;
   padding: 12px;
 }
@@ -424,7 +424,11 @@ input.date {
   background: var(--grey-page);
   padding: 8px;
 }
+.frame-sizer {
+  overflow: hidden;
+}
 .preview-frame {
+  transform-origin: top left;
   display: block;
   border: 0;
   background: var(--white);

@@ -298,3 +298,72 @@ describe('sentence case suggestions: which fields', () => {
     );
   });
 });
+
+describe('sentence case suggestions: only for text that looks like Title Case', () => {
+  const OWNER_TITLE =
+    'The First Presbyterian Church is having Scout Sunday on February 8th, 10am-11am.';
+  const message = (title: string, button?: string): MessageForm => ({
+    layout: 'message',
+    label: '',
+    title,
+    paragraphs: [],
+    ...(button === undefined ? {} : { button: { text: button, url: 'https://example.org/' } }),
+  });
+  const cased = (form: AnnouncementForm) => brief(suggestionsFor(form).filter(isCase));
+
+  it('offers nothing for a sentence with names in it (owner, Scout Sunday)', () => {
+    expect(cased(message(OWNER_TITLE))).toEqual([]);
+  });
+
+  it('offers nothing when one word of four or more letters is in lower case', () => {
+    expect(cased(message('Join us for the Pinewood Derby'))).toEqual([]);
+    expect(cased(message('Thanks to Ryan Meier for the photos'))).toEqual([]);
+  });
+
+  it('still offers it when only short words are in lower case', () => {
+    expect(cased(message('Join Us at the Fair'))).toEqual([
+      'title: Join Us at the Fair -> Join us at the fair',
+    ]);
+    expect(cased(message('Pack Calendar Update For December'))).toEqual([
+      'title: Pack Calendar Update For December -> Pack calendar update for December',
+    ]);
+    expect(cased(message('Take Action Now'))).toEqual([
+      'title: Take Action Now -> Take action now',
+    ]);
+  });
+
+  it('follows the same rule for buttons, section names and the ask title', () => {
+    expect(cased(message('', 'Sign Up Here'))).toEqual([
+      'button.text: Sign Up Here -> Sign up here',
+    ]);
+    expect(cased(message('', 'Email Ryan about the Derby'))).toEqual([]);
+    const dates: DateListForm = {
+      layout: 'date-list',
+      label: '',
+      title: '',
+      sections: [
+        { name: 'Save The Date', style: 'plain', subtitle: '', rows: [] },
+        { name: 'Events with Troop 80 this month', style: 'plain', subtitle: '', rows: [] },
+      ],
+    };
+    expect(cased(dates)).toEqual(['sections.0.name: Save The Date -> Save the date']);
+    const help: HelpWantedForm = {
+      layout: 'help-wanted',
+      label: '',
+      title: '',
+      intro: [],
+      ask: {
+        badge: '',
+        title: 'Help Ryan with the Scout Sunday setup',
+        paragraphs: [],
+        button: { text: '', url: '' },
+      },
+      outro: [],
+    };
+    expect(cased(help)).toEqual([]);
+  });
+
+  it('offers nothing for a host name used as button text', () => {
+    expect(cased(message('', 'signupgenius.com'))).toEqual([]);
+  });
+});

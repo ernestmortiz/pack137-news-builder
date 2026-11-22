@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Converter fixes from the owner's first hands-on test (Scout Sunday announcement):
+  - Long web addresses no longer stretch the email on phones. Any long unbroken text now wraps inside the card, in every layout and the monthly letter.
+  - A link whose text is a long address gets a one-tap suggestion to show the site's name instead, such as signupgenius.com.
+  - The sentence-case suggestion only appears for true Title Case, so a title that is already sentence case with names is left alone.
+  - The desktop preview shrinks to fit a narrow column instead of looking cut off.
+  - Switching to Date list reads dates written inside sentences. Each date becomes a row sorted by date, dateless paragraphs go under the event they follow, and the title's date is flagged rather than changed.
+- Windows desktop app (Phase 7): a Windows installer, built by the release workflow on a Windows machine. It wraps the same web build in a window. The page inside can reach nothing on the computer, cannot leave the app's own pages, and never uses the internet. Download draft and Shrink a photo save into the Downloads folder. Unsigned; an install guide walks volunteers past the Windows warning.
+- No Mac app: current macOS will not run an app that Apple has not notarized, which needs a paid Apple Developer ID. Mac volunteers use the web version in Safari, which works offline with every feature.
+- A test installer is built on every pull request that changes the desktop app and published as a draft pre-release for the owner, and a smoke test checks the real app on Linux. Release files pass between jobs through the Actions cache, so a full artifact storage quota cannot block a release.
+
 ## 1.0.0 (2026-11-22)
 
 - Web release hardening (Phase 6): the web build works when unzipped and opened from disk with no internet; a strict page policy (no outgoing connections); spell check by the browser; faster typing in very large fields; a plain-words error notice; an accessibility pass (skip links, keyboard use, focus, live regions, 44px targets, contrast).
