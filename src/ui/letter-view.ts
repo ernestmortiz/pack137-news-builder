@@ -54,6 +54,7 @@ const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
 }));
 
 const URL_HINT = 'Starts with https:// or mailto:';
+const PHOTO_URL_HINT = 'Starts with https://';
 
 /* ---------- small pieces ---------- */
 
@@ -233,7 +234,7 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
         photo.src = v;
         srcNote.update();
       },
-      { url: true, hint: URL_HINT },
+      { url: true, hint: PHOTO_URL_HINT },
     );
     src.append(srcNote.node);
     const alt = kit.text(
