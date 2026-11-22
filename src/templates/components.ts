@@ -90,6 +90,9 @@ export function safeUrl(raw: string): string | null {
   const rest = url.slice(scheme.length);
   if (rest === '' || /^\s/.test(rest)) return null;
   if (scheme.toLowerCase() === 'mailto:') return scheme + encodeMailto(rest);
+  // Userinfo ("user@host") makes a link show one site and open another, so refuse it.
+  const authority = /^[^/?#]*/.exec(rest)?.[0] ?? '';
+  if (authority.includes('@')) return null;
   return scheme + percentEncode(rest, URL_KEEP);
 }
 
