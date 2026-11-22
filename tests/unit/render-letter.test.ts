@@ -825,7 +825,7 @@ describe('renderLetter: photo spots', () => {
     expect(photoSpots(spotBlocks())).toEqual([
       { where: 'Photo 2', alt: 'Campfire at dusk' },
       { where: 'Photo 3', alt: '' },
-      { where: 'Sidebar photo in block 5', alt: 'Bannock' },
+      { where: 'Sidebar photo in block 5', alt: 'Bannock', maxWidth: 512 },
     ]);
     expect(photoSpots(full())).toEqual([]);
   });
@@ -840,5 +840,25 @@ describe('renderLetter: photo spots', () => {
       { kind: 'photo', photo: { src: '', alt: 'A long alt text here', caption: 'Two words' } },
     ];
     expect(letterWords(l)).toBe(withPhoto);
+  });
+});
+
+describe('photoSpots: sidebar width cap', () => {
+  it('gives sidebar photo spots a 512px cap and photo blocks none', () => {
+    const letter = emptyLetter({ year: 2026, month: 12 });
+    letter.story.blocks.push(
+      { kind: 'photo', photo: { src: '', alt: 'A', caption: '' } },
+      {
+        kind: 'sidebar',
+        title: 'T',
+        source: '',
+        body: [],
+        photo: { src: '', alt: 'B', caption: '' },
+      },
+    );
+    expect(photoSpots(letter)).toEqual([
+      { where: 'Photo 1', alt: 'A' },
+      { where: 'Sidebar photo in block 2', alt: 'B', maxWidth: 512 },
+    ]);
   });
 });
