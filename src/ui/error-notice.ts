@@ -5,8 +5,12 @@
  */
 import { flushAll } from './safety';
 
+/**
+ * Worded so it is true on every screen and whether or not the save worked: the error can happen
+ * on the converter, while saving is paused, or where storage is blocked.
+ */
 export const ERROR_MESSAGE =
-  'Something went wrong. Your letter is saved on this device. Reload the page to carry on.';
+  'Something went wrong. Reload the page to carry on. Anything already saved on this device will still be there; if you can, use Download draft first to keep a copy of your letter.';
 
 /** Errors the browser raises about layout timing that change nothing for the person. */
 const HARMLESS = /ResizeObserver loop/i;
