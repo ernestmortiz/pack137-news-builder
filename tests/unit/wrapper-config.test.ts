@@ -1,5 +1,5 @@
 /**
- * Guards the desktop wrapper's no-bridge design (ADR 0006). Tauri loads every file in
+ * Guards the desktop and Android wrappers' no-bridge design (ADR 0006). Tauri loads every file in
  * src-tauri/capabilities automatically, and a plugin or a CSP string in the config would loosen
  * what the page can reach. Any of those changes must be a deliberate decision, so it fails here
  * first. Runs in the main CI on every push, with no Rust toolchain needed.
@@ -86,5 +86,32 @@ describe('desktop wrapper configuration', () => {
   it('builds the Windows installer only (Mac volunteers use the web build, ADR 0006)', () => {
     expect(config.bundle?.targets).toEqual(['nsis']);
     expect(config.bundle?.macOS).toBeUndefined();
+  });
+});
+
+describe('Android wrapper project (src-tauri/gen/android)', () => {
+  const manifest = read('src-tauri/gen/android/app/src/main/AndroidManifest.xml');
+  const gradle = read('src-tauri/gen/android/app/build.gradle.kts');
+
+  it('asks Android for no permission, so it cannot use the network or storage', () => {
+    expect(manifest).not.toMatch(/<uses-permission/);
+    expect(manifest).not.toContain('INTERNET');
+  });
+
+  it('allows no clear-text traffic and no cloud backup of the saved work, in any build type', () => {
+    expect(manifest).toContain('android:usesCleartextTraffic="false"');
+    expect(manifest).toContain('android:allowBackup="false"');
+    expect(gradle).not.toContain('usesCleartextTraffic');
+  });
+
+  it('supports Android 10 and later (spec 13 assumption)', () => {
+    expect(gradle).toMatch(/minSdk = 29\b/);
+  });
+
+  it('keeps every signing detail out of the repository', () => {
+    expect(gradle).not.toMatch(/signingConfigs|storeFile|storePassword|keyPassword|keyAlias/);
+    const ignore = read('src-tauri/gen/android/.gitignore');
+    expect(ignore).toContain('key.properties');
+    expect(ignore).toContain('keystore.properties');
   });
 });
