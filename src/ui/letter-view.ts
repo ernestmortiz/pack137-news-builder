@@ -18,6 +18,7 @@ import {
   type StoryBlock,
 } from '../core/letter';
 import type { RichText } from '../core/forms';
+import { ALT_HELP, altFeedback } from './alt-ui';
 import { el, uid } from './dom';
 import { createKit, type FormContext } from './form-kit';
 import { paragraphs } from './form-view';
@@ -219,9 +220,10 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
       'Paste the photo address from TroopTrack.',
       () => photo.src.trim() === '',
     );
-    const altNote = emptyNote(
-      'A description is required, so people who cannot see the photo know what it shows.',
-      () => photo.alt.trim() === '',
+    const feedback = altFeedback(
+      () => photo.alt,
+      () => photo.caption,
+      true,
     );
     const src = kit.text(
       'Photo address',
@@ -240,11 +242,11 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
       () => photo.alt,
       (v) => {
         photo.alt = v;
-        altNote.update();
+        feedback.update();
       },
-      { hint: 'Describe the photo. Do not name a child.' },
+      { hint: ALT_HELP },
     );
-    alt.append(altNote.node);
+    alt.append(feedback.node);
     return [
       el('p', {
         className: 'hint step-note',
@@ -256,7 +258,10 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
         'Caption (optional)',
         [...path, 'caption'],
         () => photo.caption,
-        (v) => (photo.caption = v),
+        (v) => {
+          photo.caption = v;
+          feedback.update();
+        },
         { hint: 'Shown in small italic text under the photo.' },
       ),
     ];

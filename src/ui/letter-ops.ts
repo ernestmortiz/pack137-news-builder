@@ -10,6 +10,7 @@ import {
   type TimeOfDay,
 } from '../core/dates';
 import type { ContributorPart, LetterForm, PhotoField, StoryBlock } from '../core/letter';
+import { altTextProblems } from '../core/alt-text';
 import { LETTER_HEADINGS } from '../core/letter';
 
 /** The month after `today`, rolling December into January of the next year. */
@@ -145,14 +146,16 @@ export function letterWarnings(letter: LetterForm): string[] {
   if (letter.comingUp.items.length === 0) out.push('Coming up has no events yet.');
   const photos: { where: string; photo: PhotoField }[] = [];
   letter.story.blocks.forEach((block, i) => {
-    if (block.kind === 'photo') photos.push({ where: `Story block ${i + 1}`, photo: block.photo });
+    if (block.kind === 'photo') photos.push({ where: `Photo ${i + 1}`, photo: block.photo });
     else if (block.kind === 'sidebar' && block.photo) {
-      photos.push({ where: `Story block ${i + 1} (sidebar box)`, photo: block.photo });
+      photos.push({ where: `Sidebar photo in block ${i + 1}`, photo: block.photo });
     }
   });
   for (const { where, photo } of photos) {
     if (photo.src.trim() === '') out.push(`${where}: the photo has no address yet.`);
-    if (photo.alt.trim() === '') out.push(`${where}: the photo needs a description.`);
+    for (const problem of altTextProblems(photo.alt, photo.caption)) {
+      out.push(`${where}: ${problem.message}`);
+    }
   }
   const link = (where: string, text: string, url: string): void => {
     if (text.trim() !== '' && url.trim() === '')

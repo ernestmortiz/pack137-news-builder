@@ -11,6 +11,7 @@ import type {
   RichText,
   Tag,
 } from '../core/forms';
+import { ALT_HELP, altFeedback } from './alt-ui';
 import { el } from './dom';
 import { createKit, type FormContext, type Kit } from './form-kit';
 import { dateWithYear, fromIsoDate, toIsoDate } from './paths';
@@ -334,7 +335,12 @@ function layoutFields(kit: Kit, form: AnnouncementForm, ctx: FormContext): HTMLE
           'The one thing you want people to do.',
         ),
       ];
-    case 'link-list':
+    case 'link-list': {
+      const altCount = altFeedback(
+        () => form.image?.alt ?? '',
+        () => undefined,
+        false,
+      );
       return [
         cardFields(kit, form),
         kit.group('Intro', [
@@ -360,11 +366,13 @@ function layoutFields(kit: Kit, form: AnnouncementForm, ctx: FormContext): HTMLE
             'Picture description',
             ['image', 'alt'],
             () => form.image?.alt ?? '',
-            (v) => setImage(form, { alt: v }),
-            {
-              hint: 'Say what the picture shows, for people who cannot see it. Do not name a child.',
+            (v) => {
+              setImage(form, { alt: v });
+              altCount.update();
             },
+            { hint: ALT_HELP },
           ),
+          altCount.node,
         ]),
         kit.group('Links', [
           kit.repeater<LinkItem>({
@@ -397,6 +405,7 @@ function layoutFields(kit: Kit, form: AnnouncementForm, ctx: FormContext): HTMLE
           }),
         ]),
       ];
+    }
     case 'date-list':
       return [
         cardFields(kit, form),

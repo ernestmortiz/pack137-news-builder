@@ -35,7 +35,7 @@ export function itemsAt<T extends { path: FieldPath }>(items: readonly T[], path
 
 /** The field a form warning belongs beside, when that is clear from the warning alone. */
 export function warningPath(warning: FormWarning): FieldPath | undefined {
-  if (warning.code === 'image-no-alt') return ['image', 'alt'];
+  if (warning.code === 'image-no-alt' || warning.code === 'image-alt') return ['image', 'alt'];
   if (warning.code === 'button-no-link') {
     if (warning.where === 'Help button') return ['ask', 'button'];
     if (warning.where === 'Second button') return ['secondary'];

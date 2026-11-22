@@ -149,8 +149,10 @@ describe('things to look at', () => {
     letter.story.blocks.push(newBlock('photo'));
     const list = letterWarnings(letter);
     expect(list).toContain('The summary line is empty.');
-    expect(list).toContain('Story block 1: the photo needs a description.');
-    expect(list).toContain('Story block 1: the photo has no address yet.');
+    expect(list).toContain(
+      'Photo 1: Add a short description of the photo, so people using screen readers know what it shows.',
+    );
+    expect(list).toContain('Photo 1: the photo has no address yet.');
   });
 
   it('is quiet once filled in, and ignores sections that are off', () => {
@@ -205,5 +207,49 @@ describe('things to look at: required sections', () => {
   it('says nothing about optional sections that are on but empty', () => {
     const list = letterWarnings(blank());
     expect(list.some((m) => /closing|around|horizon|photo and story/i.test(m))).toBe(false);
+  });
+});
+
+describe('things to look at: photo descriptions', () => {
+  const photoLetter = (alt: string, caption = '') => {
+    const letter = blank();
+    letter.story.blocks.push(newBlock('stats'), {
+      kind: 'photo',
+      photo: { src: 'https://example.org/a.jpg', alt, caption },
+    });
+    return letter;
+  };
+  const altWarnings = (letter: LetterForm) =>
+    letterWarnings(letter).filter((m) => m.startsWith('Photo 2'));
+
+  it('gives one warning per problem, named by block number', () => {
+    expect(altWarnings(photoLetter('Scouts at camp'))).toEqual([]);
+    expect(altWarnings(photoLetter(''))).toHaveLength(1);
+    expect(altWarnings(photoLetter('Photo of scouts'))[0]).toMatch(/^Photo 2: .*Photo of/);
+    expect(altWarnings(photoLetter('IMG_1234.jpg'))[0]).toMatch(/file name/);
+    expect(altWarnings(photoLetter('Scouts at camp', 'scouts at camp.'))[0]).toMatch(
+      /repeats the caption/,
+    );
+    expect(altWarnings(photoLetter('x'.repeat(126)))[0]).toMatch(/125 characters/);
+    expect(altWarnings(photoLetter('Photo of IMG_1.jpg'))).toHaveLength(2);
+  });
+
+  it('never gives two warnings for a missing description', () => {
+    const list = altWarnings(photoLetter(''));
+    expect(list.filter((m) => /description|describe/i.test(m))).toHaveLength(1);
+  });
+
+  it('covers sidebar photos', () => {
+    const letter = blank();
+    letter.story.blocks.push(newBlock('contributor'), newBlock('contributor'), {
+      kind: 'sidebar',
+      title: '',
+      source: '',
+      body: [],
+      photo: { src: 'https://example.org/a.jpg', alt: 'A picture of soup', caption: '' },
+    });
+    expect(
+      letterWarnings(letter).filter((m) => m.startsWith('Sidebar photo in block 3: ')),
+    ).toHaveLength(1);
   });
 });
