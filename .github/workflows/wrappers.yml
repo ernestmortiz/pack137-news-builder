@@ -182,7 +182,9 @@ jobs:
             echo "${extra}"
             exit 1
           fi
-          "${tools}/aapt2" dump badging "${APK_PATH}" | grep -q "^sdkVersion:'29'"
+          # Newer build tools print minSdkVersion; older ones sdkVersion. Either must say 29.
+          "${tools}/aapt2" dump badging "${APK_PATH}" | grep -E "^(min)?[sS]dkVersion:" | tee sdk.txt
+          grep -qE "^(sdkVersion|minSdkVersion):'29'" sdk.txt
           "${tools}/apksigner" verify --print-certs "${APK_PATH}" | tee certs.txt
           grep -q "CN=Android Debug" certs.txt
       - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
