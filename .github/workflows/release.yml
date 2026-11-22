@@ -155,8 +155,9 @@ jobs:
       - run: npm run build
       - run: cargo fetch --locked
         working-directory: src-tauri
-      - run: cargo test --locked
-        working-directory: src-tauri
+      # No cargo test here: on Linux the tests compile the desktop app, which needs GTK libraries
+      # this job does not install (the v1.1.0 release run failed on it). The same Rust tests run
+      # on every release in the windows job and on every wrapper pull request in wrappers.yml.
       - name: Point the Tauri CLI at the runner's Android NDK
         run: echo "NDK_HOME=${ANDROID_NDK_HOME}" >> "${GITHUB_ENV}"
       # Release build, unsigned: no signing config exists in the project.
