@@ -37,3 +37,9 @@ Message has no approved output. It follows Call to action: each paragraph 14px b
 - An image with no alt text is kept, with `alt=""`. The tool warns about it.
 - A button with no valid link and a section with no rows are still left out of the output, and the tool warns the user about each one. `formWarnings(form)` in `src/core/form-warnings.ts` lists these warnings for the UI.
 - `#8A90A6` is a token (muted-light), for the monthly photo wrappers only.
+
+## Owner decisions, 2026-11-22 (Phase 4 review)
+
+- The Outlook-only font style block from the November issue is allowed in the monthly letter as a fourth extra (spec 6).
+- Outlook is considered for the whole of the HTML, weekly announcements included. An Outlook review of every pattern follows, and any pattern change goes into spec 6.1 with the owner's approval first.
+- Read time stays at 230 words per minute (spec 8.2). The November issue's "8 minute" was an estimate; the tool gives 10.

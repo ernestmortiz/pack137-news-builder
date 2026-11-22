@@ -111,7 +111,8 @@ Email-safe HTML rules (TroopTrack and mail clients strip a lot):
 - No wrapper `<div>` nesting, no `id="isPasted"`, no `data-*` attributes, no editor classes in output.
 - Every image carries `max-width:100%;height:auto` so a 552px photo cannot overflow a phone screen.
 - Every `href` is absolute and starts with `https://`, `http://` or `mailto:`. A bare `meet.google.com/...` is an error, not a link.
-- Monthly letter only: three extras are allowed because the approved template uses them. (1) A hidden preview-text `div` as the first element. (2) Outlook conditional comments (`<!--[if mso]>`) around a fixed-width wrapper table. (3) A VML `v:roundrect` fallback for the full-width button. Nothing else from the `<style>` or class family.
+- Monthly letter only: four extras are allowed because the approved template uses them. (1) A hidden preview-text `div` as the first element. (2) Outlook conditional comments (`<!--[if mso]>`) around a fixed-width wrapper table. (3) A VML `v:roundrect` fallback for the full-width button. (4) A fixed font `<style>` block inside an Outlook conditional comment, which makes Outlook use Arial instead of falling back to Times New Roman (approved 2026-11-22). Nothing else from the `<style>` or class family.
+- Outlook matters for all output (owner, 2026-11-22): every pattern must hold up in Outlook for Windows as well as in Gmail and Apple Mail. Known Outlook limits (no border-radius, no padding on inline elements, no max-width) are handled with table cells and `mso-` properties where the inline-style rules allow.
 
 Tone (shown as guidance in the UI, not enforced):
 - Lead with gratitude and inclusiveness.
