@@ -5,7 +5,9 @@
 //   a. the window loads the app and the footer shows the package.json version
 //   b. the page cannot fetch, and cannot run any Tauri command (CSP in force, no capabilities)
 //   c. Download draft saves a .json into the Downloads folder, and a second press makes "(1)"
-//   d. the window cannot be sent to another origin, and cannot open another window
+//   c. other file types (.command, .exe) are refused
+//   d. the window cannot be sent to another origin, cannot open another window, and a blob page
+//      made by script keeps the app's policy
 //
 // Run it through scripts/wrapper-smoke.sh, which builds the app and starts a virtual display.
 // Every result printed here was observed; nothing is assumed. Exit code 1 if any check fails.
@@ -270,6 +272,23 @@ try {
     `${plain.filter((f) => f.includes('evil')).join(', ')}; other items next to Downloads: ${stray.length}`,
   );
 
+  // Only the kinds of file the app makes (drafts and photos) may be saved. A script that made
+  // a shell script or a program must get nothing onto the disk.
+  const beforeRefused = readdirSync(saveDir).sort();
+  for (const name of ['Open me.command', 'setup.exe', 'draft\u202Enosj.exe']) {
+    await run(
+      'const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["#!/bin/sh"])); a.download = arguments[0]; document.body.append(a); a.click(); a.remove(); return 1',
+      [name],
+    );
+  }
+  await sleep(3000);
+  const afterRefused = readdirSync(saveDir).sort();
+  check(
+    'c5. downloads of other file types (.command, .exe) are refused',
+    JSON.stringify(afterRefused) === JSON.stringify(beforeRefused),
+    `files before ${beforeRefused.length}, after ${afterRefused.length}`,
+  );
+
   // d. navigation lock. A real server on this computer stands in for "the internet": the web
   // view reaches loopback addresses without a proxy, so if a navigation were allowed, the
   // server would see a request. It must see none.
@@ -342,6 +361,22 @@ try {
       'd5. a link with target="_blank" opens nothing',
       handlesLink.length === handlesBefore.length && hits === 0,
       `windows ${handlesLink.length}; the outside server saw ${hits} requests`,
+    );
+
+    // The app's own blob addresses must stay allowed (downloads go through them), so a blob
+    // document must keep the app's policy: an inline script inside it must not run. This runs
+    // last because it may replace the page.
+    await run(
+      'const u = URL.createObjectURL(new Blob(["<title>blob</title><script>window.parent.__blobRan = true; window.__blobRan = true; document.title = \'ran\';</script>"], { type: "text/html" })); setTimeout(() => { location.href = u; }, 0); return 1',
+    );
+    await sleep(3000);
+    const blobPage = await run(
+      'return { href: location.href.slice(0, 40), title: document.title, ran: window.__blobRan === true }',
+    );
+    check(
+      'd6. a blob page made by script cannot run inline script (the policy carries over)',
+      blobPage.ran === false && blobPage.title !== 'ran' && hits === 0,
+      JSON.stringify(blobPage),
     );
   } finally {
     outside.close();
