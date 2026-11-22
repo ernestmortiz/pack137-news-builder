@@ -1,0 +1,766 @@
+{
+  "version": 1,
+  "issue": {
+    "year": 2026,
+    "month": 11
+  },
+  "summary": "Fall camping at Watchung and a big month around the pack.",
+  "greeting": "Hi Pack 137 families,",
+  "intro": [
+    {
+      "kind": "text",
+      "text": "Thank you for a full November. Pack 137 families camped at Watchung Reservation, cleaned up the streets of Garwood, and served our first ever Pancake Breakfast, and our fall food drive made the local news. Whether you were there or following along from home, these are your stories.",
+      "marks": []
+    }
+  ],
+  "story": {
+    "title": "Fall camping at Watchung",
+    "blocks": [
+      {
+        "kind": "contributor",
+        "name": "Opening",
+        "role": "James Mortimer, Committee Chair",
+        "parts": [
+          {
+            "kind": "paragraph",
+            "text": [
+              {
+                "kind": "text",
+                "text": "From Nov 13 to 15, Pack 137 camped at Watchung Reservation: 73 of us, 37 scouts and 36 adults, through cold, wind, and a little rain. It was only our second campout as Pack 137, and on Saturday our outdoor event banner gained its second block: FALL 2026 WATCHUNG.",
+                "marks": []
+              }
+            ]
+          },
+          {
+            "kind": "paragraph",
+            "text": [
+              {
+                "kind": "text",
+                "text": "The banner is new. The tradition is not. Scouts from this pack have been heading into the woods for nearly a hundred years, and this weekend felt like picking that thread back up. Whether you were there in a tent or following along from home, this is your pack, and this is the weekend in the words of the people who ran it.",
+                "marks": []
+              }
+            ]
+          },
+          {
+            "kind": "paragraph",
+            "text": [
+              {
+                "kind": "text",
+                "text": "We are rebuilding the culture and traditions of our pack, and that only works if every family is part of the story: this letter brings the families who could not be there into the weekend, and recognizes the families who were. Help me rebuild our culture by sharing your photos and your stories, and by joining us for the next one.",
+                "marks": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "photo",
+        "photo": {
+          "src": "https://styles.trooptrack.com/uploads/01-opening-campfire-circle.jpg",
+          "alt": "Scouts gathered around the campfire circle at sunset",
+          "width": 552,
+          "caption": "Scouts gather at the campfire circle as the sun sets over Watchung."
+        }
+      },
+      {
+        "kind": "stats",
+        "stats": [
+          {
+            "value": "73",
+            "text": "campers: 37 scouts and 36 adults"
+          },
+          {
+            "value": "6",
+            "text": "patrols rotating through 6 stations"
+          }
+        ]
+      },
+      {
+        "kind": "contributor",
+        "name": "Justin Daly",
+        "role": "Program Director",
+        "parts": [
+          {
+            "kind": "paragraph",
+            "text": [
+              {
+                "kind": "text",
+                "text": "As someone who is relatively new to Scouts, this was my first time volunteering for a camping trip, and I learned quite a bit along the way. For example, upon reading Mess kit in the list of supplies to bring I initially thought, \"I'm not going to make a mess, so I won't need that!\" In hindsight, I did need that.",
+                "marks": []
+              }
+            ]
+          },
+          {
+            "kind": "paragraph",
+            "text": [
+              {
+                "kind": "text",
+                "text": "My biggest takeaway from the experience is that if I can do it, anyone can. But this day could not have been a success without the support of so many people. A huge thank-you to all the planning coordinators who helped get this trip off the ground. Special thanks to all of our station volunteers, who made this such a busy, fun, and memorable day for the Scouts:",
+                "marks": []
+              }
+            ]
+          },
+          {
+            "kind": "list",
+            "items": [
+              {
+                "lead": "Camp Crafts:",
+                "text": [
+                  {
+                    "kind": "text",
+                    "text": "Kristin Moreno, Dan Moreno, and Katie Phelps",
+                    "marks": []
+                  }
+                ]
+              },
+              {
+                "lead": "Knots and Shelter:",
+                "text": [
+                  {
+                    "kind": "text",
+                    "text": "David Berke, David Gannon, and Thomas Hannen",
+                    "marks": []
+                  }
+                ]
+              },
+              {
+                "lead": "Camp Cooking and Fire:",
+                "text": [
+                  {
+                    "kind": "text",
+                    "text": "Nico Frantzen, Dan Lerro, Sean Warner, and Calina Mortimer",
+                    "marks": []
+                  }
+                ]
+              },
+              {
+                "lead": "Fishing and Casting:",
+                "text": [
+                  {
+                    "kind": "text",
+                    "text": "Alex Cassisi, Kyle O'Neill",
+                    "marks": []
+                  }
+                ]
+              },
+              {
+                "lead": "Trail Ready (Six Essentials, Buddy Game and Hike):",
+                "text": [
+                  {
+                    "kind": "text",
+                    "text": "Ryan Meier, Jeff Sohler",
+                    "marks": []
+                  }
+                ]
+              },
+              {
+                "lead": "Campfire Program (Songs, Cheers and Skits):",
+                "text": [
+                  {
+                    "kind": "text",
+                    "text": "Stephanie Allen and Becca Mortimer",
+                    "marks": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "paragraph",
+            "text": [
+              {
+                "kind": "text",
+                "text": "I really enjoyed seeing the skits for the first time. How funny! I honestly had no idea what to expect. As the parent of a kid who tends to shy away from the spotlight, I was delightfully surprised by how much the Scouts enjoyed getting up there and performing. Moving the schedule up to enjoy the skits in daylight was a great idea, and it was nice that we could include families who needed to head out earlier.",
+                "marks": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "photo",
+        "photo": {
+          "src": "https://styles.trooptrack.com/uploads/02-justin-skit-rehearsal.jpg",
+          "alt": "Two adult leaders directing scouts through a skit rehearsal",
+          "width": 533,
+          "caption": "Becca and Stephanie direct the scouts through rehearsal for one of the skits performed later at the campfire."
+        }
+      },
+      {
+        "kind": "contributor",
+        "name": "Alex Cassisi",
+        "role": "",
+        "parts": [
+          {
+            "kind": "paragraph",
+            "text": [
+              {
+                "kind": "text",
+                "text": "I had the privilege of co-running the fishing station with Justin, who split the station with me. Justin jumped in and helped with tangled lines, tying hooks, and all around general preparedness. While the fish weren't too hungry for what we were offering, one scout did land a sunfish! This was Sebastian's first time camping and fishing, and wouldn't you know it, he looked like a pro reeling in the sunny!",
+                "marks": []
+              }
+            ]
+          },
+          {
+            "kind": "paragraph",
+            "text": [
+              {
+                "kind": "text",
+                "text": "Secondarily, I also helped with the overall food preparation on the campground. This, also, was a relatively easy lift, as most of the hard work was already done. Shout out to Jennifer Van Dyk and the few AOL scouts that planned out our meals for the weekend, as well as did all of the shopping for us. We had some snacks Friday night, started Saturday off with delicious pancakes, and had pasta and meatballs, as well as hotdogs over the bonfire for dinner.",
+                "marks": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "photo",
+        "photo": {
+          "src": "https://styles.trooptrack.com/uploads/03-alex-sunfish.jpg",
+          "alt": "A sunfish caught at Lake Surprise",
+          "width": 552,
+          "caption": "The catch of the weekend: a sunfish landed at Lake Surprise."
+        }
+      },
+      {
+        "kind": "contributor",
+        "name": "Ryan Meier",
+        "role": "Cubmaster",
+        "parts": [
+          {
+            "kind": "paragraph",
+            "text": [
+              {
+                "kind": "text",
+                "text": "I had the distinct pleasure of running the Hiking Station during the trip and I can't express how impressed I was by the engagement from our scouts. Not only was everyone enjoying themselves during the hike, but they were truly absorbing what they were being taught and asked very thoughtful questions.",
+                "marks": []
+              }
+            ]
+          },
+          {
+            "kind": "paragraph",
+            "text": [
+              {
+                "kind": "text",
+                "text": "My favorite part of the trip was definitely all the skits the patrols performed on Saturday night. It took me back to my days as a Cub Scout and performing similar skits with my den. As I looked around at everyone enjoying themselves, I could feel the bond forming amongst everyone there, giving a shared experience that will hopefully last a lifetime.",
+                "marks": []
+              }
+            ]
+          },
+          {
+            "kind": "paragraph",
+            "text": [
+              {
+                "kind": "text",
+                "text": "I want to thank all the parents, families and scouts who attended. I also really want to thank the core staff that got this planned and executed such a successful trip. I also want to make a special shout-out to all of our BALOO-trained volunteers: if they did not get trained and attend these trips, these trips would not be allowed to happen, so thank you all.",
+                "marks": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "photo",
+        "photo": {
+          "src": "https://styles.trooptrack.com/uploads/04-ryan-hiking-station.jpg",
+          "alt": "Scouts at the Trail Ready hiking station",
+          "width": 547,
+          "caption": "Scouts at the Trail Ready hiking station."
+        }
+      },
+      {
+        "kind": "contributor",
+        "name": "Nico Frantzen",
+        "role": "",
+        "parts": [
+          {
+            "kind": "paragraph",
+            "text": [
+              {
+                "kind": "text",
+                "text": "What a fun and memorable weekend, though I have to say I was feeling a little anxious setting up in the rain Friday night, but the energy and excitement of my son Theo and his scout friends (especially Cooper!!) made it all worth it.",
+                "marks": []
+              }
+            ]
+          },
+          {
+            "kind": "paragraph",
+            "text": [
+              {
+                "kind": "text",
+                "text": "Our crew had two jobs this weekend: run the Camp Cooking and Fire station, and keep the central fire going from morning to campfire. Each patrol started by learning various cooking gear and fire starting methods. Then they learned how to build a fire out of kindling, and the Webelos lit them with the fire starters they made in the arts and crafts station before. Then came the delicious reward: bannock dough wrapped around a stick and toasted over the campfire, then loaded with chocolate chips or glazed with SunButter. Calina and I had a great time experimenting with different cooking styles with the scouts: bannock stuffed cheese pizza bread and pie iron. Thank you to Calina Mortimer, my co-lead, and to Dan Lerro and Sean Warner, who ran the station and the fire with me.",
+                "marks": []
+              }
+            ]
+          },
+          {
+            "kind": "paragraph",
+            "text": [
+              {
+                "kind": "text",
+                "text": "The tech geeks of the group (myself included) were able to streamline our prep work by helping cross-check the forms and responses from parents, and generate parent and leader guides and station guides that made sure everyone was prepared for the big day. I got a chance to meet a few more tech-minded parents and I look forward to continuing to improve our pack operations this year.",
+                "marks": []
+              }
+            ]
+          },
+          {
+            "kind": "paragraph",
+            "text": [
+              {
+                "kind": "text",
+                "text": "Thank you all to the other parents, some of whom I met for the first time, for helping each in your own way to make this trip possible. Theo and I can't wait for the next one!",
+                "marks": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "photo",
+        "photo": {
+          "src": "https://styles.trooptrack.com/uploads/05-nico-bannock-on-sticks.jpg",
+          "alt": "Bannock dough on sticks toasting over campfire coals",
+          "width": 552,
+          "caption": "Bannock on sticks over the coals at the camp cooking station."
+        }
+      },
+      {
+        "kind": "sidebar",
+        "title": "Make it at home: bannock on a stick",
+        "source": "Adapted from a campfire recipe at koa.com",
+        "body": [
+          [
+            {
+              "kind": "text",
+              "text": "Ingredients:",
+              "marks": [
+                "strong"
+              ]
+            },
+            {
+              "kind": "text",
+              "text": " 2 to 3 cups flour; 1 to 2 tablespoons baking powder; 1 teaspoon salt; 2 to 3 tablespoons oil, butter, or lard; about 2/3 cup warm water.",
+              "marks": []
+            }
+          ],
+          [
+            {
+              "kind": "text",
+              "text": "Mix the flour, baking powder, and salt, then work in the oil or butter with your fingers until crumbly. Add the water slowly and mix until a soft dough forms. Take a small handful, roll it into a rope, and wrap it around the end of a clean roasting stick, pinching the edges so it stays together. Cook over hot coals, not open flame, for 10 to 12 minutes, rotating often, until golden and cooked through. Serve warm, with chocolate chips or SunButter, like we did at camp.",
+              "marks": []
+            }
+          ]
+        ],
+        "photo": {
+          "src": "https://styles.trooptrack.com/uploads/06-nico-recipe-bannock-closeup.jpg",
+          "alt": "Close-up of fresh bannock just off the fire",
+          "width": 426,
+          "caption": "Fresh bannock, straight off the fire."
+        }
+      },
+      {
+        "kind": "contributor",
+        "name": "David Berke",
+        "role": "Communications Chair",
+        "parts": [
+          {
+            "kind": "paragraph",
+            "text": [
+              {
+                "kind": "text",
+                "text": "We had an absolute blast teaching the scouts knot-tying and shelter building! Seeing the pure excitement on their faces every time a group successfully raised their 10-foot tripod shelter was unforgettable. Watching them work together with so much energy and joy was truly a highlight. I can't wait to see what we build together next time!",
+                "marks": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "photo",
+        "photo": {
+          "src": "https://styles.trooptrack.com/uploads/07-david-tarp-shelter.jpg",
+          "alt": "Scouts under a blue tarp shelter at the shelter station",
+          "width": 492,
+          "caption": "Scouts under the blue tarp shelter they pitched at the shelter station."
+        }
+      }
+    ]
+  },
+  "closing": {
+    "enabled": true,
+    "paragraphs": [
+      [
+        {
+          "kind": "text",
+          "text": "A weekend like this does not happen by itself, and it does not happen because of one person. Thank you to every parent who filled in when asked, ran a station, travelled with a patrol, washed a bin, or kept a fire going. You made the weekend work.",
+          "marks": []
+        }
+      ],
+      [
+        {
+          "kind": "text",
+          "text": "Some thanks need names.",
+          "marks": []
+        }
+      ]
+    ],
+    "thanks": [
+      [
+        {
+          "kind": "text",
+          "text": "Our most valuable player this weekend was undoubtedly ",
+          "marks": []
+        },
+        {
+          "kind": "text",
+          "text": "Justin Daly",
+          "marks": [
+            "strong"
+          ]
+        },
+        {
+          "kind": "text",
+          "text": ": a first time scout parent and first time organizer who showed up for the planning team and coordinated the adult volunteers for the program stations. Without him, this camp would not have happened, and he knocked it out of the park. If you ever wonder whether a first time planner can make outdoor magic for over 30 families, you have your answer.",
+          "marks": []
+        }
+      ],
+      [
+        {
+          "kind": "text",
+          "text": "Thank you to ",
+          "marks": []
+        },
+        {
+          "kind": "text",
+          "text": "Jen Van Dyk",
+          "marks": [
+            "strong"
+          ]
+        },
+        {
+          "kind": "text",
+          "text": ", who learned early on that she could not join us, and completed the shopping and the meal planning anyway. We were well fed because she finished the job from home.",
+          "marks": []
+        }
+      ],
+      [
+        {
+          "kind": "text",
+          "text": "Thank you to ",
+          "marks": []
+        },
+        {
+          "kind": "text",
+          "text": "Todd Panicali",
+          "marks": [
+            "strong"
+          ]
+        },
+        {
+          "kind": "text",
+          "text": ". At our July planning session the AOL den took responsibility for planning this trip, and although his personal situation did not allow him to camp with us, Todd kicked off our first planning sessions. Without him we never would have connected Jen and Justin, and without that, this camp would not have happened.",
+          "marks": []
+        }
+      ],
+      [
+        {
+          "kind": "text",
+          "text": "Thank you to ",
+          "marks": []
+        },
+        {
+          "kind": "text",
+          "text": "David Berke, Sean Warner, Jeff Sohler, and Nico Frantzen",
+          "marks": [
+            "strong"
+          ]
+        },
+        {
+          "kind": "text",
+          "text": ", who loaded the gear at the church before we left and unloaded it when we got back, and who provided the logistics and transportation that got everything, and everybody, where it needed to be.",
+          "marks": []
+        }
+      ],
+      [
+        {
+          "kind": "text",
+          "text": "Thank you to ",
+          "marks": []
+        },
+        {
+          "kind": "text",
+          "text": "Nico Frantzen",
+          "marks": [
+            "strong"
+          ]
+        },
+        {
+          "kind": "text",
+          "text": " for the forms cross-checking and the parent and leader guides that had everyone prepared before we arrived.",
+          "marks": []
+        }
+      ],
+      [
+        {
+          "kind": "text",
+          "text": "Thank you to ",
+          "marks": []
+        },
+        {
+          "kind": "text",
+          "text": "Alex Cassisi and Jeff Sohler",
+          "marks": [
+            "strong"
+          ]
+        },
+        {
+          "kind": "text",
+          "text": " for the firewood, which kept the campfire, the cooking station, and a lot of cold hands going all weekend.",
+          "marks": []
+        }
+      ],
+      [
+        {
+          "kind": "text",
+          "text": "Thank you to ",
+          "marks": []
+        },
+        {
+          "kind": "text",
+          "text": "our scouts and their parents",
+          "marks": [
+            "strong"
+          ]
+        },
+        {
+          "kind": "text",
+          "text": ", who braved the cold, the rain, and the wind, worked every station, enjoyed the meals (burnt reheated pizza and all), and put on a fantastic campfire show. You made every minute of the planning worth it.",
+          "marks": []
+        }
+      ],
+      [
+        {
+          "kind": "text",
+          "text": "Thank you to ",
+          "marks": []
+        },
+        {
+          "kind": "text",
+          "text": "our senior scouts, the Webelos and AOLs",
+          "marks": [
+            "strong"
+          ]
+        },
+        {
+          "kind": "text",
+          "text": ", who showed up as leaders and outdoorsmen this weekend, sharing their confidence and their expertise with the younger scouts and the new camping parents.",
+          "marks": []
+        }
+      ],
+      [
+        {
+          "kind": "text",
+          "text": "And thank you to ",
+          "marks": []
+        },
+        {
+          "kind": "text",
+          "text": "Becca Mortimer and Calina Mortimer",
+          "marks": [
+            "strong"
+          ]
+        },
+        {
+          "kind": "text",
+          "text": ", who brought their camping expertise and their coaching to the skits and songs and the camp cooking station. They did an amazing job. I am proud of them as their dad, and grateful as your chairman, because it would have been difficult to get by without them.",
+          "marks": []
+        }
+      ]
+    ],
+    "closingLine": "See you at the next adventure.",
+    "signer": "James Mortimer",
+    "signerRole": "Pack 137 Committee Chair"
+  },
+  "photoAsk": {
+    "enabled": true,
+    "text": "If you attended, please send us your best photos from the weekend and your scout's best moment in their own words. They help us tell the story of this year.",
+    "linkText": "Send them to us here",
+    "url": "https://forms.gle/PvVux1W4764mSD6T7"
+  },
+  "around": {
+    "enabled": true,
+    "intro": "Moments from the month, with the families who made them happen.",
+    "items": [
+      {
+        "lead": "Scouting for Food:",
+        "text": [
+          {
+            "kind": "text",
+            "text": "203 scouts from Pack 137, Troops 75 and 80, and Girl Scouts Service Unit 48 collected 1,098 bags of food for Cranford Family Care, reaching 89% of Cranford households. Pack 137 parent Nico Frantzen built the live map that kept every den and troop on the same page. Our previous full write up is attached.",
+            "marks": []
+          }
+        ],
+        "link": {
+          "text": "Read the TAPinto story",
+          "url": "https://www.tapinto.net/towns/cranford/sections/giving-back/articles/cranford-scouts-combine-tradition-and-technology-to-collect-1-098-bags-of-food"
+        }
+      },
+      {
+        "lead": "First ever Pancake Breakfast:",
+        "text": [
+          {
+            "kind": "text",
+            "text": "Pack 137 families cooked, served and cleaned up our first Pancake Breakfast. Thank you to everyone who came hungry and everyone who worked the griddle.",
+            "marks": []
+          }
+        ],
+        "link": {
+          "text": "",
+          "url": ""
+        }
+      },
+      {
+        "lead": "Garwood clean up:",
+        "text": [
+          {
+            "kind": "text",
+            "text": "Scouts and parents helped clean up the streets of Garwood. Thank you for showing our neighbors what Pack 137 is about.",
+            "marks": []
+          }
+        ],
+        "link": {
+          "text": "",
+          "url": ""
+        }
+      }
+    ]
+  },
+  "comingUp": {
+    "intro": "In case you missed it, here is what you need first.",
+    "items": [
+      {
+        "date": {
+          "year": 2026,
+          "month": 12,
+          "day": 6
+        },
+        "time": {
+          "hour": 20,
+          "minute": 0
+        },
+        "text": [
+          {
+            "kind": "text",
+            "text": "Parent planning meeting, virtual.",
+            "marks": []
+          }
+        ],
+        "link": {
+          "text": "Meeting link",
+          "url": "https://pack137.trooptrack.com/plan/events/1836430"
+        }
+      },
+      {
+        "date": {
+          "year": 2026,
+          "month": 12,
+          "day": 6
+        },
+        "time": {
+          "hour": 21,
+          "minute": 30
+        },
+        "text": [
+          {
+            "kind": "text",
+            "text": "We will have our second Pinewood Derby Committee meeting right after the monthly Parent Planning Meeting, virtual.",
+            "marks": []
+          }
+        ],
+        "link": {
+          "text": "Meeting link",
+          "url": "https://meet.google.com/vgn-rwmf-fmz"
+        }
+      },
+      {
+        "date": {
+          "year": 2026,
+          "month": 12,
+          "day": 15
+        },
+        "time": {
+          "hour": 18,
+          "minute": 30
+        },
+        "text": [
+          {
+            "kind": "text",
+            "text": "Pack meeting at First Presbyterian Church of Cranford. RSVP by Mon Dec 14.",
+            "marks": []
+          }
+        ],
+        "link": {
+          "text": "RSVP for the pack meeting",
+          "url": "https://pack137.trooptrack.com/plan/events/1836468"
+        }
+      }
+    ],
+    "howToHelp": [
+      {
+        "kind": "text",
+        "text": "Join the 2027 committee. Some roles take about an hour a month.",
+        "marks": []
+      }
+    ],
+    "button": {
+      "text": "I can help",
+      "url": "mailto:cranfordpack137+volunteer@gmail.com?subject=I%20can%20help"
+    }
+  },
+  "horizon": {
+    "enabled": true,
+    "items": [
+      {
+        "date": {
+          "year": 2027,
+          "month": 1,
+          "day": 9
+        },
+        "text": "Pinewood Derby build workshop"
+      },
+      {
+        "date": {
+          "year": 2027,
+          "month": 1,
+          "day": 22
+        },
+        "text": "Pinewood Derby weigh in"
+      },
+      {
+        "date": {
+          "year": 2027,
+          "month": 1,
+          "day": 23
+        },
+        "text": "Pinewood Derby race day"
+      },
+      {
+        "date": {
+          "year": 2027,
+          "month": 2,
+          "day": 20
+        },
+        "text": "Blue and Gold Banquet"
+      }
+    ],
+    "yearLinkText": "Open the year at a glance"
+  },
+  "feedback": {
+    "question": "Quick question: what should we keep, and what would you like to see more of?",
+    "linkText": "Reply with feedback",
+    "subject": "Feedback on Pack 137 Stories",
+    "body": "Keep: \nMore of: \n",
+    "note": "One line is plenty. We share what we hear in the next issue."
+  },
+  "signOff": "Ernest, for the Pack 137 committee"
+}
