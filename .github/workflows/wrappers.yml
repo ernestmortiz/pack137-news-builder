@@ -1,0 +1,111 @@
+name: Wrappers
+# Builds the desktop installers on a pull request that touches the wrapper, so the owner can
+# download and try them before a tag is pushed. Also checks the real app on Linux with a smoke
+# test (see tests/wrapper/smoke.mjs). Nothing here signs anything or uses a secret.
+#
+# The installers are unsigned test builds. They are kept for 7 days.
+on:
+  pull_request:
+    paths:
+      - 'src-tauri/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - '.github/workflows/wrappers.yml'
+  workflow_dispatch:
+# Read-only: these jobs install and run third-party code, so the token can change nothing.
+permissions:
+  contents: read
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install the system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libwebkit2gtk-4.1-dev librsvg2-dev \
+            xvfb webkit2gtk-driver
+      - run: npm ci
+      # Pinned, and built from the locked dependency list of that release.
+      - run: cargo install tauri-driver --version 2.1.0 --locked
+      - run: npm run build
+      - name: Unit tests of the download and navigation rules
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Smoke test of the real app
+        run: scripts/wrapper-smoke.sh
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tauri build
+      - name: Name the installer
+        run: |
+          found="$(find src-tauri/target/release/bundle/nsis -name '*-setup.exe')"
+          if [ "$(printf '%s\n' "${found}" | wc -l)" -ne 1 ] || [ -z "${found}" ]; then
+            echo "Expected exactly one installer, found:"
+            echo "${found}"
+            exit 1
+          fi
+          version="$(node -p "require('./package.json').version")"
+          mkdir -p release
+          name="pack137-news-builder-v${version}-windows-setup.exe"
+          cp "${found}" "release/${name}"
+          (cd release && sha256sum "${name}" > "${name}.sha256")
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: test-windows-installer
+          path: |
+            release/*.exe
+            release/*.exe.sha256
+          retention-days: 7
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - run: npx tauri build --target universal-apple-darwin
+      - name: Name the disk image
+        run: |
+          found="$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -name '*.dmg')"
+          if [ "$(printf '%s\n' "${found}" | wc -l)" -ne 1 ] || [ -z "${found}" ]; then
+            echo "Expected exactly one disk image, found:"
+            echo "${found}"
+            exit 1
+          fi
+          version="$(node -p "require('./package.json').version")"
+          mkdir -p release
+          name="pack137-news-builder-v${version}-macos.dmg"
+          cp "${found}" "release/${name}"
+          (cd release && shasum -a 256 "${name}" > "${name}.sha256")
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: test-macos-disk-image
+          path: |
+            release/*.dmg
+            release/*.dmg.sha256
+          retention-days: 7
