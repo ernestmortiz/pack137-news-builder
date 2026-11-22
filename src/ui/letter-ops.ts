@@ -137,7 +137,12 @@ export function defaultItemDate(issue: MonthOfYear): CalendarDate {
 export function letterWarnings(letter: LetterForm): string[] {
   const out: string[] = [];
   if (letter.summary.trim() === '') out.push('The summary line is empty.');
+  if (!letter.intro.some((run) => run.kind === 'text' && run.text.trim() !== '')) {
+    out.push('The intro paragraph is empty.');
+  }
   if (letter.story.title.trim() === '') out.push('The feature story has no title.');
+  if (letter.story.blocks.length === 0) out.push('The feature story has no blocks yet.');
+  if (letter.comingUp.items.length === 0) out.push('Coming up has no events yet.');
   const photos: { where: string; photo: PhotoField }[] = [];
   letter.story.blocks.forEach((block, i) => {
     if (block.kind === 'photo') photos.push({ where: `Story block ${i + 1}`, photo: block.photo });

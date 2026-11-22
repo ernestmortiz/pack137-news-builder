@@ -157,6 +157,12 @@ describe('things to look at', () => {
     const letter = blank();
     letter.summary = 'Camp, crafts and a cold snap.';
     letter.story.title = 'A good month';
+    letter.intro = [{ kind: 'text', text: 'Welcome back.', marks: [] }];
+    letter.comingUp.items.push({
+      date: { year: 2026, month: 12, day: 6 },
+      text: [],
+      link: { text: '', url: '' },
+    });
     letter.story.blocks.push({
       kind: 'photo',
       photo: { src: 'https://example.org/a.jpg', alt: 'Scouts at camp', caption: '' },
@@ -166,5 +172,38 @@ describe('things to look at', () => {
     expect(letterWarnings(letter)).toHaveLength(1);
     setSectionEnabled(letter, 'around', false);
     expect(letterWarnings(letter)).toEqual([]);
+  });
+});
+
+describe('things to look at: required sections', () => {
+  it('flags an empty intro, no story blocks and no Coming up items', () => {
+    const list = letterWarnings(blank());
+    expect(list).toContain('The intro paragraph is empty.');
+    expect(list).toContain('The feature story has no blocks yet.');
+    expect(list).toContain('Coming up has no events yet.');
+  });
+
+  it('clears each one when the section has content', () => {
+    const letter = blank();
+    letter.intro = [{ kind: 'text', text: 'Welcome back.', marks: [] }];
+    letter.story.blocks.push(newBlock('stats'));
+    letter.comingUp.items.push({
+      date: { year: 2026, month: 12, day: 6 },
+      text: [],
+      link: { text: '', url: '' },
+    });
+    const list = letterWarnings(letter);
+    expect(list.filter((m) => /intro|blocks yet|events yet/.test(m))).toEqual([]);
+  });
+
+  it('treats a blank intro of spaces as empty', () => {
+    const letter = blank();
+    letter.intro = [{ kind: 'text', text: '   ', marks: [] }];
+    expect(letterWarnings(letter)).toContain('The intro paragraph is empty.');
+  });
+
+  it('says nothing about optional sections that are on but empty', () => {
+    const list = letterWarnings(blank());
+    expect(list.some((m) => /closing|around|horizon|photo and story/i.test(m))).toBe(false);
   });
 });
