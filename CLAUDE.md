@@ -27,4 +27,4 @@ The full brief is `docs/build-spec.md`. Read it before writing code. This file r
 
 ## Status
 
-Phases 0 to 7 are complete and merged. The owner signed off the web release (1.0.0) and pushes the v1.0.0 tag; the owner will test the Windows installer later; the Mac app was dropped (ADR 0006). Phase 8 (Android) is in progress: Tauri spike and a debug-signed test APK first; the permanent release key is an owner decision still to come.
+Phases 0 to 8 are built. Version 1.1.0 is the first published release (web zip, Windows installer, signed Android app); the owner pushes the v1.1.0 tag after PR #7 merges. The Mac app was dropped (ADR 0006). The Android release key is in the owner's `android-release` GitHub environment and backup only. Next: Phase 9, handover.
