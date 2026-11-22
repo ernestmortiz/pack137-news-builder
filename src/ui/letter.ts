@@ -3,14 +3,24 @@
  * LetterForm; `renderLetter` turns it into the email HTML, shown in sandboxed previews with
  * images swapped for placeholders. Copying is never blocked by a lint problem (owner decision).
  */
-import { todayFrom } from '../core/dates';
+import { formatMonthYear, todayFrom } from '../core/dates';
+import {
+  MAX_DRAFT_BYTES,
+  nextIssueFrom,
+  readDraft,
+  writeDraft,
+  type DraftFile,
+} from '../core/draft';
 import { lintOutput } from '../core/lint-output';
 import { emptyLetter, letterWords, readTimeText, type LetterForm } from '../core/letter';
 import { renderLetter } from '../core/render-letter';
 import { browserClipboardEnv, copyText } from './clipboard';
 import { clear, debounce, el } from './dom';
 import type { FormContext, TypingEdit } from './form-kit';
-import { createHistory } from './history';
+import type { SettingsStore } from './app-settings';
+import { createHistory, type History } from './history';
+import { clockText, draftFileName, startChoices, type StartChoice } from './settings-logic';
+import type { DeviceStorage } from './storage';
 import { changeBytes, textAfter, textBefore, toChange, type TypingChange } from './typing';
 import { buildLetterForm, type LetterView } from './letter-view';
 import { letterWarnings, nextMonth } from './letter-ops';
@@ -24,12 +34,25 @@ interface Snapshot {
   letter: LetterForm;
 }
 
-export function mountLetter(root: HTMLElement): void {
+export interface LetterDeps {
+  settings: SettingsStore;
+  storage: DeviceStorage;
+}
+
+/** How long after the last change the draft is saved on the device. */
+const AUTOSAVE_MS = 1000;
+
+export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
+  const { settings, storage } = deps;
   /* ---------- state ---------- */
-  let letter: LetterForm = emptyLetter(nextMonth(todayFrom(new Date())));
+  const blankLetter = (): LetterForm =>
+    emptyLetter(nextMonth(todayFrom(new Date())), settings.get());
+  let letter: LetterForm = blankLetter();
   let view: LetterView | null = null;
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
-  const history = createHistory<Snapshot, TypingPatch>({ patchBytes: changeBytes });
+  const newHistory = (): History<Snapshot, TypingPatch> =>
+    createHistory<Snapshot, TypingPatch>({ patchBytes: changeBytes });
+  let history = newHistory();
   let pendingBefore: Snapshot | null = null;
 
   const capture = (): Snapshot => ({ letter: structuredClone(letter) });
@@ -47,20 +70,37 @@ export function mountLetter(root: HTMLElement): void {
   }
 
   /* ---------- top of the screen ---------- */
+  const statusLine = el('p', {
+    className: 'status-line',
+    textContent: 'You are starting from a blank letter for next month.',
+  });
   const draftNote = el('section', { className: 'card' }, [
-    el('p', {
-      className: 'status-line',
-      textContent: 'You are starting from a blank letter for next month.',
-    }),
+    statusLine,
     el('p', {
       className: 'hint',
       textContent:
-        "Copying last month's issue comes with drafts, in a later update. For now, fill in each section below.",
+        'Fill in each section below. Your work is saved on this device as you go. Use Download draft to keep a copy or to move it to another device.',
     }),
   ]);
+  // Shown instead of the editor when a saved draft is found, or when a draft file is opened.
+  const choicePanel = el('section', { className: 'card choice-panel' });
+  choicePanel.hidden = true;
 
   const undoButton = el('button', { type: 'button', className: 'btn', textContent: 'Undo' });
   const redoButton = el('button', { type: 'button', className: 'btn', textContent: 'Redo' });
+  const saveNote = el('span', { className: 'history-note save-note' });
+  saveNote.setAttribute('role', 'status');
+  const downloadButton = el('button', {
+    type: 'button',
+    className: 'btn',
+    textContent: 'Download draft',
+  });
+  const openButton = el('button', { type: 'button', className: 'btn', textContent: 'Open draft' });
+  const openInput = el('input', { type: 'file', accept: '.json,application/json' });
+  openInput.hidden = true;
+  openInput.setAttribute('aria-label', 'Choose a draft file to open');
+  const fileNote = el('p', { className: 'hint' });
+  fileNote.setAttribute('role', 'status');
   const historyNote = el('span', { className: 'history-note' });
   historyNote.setAttribute('role', 'status');
   historyNote.setAttribute('aria-live', 'polite');
@@ -71,6 +111,10 @@ export function mountLetter(root: HTMLElement): void {
     redoButton,
     counter,
     historyNote,
+    saveNote,
+    downloadButton,
+    openButton,
+    openInput,
   ]);
   historyBar.setAttribute('role', 'group');
   historyBar.setAttribute('aria-label', 'Undo, redo and read time');
@@ -137,7 +181,8 @@ export function mountLetter(root: HTMLElement): void {
     ]),
   ]);
 
-  root.append(draftNote, historyBar, el('div', { className: 'workspace' }, [left, right]));
+  const workspace = el('div', { className: 'workspace' }, [left, right]);
+  root.append(draftNote, choicePanel, historyBar, fileNote, workspace);
 
   function showWarnings(list: string[], lintProblems: string[]): void {
     clear(warningsBox);
@@ -163,7 +208,7 @@ export function mountLetter(root: HTMLElement): void {
     updateCounter();
     let html: string;
     try {
-      html = renderLetter(letter);
+      html = renderLetter(letter, settings.get());
     } catch {
       showWarnings(['The preview could not be made from this letter.'], []);
       return;
@@ -187,11 +232,13 @@ export function mountLetter(root: HTMLElement): void {
     warnings: () => [],
     typed(edit: TypingEdit) {
       history.recordPatch(toChange(edit), edit.label);
+      saveLater();
       refreshLater.run();
       updateHistoryBar();
     },
     begin,
     step(label: string) {
+      saveLater();
       refreshLater.run();
       step(label);
     },
@@ -212,7 +259,7 @@ export function mountLetter(root: HTMLElement): void {
     refreshLater.cancel();
     let html: string;
     try {
-      html = renderLetter(letter);
+      html = renderLetter(letter, settings.get());
     } catch {
       copyNote.textContent = 'The letter HTML could not be made from this letter.';
       return;
@@ -244,6 +291,7 @@ export function mountLetter(root: HTMLElement): void {
   function restore(snap: Snapshot): void {
     refreshLater.cancel();
     letter = snap.letter;
+    saveLater();
     copiedNote.textContent = '';
     copyNote.textContent = '';
     drawForm();
@@ -272,6 +320,7 @@ export function mountLetter(root: HTMLElement): void {
       const sel = move.direction === 'undo' ? patch.selBefore : patch.selAfter;
       if (field && view?.setField(patch.path, text, sel)) {
         target = view.fieldControl(patch.path);
+        saveLater();
         refreshLater.run();
       }
     }
@@ -309,7 +358,268 @@ export function mountLetter(root: HTMLElement): void {
     travel(kind, 'key');
   });
 
+  /* ---------- autosave (spec 8.3) ---------- */
+  function reportSave(ok: boolean, when: Date): void {
+    saveNote.textContent = ok
+      ? `Saved on this device at ${clockText(when)}`
+      : 'Could not save on this device';
+  }
+  function saveNow(): void {
+    const when = new Date();
+    let ok: boolean;
+    try {
+      ok = storage.saveDraft(writeDraft(letter, settings.get(), when));
+    } catch {
+      ok = false;
+    }
+    reportSave(ok, when);
+  }
+  const saveSoon = debounce(saveNow, AUTOSAVE_MS);
+  let saving = true;
+  function saveLater(): void {
+    if (saving) saveSoon.run();
+  }
+  // Closing or hiding the page counts as the last change, so nothing typed in the last second is lost.
+  window.addEventListener('pagehide', () => saveSoon.flush());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') saveSoon.flush();
+  });
+
+  /* ---------- choices: saved draft and opened files ---------- */
+  function showEditor(on: boolean): void {
+    workspace.hidden = !on;
+    historyBar.hidden = !on;
+    draftNote.hidden = !on;
+    choicePanel.hidden = on;
+  }
+
+  /** Replaces the whole letter. `asStep` makes it one undoable step; otherwise history starts fresh. */
+  function loadLetter(next: LetterForm, asStep: string | null, status: string): void {
+    refreshLater.cancel();
+    if (asStep !== null) begin();
+    else {
+      history = newHistory();
+      pendingBefore = null;
+    }
+    letter = next;
+    statusLine.textContent = status;
+    drawForm();
+    refreshOutput();
+    if (asStep !== null) step(asStep);
+    else updateHistoryBar();
+    historyNote.textContent = '';
+    copiedNote.textContent = '';
+    copyNote.textContent = '';
+  }
+
+  function textList(items: string[]): HTMLElement {
+    const ul = el('ul', { className: 'warn-list' });
+    for (const text of items) ul.append(el('li', { textContent: text }));
+    return ul;
+  }
+
+  function offerSavedDraft(draft: DraftFile): void {
+    saving = false;
+    clear(choicePanel);
+    const buttons = el('div', { className: 'choice-list' });
+    let first: HTMLButtonElement | null = null;
+    const pick = (choice: StartChoice): void => {
+      const when = new Date();
+      let next: LetterForm;
+      let status: string;
+      if (choice.id === 'blank') {
+        next = blankLetter();
+        status = 'You are starting from a blank letter for next month.';
+      } else if (choice.id === 'next' && choice.issue) {
+        next = nextIssueFrom(draft.letter, choice.issue);
+        status = `You are starting the ${formatMonthYear(choice.issue)} letter from the saved one.`;
+      } else {
+        next = draft.letter;
+        status = `You are working on the ${formatMonthYear(draft.letter.issue)} letter from this device.`;
+      }
+      saving = true;
+      showEditor(true);
+      loadLetter(next, null, status);
+      if (choice.id === 'keep') reportSave(true, new Date(draft.savedAt || when));
+      formHeading.focus();
+    };
+    for (const choice of startChoices(draft)) {
+      const b = el('button', {
+        type: 'button',
+        className: choice.id === 'keep' ? 'btn primary' : 'btn',
+        textContent: choice.label,
+      });
+      b.addEventListener('click', () => pick(choice));
+      first ??= b;
+      buttons.append(b);
+    }
+    const saved = new Date(draft.savedAt);
+    choicePanel.append(
+      el('h2', { textContent: 'You have a saved letter on this device' }),
+      el('p', {
+        className: 'hint',
+        textContent: Number.isNaN(saved.getTime())
+          ? 'Choose how to begin.'
+          : `It was last saved at ${clockText(saved)} on ${saved.toLocaleDateString('en-US')}. Choose how to begin.`,
+      }),
+      buttons,
+    );
+    showEditor(false);
+    first?.focus();
+  }
+
+  /* ---------- download and open a draft file ---------- */
+  downloadButton.addEventListener('click', () => {
+    fileNote.textContent = '';
+    try {
+      const text = writeDraft(letter, settings.get(), new Date());
+      const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+      const link = el('a', { href: url, download: draftFileName(letter.issue) });
+      link.hidden = true;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      fileNote.textContent = `Saved the draft as ${draftFileName(letter.issue)}. Look in your Downloads folder.`;
+    } catch {
+      fileNote.textContent = 'The draft file could not be made.';
+    }
+  });
+
+  openButton.addEventListener('click', () => {
+    openInput.value = '';
+    openInput.click();
+  });
+
+  function offerOpenedDraft(
+    name: string,
+    result: Extract<ReturnType<typeof readDraft>, { ok: true }>,
+  ): void {
+    const { draft } = result;
+    const notes = [...result.notes];
+    if (result.migrated)
+      notes.unshift('This draft was written by an older version and has been brought up to date.');
+    const sameSettings = JSON.stringify(draft.settings) === JSON.stringify(settings.get());
+    clear(choicePanel);
+    const finish = (useSettings: boolean): void => {
+      if (useSettings) settings.set(draft.settings);
+      saving = true;
+      showEditor(true);
+      loadLetter(
+        draft.letter,
+        'opened a draft',
+        `You opened ${name}. It is the ${formatMonthYear(draft.letter.issue)} letter.`,
+      );
+      saveLater();
+      fileNote.textContent = useSettings
+        ? 'Opened the draft with its settings. Undo puts your earlier letter back, but not your earlier settings.'
+        : 'Opened the draft. Undo puts your earlier letter back.';
+      formHeading.focus();
+    };
+    const cancel = el('button', {
+      type: 'button',
+      className: 'btn',
+      textContent: 'Cancel, do not open it',
+    });
+    cancel.addEventListener('click', () => {
+      saving = true;
+      showEditor(true);
+      fileNote.textContent = 'Nothing was changed.';
+      openButton.focus();
+    });
+    const actions = el('div', { className: 'choice-list' });
+    let first: HTMLButtonElement;
+    if (sameSettings) {
+      first = el('button', {
+        type: 'button',
+        className: 'btn primary',
+        textContent: 'Open this draft',
+      });
+      first.addEventListener('click', () => finish(false));
+      actions.append(first, cancel);
+    } else {
+      first = el('button', {
+        type: 'button',
+        className: 'btn primary',
+        textContent: 'Use the settings from this draft',
+      });
+      first.addEventListener('click', () => finish(true));
+      const keep = el('button', {
+        type: 'button',
+        className: 'btn',
+        textContent: 'Keep my settings',
+      });
+      keep.addEventListener('click', () => finish(false));
+      actions.append(first, keep, cancel);
+    }
+    choicePanel.append(
+      el('h2', { textContent: `Open ${name}?` }),
+      el('p', {
+        className: 'hint',
+        textContent: `This is the ${formatMonthYear(draft.letter.issue)} letter. Opening it replaces the letter on screen. You can undo that.`,
+      }),
+      ...(notes.length > 0
+        ? [
+            el('div', { className: 'warnings' }, [
+              el('p', { className: 'label', textContent: 'Things to know about this file' }),
+              textList(notes),
+            ]),
+          ]
+        : []),
+      sameSettings
+        ? el('p', {
+            className: 'hint',
+            textContent: 'The draft uses the same settings as you have now.',
+          })
+        : el('p', {
+            className: 'hint',
+            textContent:
+              'The draft was written with different settings (links, emails or logo). Do you want to use its settings too?',
+          }),
+      actions,
+    );
+    saving = false;
+    saveSoon.cancel();
+    showEditor(false);
+    first.focus();
+  }
+
+  openInput.addEventListener('change', () => {
+    const file = openInput.files?.[0];
+    if (!file) return;
+    fileNote.textContent = '';
+    if (file.size > MAX_DRAFT_BYTES) {
+      fileNote.textContent = `That file is too big to be a letter draft (the limit is ${Math.round(MAX_DRAFT_BYTES / (1024 * 1024))} MB).`;
+      return;
+    }
+    void file
+      .text()
+      .then((text) => {
+        const result = readDraft(text);
+        if (!result.ok) {
+          fileNote.textContent = result.message;
+          return;
+        }
+        offerOpenedDraft(file.name, result);
+      })
+      .catch(() => {
+        fileNote.textContent = 'That file could not be read.';
+      });
+  });
+
+  // A changed setting changes the links in the letter, so draw the preview again.
+  settings.subscribe(() => {
+    refreshLater.run();
+    saveLater();
+  });
+
   drawForm();
   updateHistoryBar();
   refreshOutput();
+
+  const found = storage.loadDraft();
+  if (found?.ok) offerSavedDraft(found.draft);
+  else if (found && !found.ok) {
+    fileNote.textContent = 'A saved letter on this device could not be read, so it was not used.';
+  }
 }

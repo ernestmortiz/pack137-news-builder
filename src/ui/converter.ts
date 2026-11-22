@@ -3,7 +3,7 @@
  * Plain DOM, no framework. Pasted HTML goes only through parse(); only the content model and the
  * form reach the page, and every string is set with textContent or .value.
  */
-import { packConfig } from '../config/pack.config';
+import type { SettingsStore } from './app-settings';
 import { todayFrom } from '../core/dates';
 import {
   applySuggestion,
@@ -63,7 +63,7 @@ function layoutName(id: Layout): string {
   return LAYOUTS.find((l) => l.id === id)?.name ?? id;
 }
 
-export function mountConverter(root: HTMLElement): void {
+export function mountConverter(root: HTMLElement, settings: SettingsStore): void {
   /* ---------- state ---------- */
   let parsed: ParseResult | null = null;
   let layout: Layout | null = null;
@@ -456,7 +456,7 @@ export function mountConverter(root: HTMLElement): void {
     try {
       const fill = fillForm(result, result.suggestion.layout, {
         today: todayFrom(new Date()),
-        programYearStartMonth: packConfig.programYearStartMonth,
+        programYearStartMonth: settings.get().programYearStartMonth,
       });
       parsed = result;
       layout = result.suggestion.layout;

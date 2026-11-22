@@ -3,15 +3,19 @@ import { packConfig } from '../config/pack.config';
 import { mountConverter } from './converter';
 import { el } from './dom';
 import { mountLetter } from './letter';
+import { createSettingsStore } from './app-settings';
+import { mountSettings } from './settings-view';
+import { createDeviceStorage } from './storage';
 import './styles.css';
 
-type Screen = 'converter' | 'monthly';
+type Screen = 'converter' | 'monthly' | 'settings';
 
 const screens: Record<Screen, { tab: string; title: string }> = {
   converter: { tab: 'Weekly announcement', title: 'Announcement Converter' },
   monthly: { tab: 'Monthly letter', title: `${packConfig.monthlyTitle} editor` },
+  settings: { tab: 'Settings', title: 'Settings' },
 };
-const order: Screen[] = ['converter', 'monthly'];
+const order: Screen[] = ['converter', 'monthly', 'settings'];
 
 function applyTokens(root: HTMLElement): void {
   const vars: Record<string, string> = {
@@ -31,6 +35,8 @@ function applyTokens(root: HTMLElement): void {
 }
 
 function mount(app: HTMLElement): void {
+  const storage = createDeviceStorage();
+  const settings = createSettingsStore(storage);
   const tabs = el('div', { className: 'tabs' });
   tabs.setAttribute('role', 'tablist');
   tabs.setAttribute('aria-label', 'Choose a tool');
@@ -41,11 +47,15 @@ function mount(app: HTMLElement): void {
   const converter = el('div', { className: 'panel', id: 'panel-converter' }, [
     el('h2', { textContent: screens.converter.title }),
   ]);
-  mountConverter(converter);
+  mountConverter(converter, settings);
   panels.converter = converter;
   panels.monthly = el('div', { className: 'panel', id: 'panel-monthly' }, [
     el('h2', { textContent: screens.monthly.title }),
   ]);
+  panels.settings = el('div', { className: 'panel', id: 'panel-settings' }, [
+    el('h2', { textContent: screens.settings.title }),
+  ]);
+  mountSettings(panels.settings, settings);
   // Built the first time the tab opens. After that the screen stays in memory, so nothing typed is lost.
   let monthlyMounted = false;
 
@@ -58,7 +68,7 @@ function mount(app: HTMLElement): void {
     }
     if (key === 'monthly' && !monthlyMounted) {
       monthlyMounted = true;
-      mountLetter(panels.monthly);
+      mountLetter(panels.monthly, { settings, storage });
     }
     if (focus) buttons[key].focus();
   }
@@ -98,7 +108,7 @@ function mount(app: HTMLElement): void {
         el('h1', { textContent: 'Pack 137 News Builder' }),
       ]),
       tabs,
-      el('main', {}, [panels.converter, panels.monthly]),
+      el('main', {}, [panels.converter, panels.monthly, panels.settings]),
       el('footer', {
         textContent: `Version ${__APP_VERSION__}. Nothing you paste leaves this device.`,
       }),
