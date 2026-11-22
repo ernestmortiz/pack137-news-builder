@@ -44,17 +44,16 @@ function introRow(letter: LetterForm): string {
 
 /**
  * `settings` supplies the logo, footer links, pack emails and year-at-a-glance link (spec 9). It
- * must come from validateSettings or defaultSettings. Phase 5: renderer-engineer wires it through;
- * until then the pack.config.ts values are used.
+ * should come from validateSettings or defaultSettings; the renderer still refuses unsafe URLs and
+ * any email that is not a bare address (the link is left out).
  */
 export function renderLetter(
   letter: LetterForm,
   settings: PackSettings = defaultSettings(),
 ): string {
-  void settings;
   const summary = summaryText(letter);
   const rows = lines(
-    mastheadRow(letter.issue),
+    mastheadRow(letter.issue, settings),
     row('8px 24px 0 24px', esc(summary), bodyText('1.5', color.muted, 14)),
     introRow(letter),
     storyRows(letter.story),
@@ -62,10 +61,10 @@ export function renderLetter(
     photoAskRows(letter.photoAsk),
     aroundRows(letter.around),
     comingUpRows(letter.comingUp),
-    horizonRows(letter.horizon),
-    feedbackRows(letter.feedback),
+    horizonRows(letter.horizon, settings),
+    feedbackRows(letter.feedback, settings),
     signOffRows(letter.signOff),
-    footerRows(),
+    footerRows(settings),
   );
   return letterShell(summary, rows);
 }

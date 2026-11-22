@@ -2,11 +2,11 @@
  * The letter's sections after the feature story (build spec, section 8.2, sections 6 to 13).
  * Each function returns table rows, or an empty string when there is nothing to show.
  */
-import { packConfig } from '../../config/pack.config';
 import { color, fontStack, radius } from '../../config/tokens';
 import { formatDate, formatDateTime, isValidDate } from '../../core/dates';
 import { emDashesToCommas } from '../../core/helpers/text';
 import { LETTER_HEADINGS, type LetterForm } from '../../core/letter';
+import { defaultSettings, type PackSettings } from '../../core/settings';
 import { anchor, esc, escAttr, isEmptyRich, lines, richText, safeUrl } from '../components';
 import {
   BODY_TEXT,
@@ -167,7 +167,10 @@ export function comingUpRows(c: LetterForm['comingUp']): string {
 
 /* ---------- 10 On the horizon ---------- */
 
-export function horizonRows(h: LetterForm['horizon']): string {
+export function horizonRows(
+  h: LetterForm['horizon'],
+  settings: PackSettings = defaultSettings(),
+): string {
   if (!h.enabled) return '';
   const items = h.items
     .map((item) => {
@@ -177,7 +180,7 @@ export function horizonRows(h: LetterForm['horizon']): string {
       return `${lead}${lead !== '' && text !== '' ? ' ' : ''}${text}`;
     })
     .filter((html) => html !== '');
-  const year = linkHtml({ text: h.yearLinkText, url: packConfig.yearAtAGlanceUrl });
+  const year = linkHtml({ text: h.yearLinkText, url: settings.yearAtAGlanceUrl });
   const inner = lines(
     heading(LETTER_HEADINGS.horizon, 20, '0 0 6px 0'),
     items.length > 0 &&
@@ -208,23 +211,42 @@ function encodeValue(text: string): string {
     .join('');
 }
 
-/** The mailto address for the feedback link, with subject and body percent-encoded (spec 7.3). */
-export function feedbackHref(f: LetterForm['feedback']): string {
+/**
+ * A bare email address: one @, text on both sides, and none of the characters that could add a mailto
+ * parameter or break an attribute (whitespace, ? & # , ; : quotes, angle brackets, backslash, %).
+ */
+export function isBareEmail(value: string): boolean {
+  return /^[^\s@?&#,;:'"`<>\\%]+@[^\s@?&#,;:'"`<>\\%]+$/.test(value);
+}
+
+/**
+ * The mailto address for the feedback link, with subject and body percent-encoded (spec 7.3).
+ * Returns '' when the feedback email setting is not a bare address, so the link is left out.
+ */
+export function feedbackHref(
+  f: LetterForm['feedback'],
+  email: string = defaultSettings().email.feedback,
+): string {
+  if (!isBareEmail(email)) return '';
   const query = [
     f.subject !== '' && `subject=${encodeValue(f.subject)}`,
     f.body !== '' && `body=${encodeValue(f.body)}`,
   ].filter((q): q is string => q !== false);
-  return `mailto:${packConfig.email.feedback}${query.length > 0 ? '?' + query.join('&') : ''}`;
+  return `mailto:${email}${query.length > 0 ? '?' + query.join('&') : ''}`;
 }
 
 const QUESTION_LEAD = 'Quick question:';
 
-export function feedbackRows(f: LetterForm['feedback']): string {
+export function feedbackRows(
+  f: LetterForm['feedback'],
+  settings: PackSettings = defaultSettings(),
+): string {
   const q = f.question.trim();
   const question = q.startsWith(QUESTION_LEAD)
     ? `<strong>${esc(QUESTION_LEAD)}</strong>${esc(q.slice(QUESTION_LEAD.length))}`
     : esc(q);
-  const href = safeUrl(feedbackHref(f));
+  const raw = feedbackHref(f, settings.email.feedback);
+  const href = raw === '' ? null : safeUrl(raw);
   const link =
     href !== null && f.linkText.trim() !== ''
       ? anchor(href, linkStyle('light'), esc(f.linkText))
@@ -256,12 +278,12 @@ export function signOffRows(text: string): string {
   );
 }
 
-export function footerRows(): string {
-  const links = packConfig.standingLinks
+export function footerRows(settings: PackSettings = defaultSettings()): string {
+  const links = settings.standingLinks
     .map((l) => linkHtml({ text: l.label, url: l.url }, 'navy'))
     .filter((html) => html !== '');
-  const mail = packConfig.email.contact;
-  const mailHref = safeUrl(`mailto:${mail}`);
+  const mail = settings.email.contact;
+  const mailHref = isBareEmail(mail) ? safeUrl(`mailto:${mail}`) : null;
   const parts: string[] = [];
   if (links.length > 0) parts.push(`More from the pack: ${links.join(' &middot; ')}`);
   if (mailHref !== null)
