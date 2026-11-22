@@ -190,8 +190,8 @@ test('letter: a short letter with the keyboard, add a story block, undo and redo
   const group = panel(page).getByRole('group', { name: /^Block 1:/ });
   await expect(group).toBeVisible();
 
-  // The app moves focus to the first field of the new block (a photo address for the second kind).
-  const addr = panel(page).getByLabel('Photo address');
+  // The app moves focus to the first field of the new block (the photo description for the second kind).
+  const addr = panel(page).getByLabel('Photo description (required)');
   await expect(addr).toBeFocused();
   expectIndicators([await focused(page)]);
   await page.keyboard.type('ab');

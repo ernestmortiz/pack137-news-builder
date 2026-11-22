@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   chooseEncoding,
+  declaredSize,
+  isTooLarge,
+  looksHeic,
+  unreadableMessage,
   formatBytes,
   isTooBigFile,
   isTooManyPixels,
@@ -105,6 +109,21 @@ describe('messages', () => {
       }),
     ).toContain('still bigger than 300 KB');
   });
+  it('words the next step for a photo spot', () => {
+    const text = resultMessage({
+      fileName: 'a-letter.jpg',
+      beforeBytes: 2048,
+      afterBytes: 1024,
+      width: 10,
+      height: 10,
+      withinLimit: true,
+      next: 'spot',
+    });
+    expect(text).toContain(
+      'Location and camera details were removed. Insert it in TroopTrack where the photo spot is, then use Finish photos.',
+    );
+    expect(text).not.toContain('address');
+  });
   it('has no em dashes', () => {
     expect(Object.values(MSG).join('')).not.toMatch(/\u2014/);
   });
@@ -118,5 +137,148 @@ describe('shrinkControl', () => {
     expect(button?.textContent).toBe('Shrink a photo');
     expect(input?.type).toBe('file');
     expect(input?.accept).toContain('image/heic');
+  });
+});
+
+const ascii = (t: string) => [...t].map((c) => c.charCodeAt(0));
+const be32 = (n: number) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+const le16 = (n: number) => [n & 255, (n >> 8) & 255];
+const le24 = (n: number) => [n & 255, (n >> 8) & 255, (n >> 16) & 255];
+
+describe('declaredSize', () => {
+  it('reads a PNG', () => {
+    const png = [
+      0x89,
+      ...ascii('PNG'),
+      13,
+      10,
+      26,
+      10,
+      ...be32(13),
+      ...ascii('IHDR'),
+      ...be32(30000),
+      ...be32(20000),
+    ];
+    expect(declaredSize(new Uint8Array(png))).toEqual({ width: 30000, height: 20000 });
+  });
+  it('reads a GIF', () => {
+    const gif = [...ascii('GIF89a'), ...le16(640), ...le16(480), 0, 0, 0];
+    expect(declaredSize(new Uint8Array(gif))).toEqual({ width: 640, height: 480 });
+  });
+  it('reads a JPEG, skipping other segments and the tables that look like frames', () => {
+    const app = [0xff, 0xe1, 0, 8, 1, 2, 3, 4, 5, 6];
+    const dht = [0xff, 0xc4, 0, 4, 9, 9];
+    const sof = (m: number) => [
+      0xff,
+      m,
+      0,
+      11,
+      8,
+      ...[3000 >> 8, 3000 & 255],
+      ...[4000 >> 8, 4000 & 255],
+      3,
+      1,
+      2,
+      3,
+    ];
+    for (const marker of [0xc0, 0xc2, 0xc9, 0xcf]) {
+      const jpeg = [0xff, 0xd8, ...app, 0xff, 0xff, ...dht.slice(1), ...sof(marker)];
+      expect(declaredSize(new Uint8Array(jpeg))).toEqual({ width: 4000, height: 3000 });
+    }
+  });
+  it('reads WebP VP8, VP8L and VP8X', () => {
+    const riff = [...ascii('RIFF'), 0, 0, 0, 0, ...ascii('WEBP')];
+    const vp8 = [
+      ...riff,
+      ...ascii('VP8 '),
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0x9d,
+      0x01,
+      0x2a,
+      ...le16(1200),
+      ...le16(900),
+    ];
+    expect(declaredSize(new Uint8Array(vp8))).toEqual({ width: 1200, height: 900 });
+    const bits = (1000 - 1) | ((700 - 1) << 14);
+    const vp8l = [
+      ...riff,
+      ...ascii('VP8L'),
+      0,
+      0,
+      0,
+      0,
+      0x2f,
+      bits & 255,
+      (bits >> 8) & 255,
+      (bits >> 16) & 255,
+      (bits >>> 24) & 255,
+    ];
+    expect(declaredSize(new Uint8Array(vp8l))).toEqual({ width: 1000, height: 700 });
+    const vp8x = [
+      ...riff,
+      ...ascii('VP8X'),
+      10,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      ...le24(5000 - 1),
+      ...le24(4000 - 1),
+    ];
+    expect(declaredSize(new Uint8Array(vp8x))).toEqual({ width: 5000, height: 4000 });
+  });
+  it('returns null for truncated and garbage input', () => {
+    expect(declaredSize(new Uint8Array([]))).toBeNull();
+    expect(declaredSize(new Uint8Array([0x89, ...ascii('PNG'), 13, 10, 26, 10, 0, 0]))).toBeNull();
+    expect(declaredSize(new Uint8Array([0xff, 0xd8, 0xff, 0xc0, 0, 11, 8]))).toBeNull();
+    expect(declaredSize(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]))).toBeNull();
+    expect(declaredSize(new Uint8Array([...ascii('GIF89a'), 1]))).toBeNull();
+    expect(
+      declaredSize(new Uint8Array([...ascii('RIFF'), 0, 0, 0, 0, ...ascii('WEBP')])),
+    ).toBeNull();
+    expect(declaredSize(new Uint8Array(ascii('hello, this is not a picture at all')))).toBeNull();
+    expect(declaredSize(new Uint8Array(200).fill(0xff))).toBeNull();
+  });
+  it('does not loop on a JPEG segment with a zero length', () => {
+    expect(declaredSize(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 1, 2]))).toBeNull();
+  });
+});
+
+describe('size and format decisions', () => {
+  it('refuses huge declared sizes', () => {
+    expect(isTooLarge(30000, 30000)).toBe(true);
+    expect(isTooLarge(30001, 1)).toBe(true);
+    expect(isTooLarge(4000, 3000)).toBe(false);
+  });
+  it('only mentions Safari for HEIC or HEIF', () => {
+    expect(looksHeic('a.HEIC', '')).toBe(true);
+    expect(looksHeic('a', 'image/heif')).toBe(true);
+    expect(looksHeic('a.png', 'image/png')).toBe(false);
+    expect(unreadableMessage('a.heic', '')).toContain('Safari');
+    expect(unreadableMessage('notes.txt', 'text/plain')).not.toContain('Safari');
+    expect(unreadableMessage('notes.txt', 'text/plain')).toBe(
+      "This file can't be read as a photo. Save or export it as a JPEG and try again.",
+    );
+  });
+});
+
+describe('one shrink at a time', () => {
+  it('shows the other controls as enabled when nothing is running', () => {
+    const a = shrinkControl('One');
+    const b = shrinkControl('Two');
+    document.body.append(a, b);
+    expect(a.querySelector('button')?.disabled).toBe(false);
+    expect(b.querySelector<HTMLElement>('.shrink-lock')?.hidden).toBe(true);
+    a.remove();
+    b.remove();
   });
 });

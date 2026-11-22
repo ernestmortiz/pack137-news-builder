@@ -205,12 +205,10 @@ test('a file that is not a photo gets a plain message and the form still works',
     mimeType: 'text/plain',
     buffer: Buffer.from('not a picture'),
   });
-  await expect(holder.locator('.shrink-note')).toContainText(
-    "This photo format can't be read here",
-  );
+  await expect(holder.locator('.shrink-note')).toContainText("This file can't be read as a photo");
   await expect(holder.getByRole('button')).toBeEnabled();
   await expect(holder.locator('img.shrink-thumb')).toBeHidden();
-  await page.getByLabel('Photo address').first().fill('https://example.org/a.jpg');
+  await page.getByLabel('Photo description (required)').first().fill('Scouts at camp');
   expect(seen.remote).toEqual([]);
   expect(seen.errors).toEqual([]);
 });
@@ -228,4 +226,106 @@ test('the converter has the button and it fits at 360 px', async ({ page }) => {
   const box = need(await button.boundingBox());
   expect(box.height).toBeGreaterThanOrEqual(44);
   expect(box.x + box.width).toBeLessThanOrEqual(360);
+});
+
+test('a tiny PNG that declares 30000 by 30000 pixels is refused quickly, with no download', async ({
+  page,
+}) => {
+  await letterWithPhoto(page);
+  let downloads = 0;
+  page.on('download', () => (downloads += 1));
+  const be32 = (n: number) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  const png = Buffer.from([
+    0x89,
+    0x50,
+    0x4e,
+    0x47,
+    0x0d,
+    0x0a,
+    0x1a,
+    0x0a,
+    ...be32(13),
+    0x49,
+    0x48,
+    0x44,
+    0x52,
+    ...be32(30000),
+    ...be32(30000),
+    8,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+  ]);
+  const holder = page.locator('.shrink').first();
+  const started = Date.now();
+  await holder
+    .locator('input[type=file]')
+    .setInputFiles({ name: 'bomb.png', mimeType: 'image/png', buffer: png });
+  await expect(holder.locator('.shrink-note')).toHaveText(
+    'This photo is too large to shrink on this device.',
+  );
+  expect(Date.now() - started).toBeLessThan(3000);
+  expect(downloads).toBe(0);
+  await expect(holder.getByRole('button')).toBeEnabled();
+});
+
+test('a JPEG with EXIF and GPS comes out without them', async ({ page }) => {
+  await letterWithPhoto(page);
+  const plain = await makeImage(page, 'scene', 1600, 1200);
+  const payload = Buffer.concat([
+    Buffer.from('Exif\0\0', 'latin1'),
+    Buffer.from('GPSLatitude 41.12345 N GPSLongitude 87.54321 W Make TestCam', 'latin1'),
+  ]);
+  const segment = Buffer.concat([Buffer.from([0xff, 0xe1, 0, 0]), payload]);
+  segment.writeUInt16BE(payload.length + 2, 2);
+  const withExif = Buffer.concat([plain.subarray(0, 2), segment, plain.subarray(2)]);
+  expect(withExif.includes('GPSLatitude')).toBe(true);
+  const holder = page.locator('.shrink').first();
+  const downloadPromise = page.waitForEvent('download');
+  await holder
+    .locator('input[type=file]')
+    .setInputFiles({ name: 'gps.jpg', mimeType: 'image/jpeg', buffer: withExif });
+  const out = await readDownload(await downloadPromise);
+  expect(out.subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]));
+  expect(out.includes(Buffer.from('Exif\0\0', 'latin1'))).toBe(false);
+  expect(out.includes('GPS')).toBe(false);
+  expect(out.includes('TestCam')).toBe(false);
+});
+
+test('while one photo is shrunk, the other buttons are disabled', async ({ page }) => {
+  await letterWithPhoto(page);
+  await panel(page)
+    .getByLabel('Kind of block to add')
+    .selectOption({ label: 'Photo: One picture with a caption' });
+  await page
+    .locator('section.letter-section')
+    .filter({ has: page.getByRole('heading', { name: 'Feature story', exact: true }) })
+    .getByRole('button', { name: 'Add block', exact: true })
+    .click();
+  const holders = page.locator('.shrink');
+  await expect(holders).toHaveCount(2);
+  const bytes = await makeImage(page, 'scene', 6000, 4500);
+  await holders
+    .nth(0)
+    .locator('input[type=file]')
+    .setInputFiles({ name: 'big.jpg', mimeType: 'image/jpeg', buffer: bytes });
+  await expect(holders.nth(1).getByRole('button')).toBeDisabled();
+  await expect(holders.nth(1)).toContainText('Another photo is being shrunk.');
+  await expect(holders.nth(0).locator('.shrink-note')).toContainText('Saved big-letter.jpg');
+  await expect(holders.nth(1).getByRole('button')).toBeEnabled();
+});
+
+test('the built page keeps its strict policy and allows blob images', async ({ page }) => {
+  await page.goto('/');
+  const csp = await page
+    .locator('meta[http-equiv="Content-Security-Policy"]')
+    .getAttribute('content');
+  expect(csp).toContain("connect-src 'none'");
+  expect(csp).toContain("default-src 'none'");
+  expect(csp).toContain("img-src 'self' data: blob:");
 });

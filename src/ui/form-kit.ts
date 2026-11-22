@@ -464,7 +464,9 @@ export function createKit(ctx: FormContext) {
     const noun = o.noun;
 
     function firstControl(scope: ParentNode): HTMLElement | null {
-      return scope.querySelector<HTMLElement>('input:not([type=hidden]), textarea, select');
+      return scope.querySelector<HTMLElement>(
+        'input:not([type=hidden]):not([type=file]), textarea, select',
+      );
     }
 
     function build(after?: () => HTMLElement | null): void {

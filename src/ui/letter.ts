@@ -40,6 +40,7 @@ import { changeBytes, textAfter, textBefore, toChange, type TypingChange } from 
 import { buildLetterForm, type LetterView } from './letter-view';
 import { letterWarnings, nextMonth } from './letter-ops';
 import { createPreviewFrames } from './preview-frames';
+import { createFinishPhotos } from './finish-photos-view';
 
 /** One typed change in one field, with the caret either side. */
 type TypingPatch = TypingChange;
@@ -185,6 +186,7 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
     codeArea,
   ]);
   const frames = createPreviewFrames();
+  const finishBox = createFinishPhotos({ letter: () => letter, settings: () => settings.get() });
 
   const right = el('div', { className: 'column output letter-output' }, [
     el('section', { className: 'card' }, [
@@ -194,6 +196,7 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
       copyNote,
       codeDetails,
     ]),
+    finishBox.element,
     el('section', { className: 'card' }, [
       el('h2', { textContent: 'Preview' }),
       el('p', {
@@ -248,6 +251,7 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
     showWarnings(letterWarnings(letter), problems);
     codeArea.value = html;
     frames.show(html);
+    finishBox.recheck();
   }
   const refreshLater = debounce(refreshOutput, 150);
 

@@ -687,3 +687,30 @@ input.time {
 .shrink-note:empty {
   display: none;
 }
+.shrink-lock {
+  margin: 4px 0 0;
+}
+.old-address {
+  margin: 0 0 10px;
+  padding: 10px;
+  background: var(--gold-pale);
+  border-radius: 8px;
+}
+.old-address p {
+  margin: 0 0 6px;
+}
+.old-address-text {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  color: var(--navy);
+}
+.finish-steps {
+  margin: 0 0 12px;
+  padding-left: 22px;
+}
+.finish-steps li {
+  margin-bottom: 4px;
+}
+.finish-results {
+  margin-top: 12px;
+}

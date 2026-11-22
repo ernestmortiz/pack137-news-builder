@@ -78,6 +78,26 @@ If the Copy button does not work, the tool shows the code in a box. Click inside
 
 Photos do not show in the preview. Each photo shows as a grey box of the same size. This is on purpose. The tool does not load pictures from the internet. The copied code still includes each photo's address.
 
+## Photos in the monthly letter
+
+In the monthly letter, you do not paste a photo address. The tool leaves a spot for each photo. You put each photo in with TroopTrack's own editor after pasting, then use Finish photos to add the descriptions.
+
+1. In the letter, add a Photo block, or turn on the photo in a Sidebar box.
+2. Type the photo description. It tells people who cannot see the photo what it shows. Do not name a child. Add a caption if you want one.
+3. If the photo file is big, press Shrink a photo for the letter and keep the small file it saves.
+4. Press Copy letter HTML and paste it into TroopTrack, as usual.
+5. In TroopTrack, replace each box that says Insert photo here with the photo, using TroopTrack's image button.
+6. Open TroopTrack's code view, select all, and copy.
+7. Back in this tool, scroll to Finish photos on the Monthly letter screen. Paste what you copied into the box.
+8. Check the notes and the preview. Press Copy finished HTML.
+9. In TroopTrack's code view, replace everything with the finished code, then save.
+
+Finish photos adds each photo's description and makes the photos fit phone screens. It uses the descriptions you typed in the letter, in the same order as the spots.
+
+The tool lists every photo spot in the "Things to look at" box, so you can check that none is left. A spot does not stop you copying.
+
+An older saved draft may still hold a photo address. The tool shows that address as plain text, with a button called Use a photo spot instead. Pressing it removes the address and turns the photo into a spot. Undo brings it back.
+
 ## Shrinking a photo
 
 Big photos from a phone or camera can be slow to upload. The tool can make a smaller copy for you. It does this on your computer. The photo is not sent anywhere.

@@ -59,8 +59,7 @@ test('remote resources pasted or typed never cause a request to another host', a
       .filter({ has: page.getByRole('heading', { name: 'Feature story', exact: true }) })
       .getByRole('button', { name: 'Add block', exact: true })
       .click();
-    await panel(page).getByLabel('Photo address').last().fill(address);
-    await panel(page).getByLabel('Photo description (required)').last().fill('Scouts at camp');
+    await panel(page).getByLabel('Photo description (required)').last().fill(address);
   }
   for (const width of [250, 375, 600]) {
     await expect(letterFrame(page, width).locator('body')).toContainText('Hi Pack 137 families,');

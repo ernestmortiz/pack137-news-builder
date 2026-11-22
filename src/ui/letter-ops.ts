@@ -11,8 +11,9 @@ import {
 } from '../core/dates';
 import type { ContributorPart, LetterForm, PhotoField, StoryBlock } from '../core/letter';
 import { altTextProblems } from '../core/alt-text';
+import { photoSpots } from '../core/render-letter';
 import { LETTER_HEADINGS } from '../core/letter';
-import { safeUrl, safeWebUrl } from '../templates/components';
+import { safeUrl } from '../templates/components';
 
 /** The month after `today`, rolling December into January of the next year. */
 export function nextMonth(today: CalendarDate): MonthOfYear {
@@ -145,19 +146,23 @@ export function letterWarnings(letter: LetterForm): string[] {
   if (letter.story.title.trim() === '') out.push('The feature story has no title.');
   if (letter.story.blocks.length === 0) out.push('The feature story has no blocks yet.');
   if (letter.comingUp.items.length === 0) out.push('Coming up has no events yet.');
+  // Named the same way as photoSpots: photo blocks are numbered among photo blocks.
+  const spots = new Set(photoSpots(letter).map((spot) => spot.where));
   const photos: { where: string; photo: PhotoField }[] = [];
+  let photoNo = 0;
   letter.story.blocks.forEach((block, i) => {
-    if (block.kind === 'photo') photos.push({ where: `Photo ${i + 1}`, photo: block.photo });
-    else if (block.kind === 'sidebar' && block.photo) {
+    if (block.kind === 'photo') {
+      photoNo += 1;
+      photos.push({ where: `Photo ${photoNo}`, photo: block.photo });
+    } else if (block.kind === 'sidebar' && block.photo) {
       photos.push({ where: `Sidebar photo in block ${i + 1}`, photo: block.photo });
     }
   });
   for (const { where, photo } of photos) {
     const src = photo.src.trim();
-    if (src === '') out.push(`${where}: the photo has no address yet.`);
-    else if (safeWebUrl(src) === null) {
+    if (spots.has(where)) {
       out.push(
-        `${where}: the photo's address is not a full web address (starting with https://), so the photo is left out.`,
+        `${where} is a photo spot. After pasting, replace the Insert photo here box with the photo in TroopTrack, then use Finish photos.`,
       );
     } else if (/^http:\/\//i.test(src)) {
       out.push(
