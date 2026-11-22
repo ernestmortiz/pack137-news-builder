@@ -157,6 +157,19 @@ describe('image-no-alt', () => {
   });
 });
 
+describe('image-alt', () => {
+  const img = (alt: string) => linkList({ image: { src: 'https://x.org/a.png', alt } });
+  it('adds one warning per alt text problem', () => {
+    expect(codes(img('Photo of scouts'))).toEqual(['image-alt']);
+    expect(codes(img('IMG_1234.jpg'))).toEqual(['image-alt']);
+    expect(codes(img('Photo of ' + 'a'.repeat(130)))).toEqual(['image-alt', 'image-alt']);
+    expect(codes(img(''))).toEqual(['image-no-alt']);
+  });
+  it('ignores images the renderer drops', () => {
+    expect(codes(linkList({ image: { src: 'bad', alt: 'Photo of x' } }))).toEqual([]);
+  });
+});
+
 describe('messages', () => {
   it('are plain sentences with no em dash or jargon', () => {
     const all = [

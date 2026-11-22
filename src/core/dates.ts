@@ -65,6 +65,52 @@ export function formatRange(start: CalendarDate, end: CalendarDate): string {
   return `${formatDate(start)} to ${formatDate(end)}`;
 }
 
+/** A time of day, 24-hour, as typed in the monthly letter's Coming up items. */
+export interface TimeOfDay {
+  /** 0 to 23 */
+  hour: number;
+  /** 0 to 59 */
+  minute: number;
+}
+
+/** A month of a year, as on the monthly letter's masthead. */
+export interface MonthOfYear {
+  year: number;
+  /** 1 to 12 */
+  month: number;
+}
+
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
+/** `9:15 am`, `12:15 pm` (spec 6, Formats). */
+export function formatTime(t: TimeOfDay): string {
+  const hour12 = t.hour % 12 === 0 ? 12 : t.hour % 12;
+  return `${hour12}:${String(t.minute).padStart(2, '0')} ${t.hour < 12 ? 'am' : 'pm'}`;
+}
+
+/** `Sun Dec 6, 8:00 pm`, or `Sun Dec 6` with no time (spec 8.2). */
+export function formatDateTime(d: CalendarDate, t?: TimeOfDay): string {
+  return t === undefined ? formatDate(d) : `${formatDate(d)}, ${formatTime(t)}`;
+}
+
+/** `November 2026` */
+export function formatMonthYear(m: MonthOfYear): string {
+  return `${MONTH_NAMES[m.month - 1] ?? ''} ${m.year}`;
+}
+
 /** Today's date on this device, read once by the caller and passed in so tests can fix the clock. */
 export function todayFrom(now: Date): CalendarDate {
   return { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() };

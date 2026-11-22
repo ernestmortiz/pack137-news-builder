@@ -35,7 +35,7 @@ export function itemsAt<T extends { path: FieldPath }>(items: readonly T[], path
 
 /** The field a form warning belongs beside, when that is clear from the warning alone. */
 export function warningPath(warning: FormWarning): FieldPath | undefined {
-  if (warning.code === 'image-no-alt') return ['image', 'alt'];
+  if (warning.code === 'image-no-alt' || warning.code === 'image-alt') return ['image', 'alt'];
   if (warning.code === 'button-no-link') {
     if (warning.where === 'Help button') return ['ask', 'button'];
     if (warning.where === 'Second button') return ['secondary'];
@@ -231,4 +231,21 @@ export function remapAfterRemove<T extends { path: FieldPath }>(
     kept.push(item);
   }
   return kept;
+}
+
+/* ---------- reordering ---------- */
+
+/** Moves the entry at `from` to `to`, shifting the ones between. False when either place is outside the list. */
+export function moveItem<T>(list: T[], from: number, to: number): boolean {
+  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return false;
+  const [item] = list.splice(from, 1);
+  list.splice(to, 0, item as T);
+  return true;
+}
+
+/** Takes the entry at `index` out of the list. False when there is none there. */
+export function removeAt<T>(list: T[], index: number): boolean {
+  if (index < 0 || index >= list.length) return false;
+  list.splice(index, 1);
+  return true;
 }

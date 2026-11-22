@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatDate,
+  formatDateTime,
+  formatMonthYear,
   formatRange,
+  formatTime,
   inferYear,
   matchLeadingDate,
   type CalendarDate,
@@ -116,5 +119,29 @@ describe('matchLeadingDate', () => {
 
   it('ignores leading whitespace', () => {
     expect(match('  Dec 6')?.start.day).toBe(6);
+  });
+});
+
+describe('formatTime, formatDateTime and formatMonthYear (monthly letter, spec 6 and 8.2)', () => {
+  it('formats times as "9:15 am" and "12:15 pm"', () => {
+    expect(formatTime({ hour: 9, minute: 15 })).toBe('9:15 am');
+    expect(formatTime({ hour: 12, minute: 15 })).toBe('12:15 pm');
+    expect(formatTime({ hour: 0, minute: 5 })).toBe('12:05 am');
+    expect(formatTime({ hour: 20, minute: 0 })).toBe('8:00 pm');
+  });
+
+  it('formats a date with a time as "Sun Dec 6, 8:00 pm"', () => {
+    expect(formatDateTime({ year: 2026, month: 12, day: 6 }, { hour: 20, minute: 0 })).toBe(
+      'Sun Dec 6, 8:00 pm',
+    );
+  });
+
+  it('formats a date with no time as the plain date', () => {
+    expect(formatDateTime({ year: 2026, month: 12, day: 6 })).toBe('Sun Dec 6');
+  });
+
+  it('formats a month and year as "November 2026"', () => {
+    expect(formatMonthYear({ year: 2026, month: 11 })).toBe('November 2026');
+    expect(formatMonthYear({ year: 2027, month: 1 })).toBe('January 2027');
   });
 });

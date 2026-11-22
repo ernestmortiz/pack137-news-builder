@@ -8,7 +8,7 @@ import type { FormWarning } from '../core/form-warnings';
 import type { ButtonField, RichText } from '../core/forms';
 import { richToText, textToRich } from '../core/rich-text';
 import { clear, el, uid } from './dom';
-import { itemsFor, mailtoDetails, type MailLine, samePath, warningPath } from './paths';
+import { itemsFor, mailtoDetails, type MailLine, moveItem, samePath, warningPath } from './paths';
 
 export interface FormContext {
   checks(): CheckMe[];
@@ -52,6 +52,12 @@ interface RepeaterOptions<T> {
   body(item: T, index: number, path: FieldPath): Node[];
   addLabel: string;
   compact?: boolean;
+  /** Plain words shown after the entry's number, such as "Contributor". */
+  describe?(item: T): string;
+  /** Other kinds of entry that can be added, each with its own button. */
+  extraAdds?: { label: string; create(): T }[];
+  /** A control shown just above the add button (for example a block-type picker). */
+  beforeAdd?: HTMLElement;
 }
 
 /** "Label (the small tag at the top)" becomes "Label". */
@@ -283,14 +289,17 @@ export function createKit(ctx: FormContext) {
     path: FieldPath,
     get: () => string,
     set: (value: string) => void,
-    options: { hint?: string; url?: boolean; placeholder?: string } = {},
+    options: { hint?: string; url?: boolean; placeholder?: string; rows?: number } = {},
   ): HTMLElement {
-    const input = el('input', { type: 'text', id: uid('f'), className: 'control' });
+    const input: HTMLInputElement | HTMLTextAreaElement =
+      options.rows !== undefined
+        ? el('textarea', { id: uid('f'), className: 'control', rows: options.rows })
+        : el('input', { type: 'text', id: uid('f'), className: 'control' });
     input.value = get();
     if (options.placeholder !== undefined) input.placeholder = options.placeholder;
     const extras: HTMLElement[] = [];
     let showMailNow = (): void => {};
-    if (options.url === true) {
+    if (options.url === true && input instanceof HTMLInputElement) {
       input.inputMode = 'url';
       input.autocapitalize = 'none';
       input.spellcheck = false;
@@ -436,26 +445,28 @@ export function createKit(ctx: FormContext) {
       o.items.forEach((item, i) => {
         const titleId = uid('title');
         const n = i + 1;
+        const described = o.describe ? o.describe(item) : '';
+        const name = described === '' ? `${noun} ${n}` : `${noun} ${n}, ${described}`;
         const up = el('button', {
           type: 'button',
           className: 'btn small',
           textContent: 'Move up',
           disabled: i === 0,
         });
-        up.setAttribute('aria-label', `Move up: ${noun} ${n}`);
+        up.setAttribute('aria-label', `Move up: ${name}`);
         const down = el('button', {
           type: 'button',
           className: 'btn small',
           textContent: 'Move down',
           disabled: i === o.items.length - 1,
         });
-        down.setAttribute('aria-label', `Move down: ${noun} ${n}`);
+        down.setAttribute('aria-label', `Move down: ${name}`);
         const remove = el('button', {
           type: 'button',
           className: 'btn small danger',
           textContent: 'Remove',
         });
-        remove.setAttribute('aria-label', `Remove ${noun} ${n}`);
+        remove.setAttribute('aria-label', `Remove ${name}`);
         up.dataset.act = 'up';
         down.dataset.act = 'down';
 
@@ -463,8 +474,7 @@ export function createKit(ctx: FormContext) {
           const other = o.items[to];
           if (other === undefined) return;
           ctx.begin();
-          o.items[to] = item;
-          o.items[i] = other;
+          moveItem(o.items, i, to);
           ctx.swapped(o.arrayPath, Math.min(i, to), Math.max(i, to));
           ctx.step(`moved a ${noun} ${to > i ? 'down' : 'up'}`);
           build(() => {
@@ -494,7 +504,10 @@ export function createKit(ctx: FormContext) {
               el('p', {
                 className: 'repeat-title',
                 id: titleId,
-                textContent: `${sentenceCase(noun)} ${n}`,
+                textContent:
+                  described === ''
+                    ? `${sentenceCase(noun)} ${n}`
+                    : `${sentenceCase(noun)} ${n}: ${described}`,
               }),
               el('div', { className: 'repeat-actions' }, [up, down, remove]),
             ]),
@@ -505,26 +518,32 @@ export function createKit(ctx: FormContext) {
         li?.setAttribute('role', 'group');
         li?.setAttribute('aria-labelledby', titleId);
       });
-      const add = el('button', {
-        type: 'button',
-        className: 'btn add-button',
-        textContent: o.addLabel,
-      });
-      add.addEventListener('click', () => {
-        ctx.begin();
-        o.items.push(o.create());
-        ctx.step(`added a ${noun}`);
-        build(() => {
-          const last = root.querySelector('.repeat-list')?.lastElementChild;
-          return last ? firstControl(last) : null;
+      const adds = [{ label: o.addLabel, create: o.create }, ...(o.extraAdds ?? [])];
+      const addButtons = adds.map((a, k) => {
+        const add = el('button', {
+          type: 'button',
+          className: 'btn add-button',
+          textContent: a.label,
         });
+        if (k > 0) add.dataset.extra = 'true';
+        add.addEventListener('click', () => {
+          ctx.begin();
+          o.items.push(a.create());
+          ctx.step(`added a ${noun}`);
+          build(() => {
+            const last = root.querySelector('.repeat-list')?.lastElementChild;
+            return last ? firstControl(last) : null;
+          });
+        });
+        return add;
       });
       if (o.items.length === 0) {
         root.append(el('p', { className: 'hint', textContent: `No ${noun}s yet.` }));
       } else {
         root.append(list);
       }
-      root.append(add);
+      if (o.beforeAdd) root.append(o.beforeAdd);
+      root.append(el('div', { className: 'add-row' }, addButtons));
       refreshSuggestions();
       after?.()?.focus();
     }

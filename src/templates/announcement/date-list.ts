@@ -40,9 +40,9 @@ function quietSection(section: DateSection, rows: DateRow[]): string {
     'lavender',
     lines(
       named &&
-        `<div style="color:${color.navy};font-size:17px;font-weight:700;">${esc(section.name)}</div>`,
+        `<p style="margin:0;color:${color.navy};font-size:17px;font-weight:700;">${esc(section.name)}</p>`,
       hasSubtitle &&
-        `<div style="font-size:13px;color:${color.ink};padding-top:2px;">${esc(section.subtitle)}</div>`,
+        `<p style="margin:2px 0 0 0;font-size:13px;color:${color.ink};">${esc(section.subtitle)}</p>`,
       rowsTable(rows, { onPanel: true, separator: 'white', firstBorder: false }),
     ),
   );

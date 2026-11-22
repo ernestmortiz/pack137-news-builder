@@ -236,7 +236,7 @@ describe('render: time limits on text typed into a form field', () => {
     };
     const { result, elapsed } = timed(() => renderAnnouncement(form));
     expect(elapsed).toBeLessThan(budget(LIMIT));
-    expect(result).toContain(SPACES + 'x, y</div>');
+    expect(result).toContain(SPACES + 'x, y</p>');
   });
 
   it('renders 500 KB of spaces in every kind of field (N1a)', () => {

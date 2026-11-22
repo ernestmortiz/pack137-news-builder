@@ -27,4 +27,4 @@ The full brief is `docs/build-spec.md`. Read it before writing code. This file r
 
 ## Status
 
-Phases 0 to 2 are complete and merged. Phase 3 (converter UI) is built and awaiting the owner's hands-on testing with real announcements. Next: Phase 4, monthly letter editor.
+Phases 0 to 3 are complete and merged. Phase 4 (monthly letter editor) is built and awaiting the owner's review. Next: Phase 5, drafts and settings.

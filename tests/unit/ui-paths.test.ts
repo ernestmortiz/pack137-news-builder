@@ -53,6 +53,10 @@ describe('path matching', () => {
       'image',
       'alt',
     ]);
+    expect(warningPath({ code: 'image-alt', where: 'Image', message: '' })).toEqual([
+      'image',
+      'alt',
+    ]);
     expect(warningPath({ code: 'button-no-link', where: 'Help button', message: '' })).toEqual([
       'ask',
       'button',

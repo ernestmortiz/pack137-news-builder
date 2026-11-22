@@ -4,7 +4,6 @@
  * form reach the page, and every string is set with textContent or .value.
  */
 import { packConfig } from '../config/pack.config';
-import { previewWidths } from '../config/tokens';
 import { todayFrom } from '../core/dates';
 import {
   applySuggestion,
@@ -26,9 +25,10 @@ import { clear, debounce, el } from './dom';
 import { buildForm, type FormView } from './form-view';
 import type { FormContext, TypingEdit } from './form-kit';
 import { createHistory } from './history';
+import { changeBytes, textAfter, textBefore, toChange, type TypingChange } from './typing';
 import { buildGuide } from './guide';
 import { capIssues, remapAfterRemove, remapAfterSwap } from './paths';
-import { previewDocument } from './preview';
+import { createPreviewFrames } from './preview-frames';
 
 /** Largest paste accepted, in bytes (ADR 0004 UI 5). */
 export const MAX_PASTE_BYTES = 2 * 1024 * 1024;
@@ -40,12 +40,6 @@ const LAYOUTS: { id: Layout; name: string; use: string }[] = [
   { id: 'date-list', name: 'Date list', use: 'Events by date' },
   { id: 'help-wanted', name: 'Help wanted', use: 'Volunteer asks' },
 ];
-
-const PREVIEW_NAMES: Record<number, string> = {
-  250: 'Small phone, with TroopTrack around it',
-  375: 'Phone',
-  600: 'Desktop',
-};
 
 interface Session {
   form: AnnouncementForm;
@@ -61,7 +55,7 @@ interface Snapshot {
 }
 
 /** One typed change in one field, with the caret either side. */
-interface TypingPatch extends Omit<TypingEdit, 'label'> {
+interface TypingPatch extends TypingChange {
   layout: Layout;
 }
 
@@ -79,7 +73,7 @@ export function mountConverter(root: HTMLElement): void {
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
   /** The text of the paste box as of the last time the form was filled from it. */
   let committedPaste = '';
-  const history = createHistory<Snapshot, TypingPatch>();
+  const history = createHistory<Snapshot, TypingPatch>({ patchBytes: changeBytes });
   let pendingBefore: Snapshot | null = null;
 
   function capture(): Snapshot {
@@ -182,24 +176,7 @@ export function mountConverter(root: HTMLElement): void {
     codeArea,
   ]);
 
-  const frames = previewWidths.map((width) => {
-    const frame = el('iframe', { className: 'preview-frame', width: String(width), height: '640' });
-    // An empty sandbox attribute turns every permission off: no scripts, no same origin.
-    frame.setAttribute('sandbox', '');
-    frame.title = `Preview, ${width} pixels wide`;
-    frame.setAttribute('loading', 'eager');
-    const scroll = el('div', { className: 'frame-scroll' }, [frame]);
-    scroll.tabIndex = 0;
-    scroll.setAttribute('role', 'region');
-    scroll.setAttribute('aria-label', `Preview at ${width} pixels wide`);
-    const figure = el('figure', { className: 'preview' }, [
-      el('figcaption', {
-        textContent: `${PREVIEW_NAMES[width] ?? 'Preview'}: ${width}px wide`,
-      }),
-      scroll,
-    ]);
-    return { frame, figure };
-  });
+  const frames = createPreviewFrames();
 
   const right = el('div', { className: 'column output' }, [
     el('section', { className: 'card' }, [
@@ -216,7 +193,7 @@ export function mountConverter(root: HTMLElement): void {
         textContent:
           'Pictures show as grey boxes here. They appear normally once the email is sent.',
       }),
-      ...frames.map((f) => f.figure),
+      ...frames.figures,
     ]),
   ]);
 
@@ -284,8 +261,7 @@ export function mountConverter(root: HTMLElement): void {
     );
     codeArea.value = html;
     // The preview works on a copy of the output. The code and the copy button keep the original.
-    const doc = previewDocument(html);
-    for (const f of frames) f.frame.srcdoc = doc;
+    frames.show(html);
   }
   const refreshLater = debounce(refreshOutput, 150);
 
@@ -297,7 +273,7 @@ export function mountConverter(root: HTMLElement): void {
     typed(edit: TypingEdit) {
       if (!layout) return;
       const { label, ...patch } = edit;
-      history.recordPatch({ ...patch, layout }, label);
+      history.recordPatch({ ...toChange(patch), layout }, label);
       refreshLater.run();
       updateHistoryBar();
     },
@@ -433,7 +409,7 @@ export function mountConverter(root: HTMLElement): void {
     clear(layoutBox);
     clear(issuesBox);
     codeArea.value = '';
-    for (const f of frames) f.frame.srcdoc = '';
+    frames.clear();
   }
 
   function handlePaste(): void {
@@ -612,9 +588,14 @@ export function mountConverter(root: HTMLElement): void {
       restore(move.state);
     } else {
       const patch = move.patch;
-      const text = move.direction === 'undo' ? patch.before : patch.after;
+      const field = view?.fieldControl(patch.path);
+      const now =
+        field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement
+          ? field.value
+          : '';
+      const text = move.direction === 'undo' ? textBefore(now, patch) : textAfter(now, patch);
       const sel = move.direction === 'undo' ? patch.selBefore : patch.selAfter;
-      if (view?.setField(patch.path, text, sel)) {
+      if (field && view?.setField(patch.path, text, sel)) {
         target = view.fieldControl(patch.path);
         refreshLater.run();
       }

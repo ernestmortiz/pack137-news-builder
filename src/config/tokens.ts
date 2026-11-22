@@ -9,8 +9,6 @@ export const color = {
   greyPage: '#EEF1F6',
   ink: '#1B1F2E',
   muted: '#5B6275',
-  /** Approved by the owner 2026-11-21 for the monthly photo wrappers. Only 3.17:1 on white: never use it for real text. */
-  mutedLight: '#8A90A6',
   white: '#FFFFFF',
 } as const;
 

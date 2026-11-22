@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Monthly Letter Editor (Phase 4): every Pack 137 Stories section in order, optional sections that switch off, story blocks (contributor, photo, stat band, sidebar box) that can be added, removed and reordered, dated Coming up and On the horizon items, a live read time ("About a 10 minute read.", words divided by 230), preview at three widths, copy, warnings for empty required sections, and its own undo and redo.
+- The November 2026 issue, rebuilt from a draft, matches the corrected reference in text, links and section order, and none of the November defects come back.
+- Every email pattern, weekly and monthly, now holds up in Outlook for Windows. The monthly letter keeps the Outlook-only font block from the November issue.
+- Alt text follows accessibility best practice: warnings for missing, "Photo of", file-name, caption-repeating or over-long descriptions, and alt text shown in place of a blocked image meets 4.5:1. #8A90A6 is no longer a token.
+- Undo history stores only each change, with a 50 MB budget.
 - Announcement Converter screen (Phase 3): paste the old HTML, get a suggested layout and a filled-in form, fix anything marked "Check me", see a live preview at 250, 375 and 600px, and copy the new HTML. Previews never load images from the web.
 - Smart helpers: dates with weekday and assumed year, Rescheduled for struck dates, Virtual, In person, TBD and Please RSVP tags, all-caps text turned into a note, "Contact: name", site names removed from link titles, warnings for TroopTrack /manage/ links and services mentioned with no link.
 - One-tap suggestions, refreshed after every edit: "&" to "and", "On going" to "Ongoing", doubled spaces, and sentence case for headings and buttons. Pack names that keep their capitals are listed in pack.config.ts.

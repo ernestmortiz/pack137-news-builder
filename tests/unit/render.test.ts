@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { color } from '../../src/config/tokens';
+import { color, fontStack } from '../../src/config/tokens';
 import type {
   AnnouncementForm,
   CallToActionForm,
@@ -24,6 +24,10 @@ function render(form: AnnouncementForm): string {
   expect(lintOutput(html)).toEqual([]);
   return html;
 }
+
+/** The card title is a <p> too (Outlook fix D1); drop it before counting or checking body paragraphs. */
+const withoutTitle = (html: string): string =>
+  html.replace(/<p style="margin:8px 0 0 0;color:#FFFFFF;[^>]*>[^<]*<\/p>/, '');
 
 const t = (text: string, extra: Partial<TextRun> = {}): TextRun => ({
   kind: 'text',
@@ -104,7 +108,7 @@ describe('escaping', () => {
         paragraphs: [rt("Tom & Jerry's <script>alert(1)</script>")],
       }),
     );
-    expect(html).toContain('A &amp; B &lt;i&gt;');
+    expect(html).toContain('A&nbsp;&amp;&nbsp;B&nbsp;&lt;i&gt;');
     expect(html).toContain("What's &lt;b&gt;up&lt;/b&gt;");
     expect(html).toContain("Tom &amp; Jerry's &lt;script&gt;alert(1)&lt;/script&gt;");
     expect(html).not.toContain('<script');
@@ -161,6 +165,10 @@ describe('replacement patterns', () => {
     const nasty = "$& $' $` $1 $$";
     // The ampersand is escaped, everything else must come out untouched.
     const shown = "$&amp; $' $` $1 $$";
+    // Pills and tags write their spaces as &nbsp;, so the same text also appears in that form.
+    const shownNb = shown.replace(/ /g, '&nbsp;');
+    const count = (text: string): number =>
+      text.split(shown).length - 1 + (text.split(shownNb).length - 1);
     const html = render(
       dateList(
         section({
@@ -171,9 +179,9 @@ describe('replacement patterns', () => {
         }),
       ),
     );
-    expect(html.split(shown).length - 1).toBeGreaterThanOrEqual(4);
+    expect(count(html)).toBeGreaterThanOrEqual(4);
     const card = render(message({ label: nasty, title: nasty, paragraphs: [rt(nasty)] }));
-    expect(card.split(shown).length - 1).toBe(3);
+    expect(count(card)).toBe(3);
     const link = render(
       linkList({
         intro: rt(nasty),
@@ -183,10 +191,10 @@ describe('replacement patterns', () => {
     );
     expect(link).toContain('href="https://example.org/$&amp;"');
     expect(link).toContain('src="https://example.org/$1.png"');
-    expect(link.split(shown).length - 1).toBe(3);
+    expect(count(link)).toBe(3);
     expect(link).toContain('alt="$&amp; $&#39; $` $1 $$"');
     const helpHtml = render(help({ ask: { ...help().ask, title: nasty, badge: nasty } }));
-    expect(helpHtml.split(shown).length - 1).toBe(2);
+    expect(count(helpHtml)).toBe(2);
   });
 });
 
@@ -345,11 +353,12 @@ describe('URL rule', () => {
   it('writes an image with the required attributes', () => {
     const html = render(linkList({ image: { src: 'https://x.org/a.png', alt: 'Scouts' } }));
     expect(html).toContain(
-      '<img src="https://x.org/a.png" width="80" alt="Scouts" style="display:block;width:80px;max-width:100%;height:auto;border:0;margin:0 0 12px 0;">',
+      '<img src="https://x.org/a.png" width="80" alt="Scouts" style="display:block;width:80px;max-width:100%;height:auto;border:0;">',
     );
+    expect(html).toContain('<td style="padding:0 0 12px 0;">');
     const img = html.indexOf('<img');
     expect(img).toBeGreaterThan(-1);
-    expect(img).toBeLessThan(html.indexOf('<p style'));
+    expect(img).toBeLessThan(html.indexOf('Read these.'));
   });
 
   it('does not use a mailto URL as an image source', () => {
@@ -368,7 +377,7 @@ describe('em dashes', () => {
       }),
     );
     expect(html).not.toContain(EM);
-    expect(html).toContain('A, B');
+    expect(html).toContain('A,&nbsp;B');
     expect(html).toContain('Title, more');
     expect(html).toContain('One, two, three');
   });
@@ -449,7 +458,7 @@ describe('card shell', () => {
   it('uses the approved shell and omits an empty label and title', () => {
     const html = render(message());
     expect(html).toContain(
-      'style="max-width:600px;margin:0 auto;border-collapse:separate;background-color:#FFFFFF;border:1px solid #E3E6F5;border-radius:12px;font-family:Inter,Arial,Helvetica,sans-serif;"',
+      'align="center" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="max-width:600px;margin:0 auto;border-collapse:separate;background-color:#FFFFFF;border:1px solid #E3E6F5;border-radius:12px;font-family:Inter,Arial,Helvetica,sans-serif;"',
     );
     const bare = render(message({ label: ' ', title: '' }));
     expect(bare).not.toContain('letter-spacing');
@@ -486,7 +495,7 @@ describe('Message layout', () => {
 
   it('skips empty paragraphs and renders an empty form', () => {
     const html = render(message({ paragraphs: [rt('One'), [], rt('  ')] }));
-    expect(html.match(/<p /g)).toHaveLength(1);
+    expect(withoutTitle(html).match(/<p /g)).toHaveLength(1);
     render(message({ paragraphs: [] }));
   });
 });
@@ -496,13 +505,13 @@ describe('Call to action layout', () => {
     const html = render(cta());
     expect(html).toContain('<p style="margin:0 0 16px 0;">Please sign up.</p>');
     expect(html).toContain(
-      `<a href="https://example.org/signup" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:13px 22px;color:${color.white};font-size:16px;font-weight:700;line-height:18px;text-decoration:none;border-radius:8px;">Sign up</a>`,
+      `<a href="https://example.org/signup" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:13px 22px;font-family:${fontStack};color:${color.white};font-size:16px;font-weight:700;line-height:18px;text-decoration:none;border-radius:8px;">Sign up</a>`,
     );
   });
 
   it('works with an empty paragraph and with no usable button', () => {
     const html = render(cta({ paragraph: [], button: { text: 'Go', url: '' } }));
-    expect(html).not.toContain('<p ');
+    expect(withoutTitle(html)).not.toContain('<p ');
     expect(html).not.toContain('<a ');
     expect(render(cta({ button: { text: '', url: 'https://x.org/' } }))).not.toContain('<a ');
     expect(render(cta({ button: { text: 'Go', url: '' } }))).toContain('<p style="margin:0;">');
@@ -522,21 +531,21 @@ describe('Link list layout', () => {
     );
     expect(html).toContain('<p style="margin:0 0 6px 0;">Read these.</p>');
     expect(html).toContain(
-      `<div style="font-size:13px;color:${color.ink};padding-top:2px;">Note one</div>`,
+      `<p style="margin:2px 0 0 0;font-size:13px;color:${color.ink};">Note one</p>`,
     );
     expect(html.match(/border-top:1px solid #E3E6F5;/g)).toHaveLength(1);
-    expect(html.match(/padding-top:2px/g)).toHaveLength(1);
+    expect(html.match(/margin:2px 0 0 0;/g)).toHaveLength(1);
   });
 
   it('works with no image, empty intro, no items and empty notes', () => {
     const html = render(linkList({ intro: [], items: [], image: undefined }));
     expect(html).not.toContain('<img');
-    expect(html).not.toContain('<p ');
+    expect(withoutTitle(html)).not.toContain('<p ');
     expect(html).not.toContain('<td style="padding:10px 0;');
     const noNotes = render(
       linkList({ items: [{ text: 'One', url: 'https://x.org/1', note: '' }] }),
     );
-    expect(noNotes).not.toContain('padding-top:2px');
+    expect(noNotes).not.toContain('margin:2px 0 0 0;');
   });
 
   it('drops items with empty text', () => {
@@ -568,16 +577,16 @@ describe('Date list layout', () => {
         }),
       ),
     );
-    expect(html).toContain('>Sat Feb 27 to Sun Feb 28</div>');
-    expect(html).toContain('><s>Tue Nov 24</s></div>');
-    expect(html).toContain('>Sat Nov 21</div>');
+    expect(html).toContain('>Sat Feb 27 to Sun Feb 28</p>');
+    expect(html).toContain('><s>Tue Nov 24</s></p>');
+    expect(html).toContain('>Sat Nov 21</p>');
     expect(html).not.toContain('Nov 21 to');
   });
 
   it('plain section with a name: heading and a border on every row', () => {
     const html = render(dateList(section({ rows: [row(), row()] })));
     expect(html).toContain(
-      `<div style="color:${color.navy};font-size:17px;font-weight:700;padding:20px 0 4px 0;">Soon</div>`,
+      `<p style="margin:20px 0 4px 0;color:${color.navy};font-size:17px;font-weight:700;">Soon</p>`,
     );
     expect(html.match(/padding:10px 0;border-top:1px solid #E3E6F5;/g)).toHaveLength(2);
   });
@@ -586,7 +595,7 @@ describe('Date list layout', () => {
     const html = render(dateList(section({ name: '', rows: [row(), row()] })));
     expect(html).not.toContain('font-size:17px');
     expect(html.match(/padding:10px 0;border-top:1px solid #E3E6F5;/g)).toHaveLength(1);
-    expect(html.match(/padding:10px 0;">/g)).toHaveLength(1);
+    expect(html.match(/<td style="padding:10px 0;font-family/g)).toHaveLength(1);
   });
 
   it('highlight panel with a name uses a strong pill and white row borders', () => {
@@ -595,21 +604,22 @@ describe('Date list layout', () => {
     );
     expect(html).toContain(`background-color:${color.goldPale};border-radius:12px;padding:14px;`);
     expect(html).toContain(
-      `background-color:${color.navy};color:${color.goldLight};font-size:11px;font-weight:700;letter-spacing:1px;`,
+      `background-color:${color.navy};color:${color.goldLight};font-family:${fontStack};font-size:11px;font-weight:700;letter-spacing:1px;`,
     );
     expect(html.match(/border-top:1px solid #FFFFFF;/g)).toHaveLength(1);
   });
 
   it('highlight panel with no name and one row shows the row straight in the panel', () => {
     const html = render(dateList(section({ style: 'highlight', name: '', rows: [row()] })));
-    expect(html.match(/<table /g)).toHaveLength(2);
+    // The card, the label pill and the panel.
+    expect(html.match(/<table /g)).toHaveLength(3);
     expect(html).not.toContain(
       'letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:8px;">Now',
     );
     const noName = render(
       dateList(section({ style: 'highlight', name: '', rows: [row(), row()] })),
     );
-    expect(noName.match(/<table /g)).toHaveLength(3);
+    expect(noName.match(/<table /g)).toHaveLength(4);
   });
 
   it('quiet panel: heading, subtitle, white tags and a spacer after other content', () => {
@@ -631,12 +641,14 @@ describe('Date list layout', () => {
         }),
       ),
     );
-    expect(html).toContain('<div style="height:20px;line-height:20px;font-size:1px;">&nbsp;</div>');
     expect(html).toContain(
-      `<div style="color:${color.navy};font-size:17px;font-weight:700;">Save the date</div>`,
+      '<div style="height:20px;line-height:20px;font-size:1px;mso-line-height-rule:exactly;">&nbsp;</div>',
     );
     expect(html).toContain(
-      `<div style="font-size:13px;color:${color.ink};padding-top:2px;">Details to come.</div>`,
+      `<p style="margin:0;color:${color.navy};font-size:17px;font-weight:700;">Save the date</p>`,
+    );
+    expect(html).toContain(
+      `<p style="margin:2px 0 0 0;font-size:13px;color:${color.ink};">Details to come.</p>`,
     );
     expect(html).toContain(`background-color:${color.white};color:${color.navy};font-size:11px`);
     expect(html).toContain(
@@ -648,7 +660,7 @@ describe('Date list layout', () => {
     const html = render(dateList(section({ style: 'quiet', name: '', subtitle: '' })));
     expect(html).not.toContain('height:20px');
     expect(html).not.toContain('font-size:17px');
-    expect(html).not.toContain('padding-top:2px');
+    expect(html).not.toContain('margin:2px 0 0 0');
   });
 
   it('tags on a white card use lavender for quiet tags', () => {
@@ -665,15 +677,15 @@ describe('Date list layout', () => {
     );
     expect(html).toContain(`style="${linkStyle}font-size:16px;">Meeting</a>`);
     expect(html).toContain(
-      `<div style="font-size:13px;color:${color.ink};padding-top:2px;">Contact: Pat</div>`,
+      `<p style="margin:2px 0 0 0;font-size:13px;color:${color.ink};">Contact: Pat</p>`,
     );
-    expect(html).not.toContain('padding-bottom:2px');
+    expect(html).not.toContain('margin:0 0 2px 0');
   });
 
   it('a date row note is a 14px line, and empty notes leave nothing', () => {
     const withNote = render(dateList(section({ rows: [row({ note: rt('Bring a pen') })] })));
     expect(withNote).toContain(
-      `<div style="font-size:14px;color:${color.ink};padding-top:4px;">Bring a pen</div>`,
+      `<p style="margin:4px 0 0 0;font-size:14px;color:${color.ink};">Bring a pen</p>`,
     );
     const none = render(dateList(section({ rows: [row({ note: [t('  ')] })] })));
     expect(none).not.toContain('font-size:14px');
@@ -690,7 +702,7 @@ describe('Date list layout', () => {
     );
     expect(html).not.toContain('Empty');
     expect(html).not.toContain('height:20px');
-    expect(html).toContain('>Full</div>');
+    expect(html).toContain('>Full</p>');
     const none = render(dateList());
     expect(none).not.toContain('padding:10px 0');
   });
@@ -705,9 +717,9 @@ describe('Help wanted layout', () => {
   it('renders every part with the ADR 0005 margins', () => {
     const html = render(help());
     expect(html).toContain('<p style="margin:0 0 14px 0;">Thank you.</p>');
-    expect(html).toContain('>Highest need</span>');
+    expect(html).toContain('>Highest&nbsp;need</td>');
     expect(html).toContain(
-      `<div style="color:${color.navy};font-size:18px;font-weight:700;line-height:1.3;padding:10px 0 6px 0;">Ask title</div>`,
+      `<p style="margin:10px 0 6px 0;color:${color.navy};font-size:18px;font-weight:700;line-height:1.3;">Ask title</p>`,
     );
     expect(html).toContain(`<p style="margin:0 0 10px 0;color:${color.ink};">First.</p>`);
     expect(html).toContain(`<p style="margin:0 0 14px 0;color:${color.ink};">Second.</p>`);

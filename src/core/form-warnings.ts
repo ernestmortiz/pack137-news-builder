@@ -5,13 +5,14 @@
  * (`safeUrl`, `safeWebUrl`), the same row rule (`rowIsShown`) and the same text rule as the
  * renderer, so the two cannot drift. Pure: a form in, a list out.
  */
+import { altTextProblems } from './alt-text';
 import { isEmptyRich, rowIsShown, safeUrl, safeWebUrl } from '../templates/components';
 
 export { rowIsShown };
 import type { AnnouncementForm, ButtonField, RichText } from './forms';
 
 export type FormWarningCode =
-  'button-no-link' | 'empty-section' | 'link-not-valid' | 'image-no-alt';
+  'button-no-link' | 'empty-section' | 'link-not-valid' | 'image-no-alt' | 'image-alt';
 
 export interface FormWarning {
   code: FormWarningCode;
@@ -79,13 +80,17 @@ function warningsFor(form: AnnouncementForm): FormWarning[] {
     case 'link-list': {
       const out: FormWarning[] = [];
       const img = form.image;
-      if (img !== undefined && img.alt.trim() === '' && safeWebUrl(img.src) !== null) {
-        out.push({
-          code: 'image-no-alt',
-          where: 'Image',
-          message:
-            'The image has no description, so people using screen readers will not know what it shows.',
-        });
+      if (img !== undefined && safeWebUrl(img.src) !== null) {
+        for (const problem of altTextProblems(img.alt)) {
+          out.push({
+            code: problem.code === 'missing' ? 'image-no-alt' : 'image-alt',
+            where: 'Image',
+            message:
+              problem.code === 'missing'
+                ? 'The image has no description, so people using screen readers will not know what it shows.'
+                : problem.message,
+          });
+        }
       }
       out.push(...richWarnings(form.intro, 'intro'));
       form.items.forEach((item, i) => {
