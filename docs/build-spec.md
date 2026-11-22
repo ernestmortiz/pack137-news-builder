@@ -128,7 +128,7 @@ Revised on 2026-11-22 so every pattern holds up in Outlook for Windows (owner de
 Card shell (every announcement). Spaces in the label are written as `&nbsp;` so it cannot break.
 
 ```html
-<table role="presentation" width="100%" align="center" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="max-width:600px;margin:0 auto;border-collapse:separate;background-color:#FFFFFF;border:1px solid #E3E6F5;border-radius:12px;font-family:Inter,Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" align="center" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="max-width:600px;margin:0 auto;border-collapse:separate;background-color:#FFFFFF;border:1px solid #E3E6F5;border-radius:12px;font-family:Inter,Arial,Helvetica,sans-serif;word-break:break-word;">
   <tr>
     <td bgcolor="#151B4D" style="background-color:#151B4D;border-radius:12px 12px 0 0;padding:14px;font-family:Inter,Arial,Helvetica,sans-serif;">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;"><tr><td bgcolor="#F7A823" style="background-color:#F7A823;color:#151B4D;font-family:Inter,Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;padding:4px 10px;border-radius:8px;">{{label}}</td></tr></table>
@@ -211,7 +211,7 @@ Photo spot (monthly letter; 2026-11-22). Stands where a photo with no usable add
 
 Link inside a paragraph: `color:#151B4D;font-weight:700;text-decoration:underline;`, with `target="_blank" rel="noopener noreferrer"` except on `mailto:`.
 
-Bare web addresses (2026-11-22): when a link's visible text starts with `http://`, `https://` or `www.`, or has no spaces and holds both a dot and a slash, the link style ends with `word-break:break-all;`, so a long address may break anywhere and never widens the card on a narrow screen. Links with ordinary words are unchanged. Outlook for Windows ignores it, which is accepted because its window is wide.
+Bare web addresses (2026-11-22): when a link's visible text starts with `http://`, `https://` or `www.`, or has no spaces and holds both a dot and a slash, the link style ends with `word-break:break-all;`, so a long address may break anywhere and never widens the card on a narrow screen. Links with ordinary words are unchanged. Outlook for Windows ignores it, which is accepted because its window is wide. The card table (every announcement layout and the monthly letter card) also carries `word-break:break-word;` as the last style property, so any long unbroken text, such as an address inside a sentence or a plain-text note, wraps instead of widening the card.
 
 Monthly letter, Outlook rules (2026-11-22): bullet lists indent with a margin on the `ul` (`margin:10px 0 0 22px;padding:0`) and each `li` except the last carries only `margin-bottom`; masthead, sidebar and feedback text use `<p>` margins; the white card table carries `bgcolor`; contributor and Coming up badges are one-cell tables, as in the November issue.
 
@@ -259,6 +259,8 @@ Each helper fills a form field and marks it "check me" when unsure. None blocks 
 - **People.** Text after ` - ` at the end of a link row becomes "Contact: name".
 - **Title cleanup.** Strip a trailing ` | Site Name` from link text.
 - **Small fixes offered, not applied.** `&` to "and", "On going" to "Ongoing", doubled spaces. Shown as one-tap suggestions.
+- **Sentence case offered only for Title Case** (2026-11-22). The suggestion appears only when every ordinary word of 4 or more letters is capitalized ("Take Action Now"). A title that is already sentence case with names ("The First Presbyterian Church is having Scout Sunday") gets no suggestion.
+- **Long links** (2026-11-22). A link whose visible text is its own web address and longer than 30 characters gets a one-tap suggestion to show the site's name instead (`signupgenius.com`), with the full address kept behind the link. Never applied automatically, never for `mailto:`. The site name tells screen reader users and parents where the link goes, unlike "Click here".
 - **Warnings.** Link with no destination. Image with no alt text. Link to a TroopTrack `/manage/` page (parents may not be able to open it). A mention of a service such as SignUpGenius with no link.
 
 ### 7.5 Output panel
