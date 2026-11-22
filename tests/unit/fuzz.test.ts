@@ -524,7 +524,12 @@ function checkDates(
         d.end.month === d.start.month &&
         d.end.day === d.start.day;
       const expected = sameDay ? independentFormat(d.start) : shown;
-      if (isValidDate(d.start) && !html.includes(expected))
+      // The date shows as a navy pill: capitals and non-breaking spaces (owner decision 2026-11-22).
+      const asPill = expected
+        .split(' to ')
+        .map((x) => x.toUpperCase().replace(/ /g, '&nbsp;'))
+        .join(' TO ');
+      if (isValidDate(d.start) && !html.includes(asPill))
         fail(
           'g',
           seed,

@@ -202,6 +202,29 @@ test('screenshots of the three preview frames for fixture 1', async ({ page, con
 const ownerPaste =
   '<div style="font-family: Arial;"><p style="text-align: left;"><span><strong>The&nbsp;</strong></span><span id="isPasted"><strong>First Presbyterian Church is having Scout Sunday on February 8th, 10am-11am.</strong></span></p><p><span id="isPasted">Even if you are are not members of the First Presbyterian Church, you are encouraged to show up as Scouts in full class A uniform for this event.</span></p><p><span>Please RSVP via the TroopTrack event. If you have questions, please contact Ryan Meier.</span></p><p><span>For the Scouts that attend <strong>St. Michael&#39;s Church</strong>, they are also having a Scout Sunday on <strong>February 1st</strong> at the 9am mass. &nbsp;If you are interested, please signup here: <a target="_blank" rel="noopener noreferrer" data-fr-linked="true" href="https://www.signupgenius.com/go/4090F4CAEAE2AA4F58-61725464-stmichael">https://www.signupgenius.com/go/4090F4CAEAE2AA4F58-61725464-stmichael</a>. &nbsp;If you have any questions, please contact Andy through the SignUp Genius Link.</span></p><p><br></p></div>';
 
+test('the pack calendar with date pills does not widen the 250px or 375px preview', async ({
+  page,
+  context,
+}) => {
+  const seen = await watch(context, page);
+  await paste(page, input('1-pack-calendar'));
+  await expect(page.getByRole('radio', { name: /^Date list/ })).toBeChecked();
+  for (const width of [250, 375]) {
+    const body = frame(page, width).locator('body');
+    await expect(body).toContainText('Pinewood Derby');
+    // A date pill, in capitals (owner decision 2026-11-22).
+    await expect(body).toContainText('SAT FEB 27 TO SUN FEB 28');
+    await expect
+      .poll(() =>
+        body.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+      )
+      .toBeLessThanOrEqual(0);
+  }
+  expect(seen.remote).toEqual([]);
+});
+
 for (const layout of ['Message', 'Call to action', 'Date list', 'Help wanted', 'Link list']) {
   test(`a long web address does not widen the 250px or 375px preview: ${layout}`, async ({
     page,

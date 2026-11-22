@@ -4,7 +4,7 @@
  * so user text such as "$&" comes out literally (ADR 0004, Renderer item 3).
  */
 import { color, fontStack, radius, space } from '../config/tokens';
-import { formatDate, formatRange, isValidDate } from '../core/dates';
+import { formatDate, formatRange, isValidDate, type CalendarDate } from '../core/dates';
 import type { ButtonField, DateField, DateRow, ImageField, RichText, Tag } from '../core/forms';
 import { EM_DASH, emDashesToCommas } from '../core/helpers/text';
 
@@ -327,6 +327,43 @@ function eventHtml(row: DateRow): string {
     : anchor(href, EVENT_LINK_STYLE, esc(row.event));
 }
 
+const ymd = (d: CalendarDate): number => d.year * 10000 + d.month * 100 + d.day;
+
+/** The start, and the end when it is a real range (a different day). Null without a usable start. */
+function dateSpan(
+  field: DateField | undefined,
+): { start: CalendarDate; end?: CalendarDate } | null {
+  if (field === undefined || !isValidDate(field.start)) return null;
+  const end = field.end;
+  if (end !== undefined && isValidDate(end) && ymd(end) !== ymd(field.start)) {
+    return { start: field.start, end };
+  }
+  return { start: field.start };
+}
+
+const upperNbsp = (d: CalendarDate): string => nbspText(formatDate(d).toUpperCase());
+
+/**
+ * The date above an event: a navy pill, "SUN FEB 1" (owner decision 2026-11-22, spec 6.1 Date
+ * row). A range reads "SAT JAN 31 TO SUN FEB 1" and may wrap only around "TO"; a struck
+ * (rescheduled) date is crossed out. Null when the row has no usable date.
+ */
+export function dateBlock(field: DateField | undefined): string | null {
+  const span = dateSpan(field);
+  if (span === null) return null;
+  const words =
+    span.end === undefined
+      ? upperNbsp(span.start)
+      : `${upperNbsp(span.start)} TO ${upperNbsp(span.end)}`;
+  const text = field?.struck === true ? `<s>${words}</s>` : words;
+  return (
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;margin:0 0 6px 0;">' +
+    `<tr><td bgcolor="${color.navy}" style="background-color:${color.navy};border-radius:${radius.control}px;padding:3px 10px;` +
+    `font-family:${fontStack};font-size:12px;font-weight:700;letter-spacing:0.5px;color:${color.white};${span.end === undefined ? 'white-space:nowrap;' : ''}">` +
+    `${text}</td></tr></table>`
+  );
+}
+
 /** The lines inside a row cell. A row with a date is a date row; without one, a link row. */
 export function rowBody(row: DateRow, onPanel: boolean): string {
   const tags = row.tags
@@ -334,7 +371,7 @@ export function rowBody(row: DateRow, onPanel: boolean): string {
     .map((t) => ` ${tag(t, onPanel)}`)
     .join('');
   const hasNote = !isEmptyRich(row.note);
-  const date = dateText(row.date);
+  const date = dateBlock(row.date);
   if (date === null) {
     return lines(
       `${eventHtml(row)}${tags}`,
@@ -342,9 +379,8 @@ export function rowBody(row: DateRow, onPanel: boolean): string {
         `<p style="margin:2px 0 0 0;font-size:13px;color:${color.ink};">${richText(row.note)}</p>`,
     );
   }
-  const shown = row.date?.struck === true ? `<s>${esc(date)}</s>` : esc(date);
   return lines(
-    `<p style="margin:0 0 2px 0;font-size:13px;font-weight:700;color:${color.navy};">${shown}</p>`,
+    date,
     `<div>${eventHtml(row)}${tags}</div>`,
     hasNote &&
       `<p style="margin:4px 0 0 0;font-size:14px;color:${color.ink};">${richText(row.note)}</p>`,
@@ -357,7 +393,11 @@ export function rowBody(row: DateRow, onPanel: boolean): string {
  */
 export function rowsTable(
   rows: DateRow[],
-  options: { onPanel: boolean; separator: 'lavender' | 'white'; firstBorder: boolean },
+  options: {
+    onPanel: boolean;
+    separator: 'lavender' | 'white';
+    firstBorder: boolean;
+  },
 ): string {
   const cells = rows.map((row, i) => {
     const border =

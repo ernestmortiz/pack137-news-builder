@@ -578,10 +578,11 @@ describe('Date list layout', () => {
         }),
       ),
     );
-    expect(html).toContain('>Sat Feb 27 to Sun Feb 28</p>');
-    expect(html).toContain('><s>Tue Nov 24</s></p>');
-    expect(html).toContain('>Sat Nov 21</p>');
-    expect(html).not.toContain('Nov 21 to');
+    // Dates are navy pills (owner decision 2026-11-22).
+    expect(html).toContain('>SAT&nbsp;FEB&nbsp;27 TO SUN&nbsp;FEB&nbsp;28</td>');
+    expect(html).toContain('><s>TUE&nbsp;NOV&nbsp;24</s></td>');
+    expect(html).toContain('>SAT&nbsp;NOV&nbsp;21</td>');
+    expect(html).not.toContain('NOV&nbsp;21 TO');
   });
 
   it('plain section with a name: heading and a border on every row', () => {
@@ -612,15 +613,16 @@ describe('Date list layout', () => {
 
   it('highlight panel with no name and one row shows the row straight in the panel', () => {
     const html = render(dateList(section({ style: 'highlight', name: '', rows: [row()] })));
-    // The card, the label pill and the panel.
-    expect(html.match(/<table /g)).toHaveLength(3);
+    // The card, the label pill, the panel and the date pill.
+    expect(html.match(/<table /g)).toHaveLength(4);
     expect(html).not.toContain(
       'letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:8px;">Now',
     );
     const noName = render(
       dateList(section({ style: 'highlight', name: '', rows: [row(), row()] })),
     );
-    expect(noName.match(/<table /g)).toHaveLength(4);
+    // Card, label pill, panel, rows table and two date pills.
+    expect(noName.match(/<table /g)).toHaveLength(6);
   });
 
   it('quiet panel: heading, subtitle, white tags and a spacer after other content', () => {

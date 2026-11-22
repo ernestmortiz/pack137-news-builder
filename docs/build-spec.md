@@ -155,12 +155,22 @@ Primary button (secondary button swaps to `#E3E6F5` in both `bgcolor` and `backg
 </table>
 ```
 
-Date row. Single column, date stacked above the event, so it holds up at 250px wide. First row has no top border; later rows add `border-top:1px solid #E3E6F5` after the padding, or `#FFFFFF` inside a colored panel. A struck-through date wraps the date text in `<s>`. The two-column date row (96px date cell) is retired and must not be emitted.
+Date row (revised 2026-11-22, owner decision). Single column, date stacked above the event, so it holds up at 250px wide. First row has no top border; later rows add `border-top:1px solid #E3E6F5` after the padding, or `#FFFFFF` inside a colored panel. The two-column date row (96px date cell) is retired and must not be emitted.
+
+The date is a navy date pill above the event: a one-cell table, navy `#151B4D` cell with `bgcolor`, white 12px bold capitals with 0.5px letter-spacing, 8px corners, padding `3px 10px`, and `&nbsp;` between the words of each date so a date never breaks. A range reads "SAT FEB 27 TO SUN FEB 28" and may wrap only around " TO ", so a range cell carries no `white-space:nowrap`. A struck (rescheduled) date wraps the text in `<s>`. The pill stays navy on highlight and quiet panels. Link rows have no date and no pill. A calendar tile (month, day number and weekday in a small square) was tried on 2026-11-22 and dropped by the owner: it took too much space.
+
+Pill:
+
+```html
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;margin:0 0 6px 0;"><tr><td bgcolor="#151B4D" style="background-color:#151B4D;border-radius:8px;padding:3px 10px;font-family:Inter,Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.5px;color:#FFFFFF;white-space:nowrap;">{{SUN&nbsp;FEB&nbsp;1}}</td></tr></table>
+```
+
+Row:
 
 ```html
 <tr>
   <td style="padding:10px 0;font-family:Inter,Arial,Helvetica,sans-serif;color:#1B1F2E;font-size:15px;line-height:1.5;">
-    <p style="margin:0 0 2px 0;font-size:13px;font-weight:700;color:#151B4D;">{{date}}</p>
+    {{date pill}}
     <div><a href="{{url}}" target="_blank" rel="noopener noreferrer" style="color:#151B4D;font-weight:700;text-decoration:underline;font-size:16px;">{{event}}</a> {{tags}}</div>
     <p style="margin:4px 0 0 0;font-size:14px;color:#1B1F2E;">{{note}}</p>
   </td>
