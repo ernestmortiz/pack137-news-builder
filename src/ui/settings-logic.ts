@@ -3,8 +3,9 @@ import type { MonthOfYear } from '../core/dates';
 import { formatMonthYear } from '../core/dates';
 import type { DraftFile } from '../core/draft';
 import { emptyLetter } from '../core/letter';
+import type { LetterForm } from '../core/letter';
 import type { PackSettings, SettingsProblem, StandingLink } from '../core/settings';
-import { mailtoSummary } from './paths';
+import { mailtoDetails, mailtoSummary, type MailLine } from './paths';
 
 export const MONTH_NAMES = [
   'January',
@@ -20,8 +21,6 @@ export const MONTH_NAMES = [
   'November',
   'December',
 ] as const;
-
-export const MAX_STANDING_LINKS = 12;
 
 /** The month after `m`, rolling over the year. */
 export function monthAfter(m: MonthOfYear): MonthOfYear {
@@ -88,8 +87,36 @@ export function otherProblems(problems: readonly SettingsProblem[]): string[] {
 /** The full link each email setting produces in the letter (ADR 0004 UI 4). */
 export function emailLinks(
   settings: PackSettings,
+  letterFeedback?: FeedbackText,
 ): { key: 'contact' | 'volunteer' | 'feedback'; text: string }[] {
-  const feedback = emptyLetter({ year: 2000, month: 1 }, settings).feedback;
+  return mailLinkValues(settings, letterFeedback).map(({ key, link }) => ({
+    key,
+    text: mailtoSummary(link) ?? link,
+  }));
+}
+
+/** The subject and body of the feedback link, as typed in the letter. */
+export interface FeedbackText {
+  subject: string;
+  body: string;
+}
+
+/** Each email setting's full link plus the decoded breakdown a mail program would use (N3). */
+export function emailLinkDetails(
+  settings: PackSettings,
+  letterFeedback?: FeedbackText,
+): { key: 'contact' | 'volunteer' | 'feedback'; lines: MailLine[] }[] {
+  return mailLinkValues(settings, letterFeedback).map(({ key, link }) => ({
+    key,
+    lines: mailtoDetails(link) ?? [{ text: link, alert: false }],
+  }));
+}
+
+function mailLinkValues(
+  settings: PackSettings,
+  letterFeedback?: FeedbackText,
+): { key: 'contact' | 'volunteer' | 'feedback'; link: string }[] {
+  const feedback = letterFeedback ?? emptyLetter({ year: 2000, month: 1 }, settings).feedback;
   const query = [
     feedback.subject !== '' ? `subject=${encodeURIComponent(feedback.subject)}` : '',
     feedback.body !== '' ? `body=${encodeURIComponent(feedback.body)}` : '',
@@ -101,7 +128,7 @@ export function emailLinks(
   };
   return (['contact', 'volunteer', 'feedback'] as const).map((key) => ({
     key,
-    text: mailtoSummary(links[key]) ?? links[key],
+    link: links[key],
   }));
 }
 
@@ -119,4 +146,114 @@ export function clockText(when: Date): string {
   const hour = when.getHours();
   const hour12 = hour % 12 === 0 ? 12 : hour % 12;
   return `${hour12}:${String(when.getMinutes()).padStart(2, '0')} ${hour < 12 ? 'am' : 'pm'}`;
+}
+
+/* ---------- opening a draft: what its settings would change (S1, S2) ---------- */
+
+export interface SettingDifference {
+  /** "Logo address: your value -> draft value", in full. */
+  text: string;
+  /** For web addresses, the host each side really goes to, in ASCII (punycode). Empty otherwise. */
+  hostText: string;
+}
+
+/** The host of a web address in ASCII form (a lookalike shows as xn--...), or null when it has none. */
+export function asciiHost(address: string): string | null {
+  try {
+    const url = new URL(address.trim());
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+    return url.hostname;
+  } catch {
+    return null;
+  }
+}
+
+const shown = (value: string): string => (value === '' ? '(empty)' : value);
+
+function webDifference(label: string, mine: string, theirs: string): SettingDifference | null {
+  if (mine === theirs) return null;
+  const a = asciiHost(mine);
+  const b = asciiHost(theirs);
+  return {
+    text: `${label}: ${shown(mine)} -> ${shown(theirs)}`,
+    hostText: a === null && b === null ? '' : `Site: ${a ?? '(none)'} -> ${b ?? '(none)'}`,
+  };
+}
+
+function plainDifference(label: string, mine: string, theirs: string): SettingDifference | null {
+  return mine === theirs
+    ? null
+    : { text: `${label}: ${shown(mine)} -> ${shown(theirs)}`, hostText: '' };
+}
+
+/** Every setting that differs between yours and a draft's, in plain words and in full. */
+export function settingsDifferences(mine: PackSettings, theirs: PackSettings): SettingDifference[] {
+  const out: (SettingDifference | null)[] = [
+    webDifference('Logo address', mine.logoUrl, theirs.logoUrl),
+    plainDifference('Contact email', mine.email.contact, theirs.email.contact),
+    plainDifference('Volunteer email', mine.email.volunteer, theirs.email.volunteer),
+    plainDifference('Feedback email', mine.email.feedback, theirs.email.feedback),
+    webDifference('Photo form address', mine.photoFormUrl, theirs.photoFormUrl),
+    webDifference('Year at a glance address', mine.yearAtAGlanceUrl, theirs.yearAtAGlanceUrl),
+    plainDifference(
+      'Program year starts in',
+      MONTH_NAMES[mine.programYearStartMonth - 1] ?? String(mine.programYearStartMonth),
+      MONTH_NAMES[theirs.programYearStartMonth - 1] ?? String(theirs.programYearStartMonth),
+    ),
+  ];
+  const count = Math.max(mine.standingLinks.length, theirs.standingLinks.length);
+  for (let i = 0; i < count; i++) {
+    const a = mine.standingLinks[i];
+    const b = theirs.standingLinks[i];
+    const n = `Footer link ${i + 1}`;
+    out.push(plainDifference(`${n} name`, a?.label ?? '', b?.label ?? ''));
+    out.push(webDifference(`${n} address`, a?.url ?? '', b?.url ?? ''));
+  }
+  return out.filter((d): d is SettingDifference => d !== null);
+}
+
+export interface LinkReport {
+  heading: string;
+  lines: string[];
+}
+
+/**
+ * Where a draft's links go, for each settings choice that is on offer. One report when the choice
+ * makes no difference. `warn` is draftLinkWarnings from src/core/draft.ts.
+ */
+export function draftLinkReports(
+  warn: (letter: LetterForm, settings: PackSettings) => string[],
+  letter: LetterForm,
+  mine: PackSettings,
+  theirs: PackSettings,
+  differs: boolean,
+): LinkReport[] {
+  if (!differs) return [{ heading: '', lines: warn(letter, mine) }];
+  return [
+    { heading: 'If you keep your settings', lines: warn(letter, mine) },
+    { heading: "If you use the draft's settings", lines: warn(letter, theirs) },
+  ];
+}
+
+/* ---------- repaired on load (N4) ---------- */
+
+export interface RepairNotice {
+  message: string;
+  details: string[];
+}
+
+export function settingsRepairNotice(problems: readonly SettingsProblem[]): RepairNotice | null {
+  if (problems.length === 0) return null;
+  return {
+    message: 'Some saved settings could not be used and were reset. Open Settings to check them.',
+    details: problems.map((p) => p.message),
+  };
+}
+
+export function draftRepairNotice(notes: readonly string[]): RepairNotice | null {
+  if (notes.length === 0) return null;
+  return {
+    message: 'Parts of your saved letter could not be read and were left empty.',
+    details: [...notes],
+  };
 }

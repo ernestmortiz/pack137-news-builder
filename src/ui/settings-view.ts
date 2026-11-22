@@ -5,6 +5,7 @@
  */
 import {
   defaultSettings,
+  MAX_STANDING_LINKS,
   validateSettings,
   type PackSettings,
   type SettingsProblem,
@@ -12,8 +13,7 @@ import {
 import { clear, debounce, el, uid } from './dom';
 import type { SettingsStore } from './app-settings';
 import {
-  emailLinks,
-  MAX_STANDING_LINKS,
+  emailLinkDetails,
   MONTH_NAMES,
   moveLink,
   otherProblems,
@@ -98,7 +98,7 @@ export function mountSettings(root: HTMLElement, store: SettingsStore): void {
     label: string,
     hint: string,
   ): HTMLElement {
-    const link = el('p', { className: 'note mailto' });
+    const link = el('div', { className: 'mail-lines' });
     emailLinkBoxes.set(key, link);
     const f = field({
       label,
@@ -306,9 +306,20 @@ export function mountSettings(root: HTMLElement, store: SettingsStore): void {
   }
 
   function showEmailLinks(settings: PackSettings): void {
-    for (const { key, text } of emailLinks(settings)) {
+    for (const { key, lines } of emailLinkDetails(settings, store.letterFeedback())) {
       const box = emailLinkBoxes.get(key);
-      if (box) box.textContent = text;
+      if (!box) continue;
+      clear(box);
+      for (const line of lines) {
+        box.append(
+          line.alert
+            ? el('p', { className: 'note check' }, [
+                el('strong', { textContent: 'Check me: ' }),
+                line.text,
+              ])
+            : el('p', { className: 'note mailto', textContent: line.text }),
+        );
+      }
     }
   }
 
@@ -440,6 +451,9 @@ export function mountSettings(root: HTMLElement, store: SettingsStore): void {
     body,
   );
   redrawAll();
+
+  // The letter's feedback wording is part of the feedback link, so show it as it is typed.
+  store.subscribeFeedback(() => showEmailLinks(store.get()));
 
   // A draft file or another screen changed the settings. Show them here too.
   store.subscribe((settings) => {

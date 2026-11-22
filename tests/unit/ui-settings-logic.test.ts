@@ -3,6 +3,12 @@ import { DRAFT_KIND, DRAFT_VERSION, type DraftFile } from '../../src/core/draft'
 import { emptyLetter } from '../../src/core/letter';
 import { defaultSettings } from '../../src/core/settings';
 import {
+  asciiHost,
+  draftLinkReports,
+  draftRepairNotice,
+  emailLinkDetails,
+  settingsDifferences,
+  settingsRepairNotice,
   clockText,
   draftFileName,
   emailLinks,
@@ -102,5 +108,84 @@ describe('clock text', () => {
     expect(clockText(new Date(2026, 10, 22, 20, 41))).toBe('8:41 pm');
     expect(clockText(new Date(2026, 10, 22, 0, 5))).toBe('12:05 am');
     expect(clockText(new Date(2026, 10, 22, 12, 0))).toBe('12:00 pm');
+  });
+});
+
+describe('what a draft changes in the settings', () => {
+  it('lists nothing when the settings match', () => {
+    expect(settingsDifferences(defaultSettings(), defaultSettings())).toEqual([]);
+  });
+  it('lists each difference in full and shows a lookalike host in punycode', () => {
+    const mine = defaultSettings();
+    const theirs = defaultSettings();
+    theirs.logoUrl = 'https://pаck.example/logo.png';
+    theirs.email.feedback = 'evil@example.org';
+    theirs.programYearStartMonth = (mine.programYearStartMonth % 12) + 1;
+    theirs.standingLinks = theirs.standingLinks.slice(0, 1);
+    const diffs = settingsDifferences(mine, theirs);
+    const logo = diffs.find((d) => d.text.startsWith('Logo address: '));
+    expect(logo?.text).toBe(`Logo address: ${mine.logoUrl} -> ${theirs.logoUrl}`);
+    expect(logo?.hostText).toContain('xn--');
+    expect(diffs.map((d) => d.text)).toContain(
+      `Feedback email: ${mine.email.feedback} -> evil@example.org`,
+    );
+    expect(diffs.some((d) => d.text.startsWith('Program year starts in: '))).toBe(true);
+    expect(
+      diffs.some((d) => d.text.includes('Footer link 2 address') && d.text.includes('(empty)')),
+    ).toBe(true);
+  });
+  it('gives no host for an address that is not a web address', () => {
+    expect(asciiHost('not a url')).toBeNull();
+    expect(asciiHost('mailto:a@b.org')).toBeNull();
+    expect(asciiHost('https://Example.org/x')).toBe('example.org');
+  });
+});
+
+describe('where a draft links go', () => {
+  const letter = emptyLetter({ year: 2026, month: 12 });
+  const warn = (_l: unknown, s: { logoUrl: string }): string[] => [`logo ${s.logoUrl}`];
+  it('gives one report when the settings match and two when they differ', () => {
+    const a = defaultSettings();
+    const b = { ...defaultSettings(), logoUrl: 'https://x.example/l.png' };
+    expect(draftLinkReports(warn, letter, a, b, false)).toEqual([
+      { heading: '', lines: [`logo ${a.logoUrl}`] },
+    ]);
+    const two = draftLinkReports(warn, letter, a, b, true);
+    expect(two.map((r) => r.lines[0])).toEqual([
+      `logo ${a.logoUrl}`,
+      'logo https://x.example/l.png',
+    ]);
+  });
+});
+
+describe('repair notices', () => {
+  it('stay quiet when nothing was repaired', () => {
+    expect(settingsRepairNotice([])).toBeNull();
+    expect(draftRepairNotice([])).toBeNull();
+  });
+  it('say it plainly and keep the details', () => {
+    const s = settingsRepairNotice([{ path: ['logoUrl'], message: 'Bad logo.' }]);
+    expect(s?.message).toBe(
+      'Some saved settings could not be used and were reset. Open Settings to check them.',
+    );
+    expect(s?.details).toEqual(['Bad logo.']);
+    expect(draftRepairNotice(['A block was empty.'])?.message).toBe(
+      'Parts of your saved letter could not be read and were left empty.',
+    );
+  });
+});
+
+describe('email link details', () => {
+  it('uses the letter feedback subject and body when given, else the defaults', () => {
+    const s = defaultSettings();
+    const custom = emailLinkDetails(s, { subject: 'Hello there', body: 'Thanks' });
+    const text = custom
+      .find((l) => l.key === 'feedback')
+      ?.lines.map((l) => l.text)
+      .join('\n');
+    expect(text).toContain('Subject: Hello there');
+    expect(text).toContain('Body: Thanks');
+    const dflt = emailLinkDetails(s).find((l) => l.key === 'feedback')?.lines;
+    expect(dflt?.some((l) => l.text.startsWith('Sends to: '))).toBe(true);
   });
 });

@@ -253,3 +253,37 @@ describe('things to look at: photo descriptions', () => {
     ).toHaveLength(1);
   });
 });
+
+describe('warnings for addresses that would be left out', () => {
+  it('names the button when its link is not a full address', () => {
+    const l = blank();
+    l.comingUp.button.url = 'www.example.org';
+    expect(letterWarnings(l)).toContain(
+      "The I can help button's link is not a full web or email address, so the button is left out.",
+    );
+  });
+  it('stays quiet for a good button link', () => {
+    expect(letterWarnings(blank()).some((w) => w.includes('button'))).toBe(false);
+  });
+  it('warns about a link that would be left out', () => {
+    const l = blank();
+    l.photoAsk.url = 'javascript:alert(1)';
+    expect(
+      letterWarnings(l).some(
+        (w) => w.startsWith('Photo and story ask: ') && w.includes('left out'),
+      ),
+    ).toBe(true);
+  });
+  it('warns about a photo address that is unusable or not secure', () => {
+    const l = blank();
+    l.story.blocks = [
+      { kind: 'photo', photo: { src: 'ftp://x.example/a.jpg', alt: 'A tent', caption: '' } },
+      { kind: 'photo', photo: { src: 'http://x.example/a.jpg', alt: 'A tent', caption: '' } },
+    ];
+    const warnings = letterWarnings(l);
+    expect(warnings.some((w) => w.startsWith('Photo 1: ') && w.includes('left out'))).toBe(true);
+    expect(warnings).toContain(
+      "Photo 2: This photo's address is not secure (http). Use the https address from TroopTrack.",
+    );
+  });
+});

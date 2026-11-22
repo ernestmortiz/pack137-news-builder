@@ -5,6 +5,8 @@ import { el } from './dom';
 import { mountLetter } from './letter';
 import { createSettingsStore } from './app-settings';
 import { mountSettings } from './settings-view';
+import { createOtherTabGuard, guardStorage, isWatchedKey, OTHER_TAB_MESSAGE } from './other-tab';
+import { settingsRepairNotice, type RepairNotice } from './settings-logic';
 import { createDeviceStorage } from './storage';
 import './styles.css';
 
@@ -35,8 +37,57 @@ function applyTokens(root: HTMLElement): void {
 }
 
 function mount(app: HTMLElement): void {
-  const storage = createDeviceStorage();
+  const rawStorage = createDeviceStorage();
+  const guard = createOtherTabGuard();
+  const storage = guardStorage(rawStorage, guard);
+  // Read once from the real storage so repairs are noticed, then every save goes through the guard.
   const settings = createSettingsStore(storage);
+  const noticeBox = el('div', { className: 'notices' });
+  const addNotice = (notice: RepairNotice): void => {
+    const dismiss = el('button', { type: 'button', className: 'btn', textContent: 'Dismiss' });
+    const box = el('div', { className: 'warnings', role: 'status' }, [
+      el('p', { textContent: notice.message }),
+      el('details', {}, [
+        el('summary', { textContent: 'Show the details' }),
+        el(
+          'ul',
+          { className: 'warn-list' },
+          notice.details.map((d) => el('li', { textContent: d })),
+        ),
+      ]),
+      el('div', { className: 'row-actions' }, [dismiss]),
+    ]);
+    dismiss.addEventListener('click', () => box.remove());
+    noticeBox.append(box);
+  };
+  const settingsNotice = settingsRepairNotice(settings.loadProblems());
+  if (settingsNotice) addNotice(settingsNotice);
+
+  // Another tab saved a draft or settings. Hold back saving here until the person chooses.
+  const otherTab = el('div', { className: 'warnings', role: 'alert' });
+  otherTab.hidden = true;
+  const reload = el('button', { type: 'button', className: 'btn primary', textContent: 'Reload' });
+  const keepHere = el('button', {
+    type: 'button',
+    className: 'btn',
+    textContent: 'Keep my version here',
+  });
+  otherTab.append(
+    el('p', { textContent: OTHER_TAB_MESSAGE }),
+    el('div', { className: 'row-actions' }, [reload, keepHere]),
+  );
+  reload.addEventListener('click', () => window.location.reload());
+  keepHere.addEventListener('click', () => {
+    otherTab.hidden = true;
+    guard.keep();
+    // Settings are saved here, the letter saves itself through the guard's keep listener.
+    storage.saveSettings(settings.get());
+  });
+  window.addEventListener('storage', (event) => {
+    if (!isWatchedKey(event.key)) return;
+    guard.changed();
+    otherTab.hidden = false;
+  });
   const tabs = el('div', { className: 'tabs' });
   tabs.setAttribute('role', 'tablist');
   tabs.setAttribute('aria-label', 'Choose a tool');
@@ -68,7 +119,7 @@ function mount(app: HTMLElement): void {
     }
     if (key === 'monthly' && !monthlyMounted) {
       monthlyMounted = true;
-      mountLetter(panels.monthly, { settings, storage });
+      mountLetter(panels.monthly, { settings, storage, guard, notify: addNotice });
     }
     if (focus) buttons[key].focus();
   }
@@ -107,6 +158,8 @@ function mount(app: HTMLElement): void {
         el('small', { textContent: packConfig.eyebrow }),
         el('h1', { textContent: 'Pack 137 News Builder' }),
       ]),
+      noticeBox,
+      otherTab,
       tabs,
       el('main', {}, [panels.converter, panels.monthly, panels.settings]),
       el('footer', {

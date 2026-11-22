@@ -7,6 +7,7 @@ import { formatMonthYear, todayFrom } from '../core/dates';
 import {
   MAX_DRAFT_BYTES,
   nextIssueFrom,
+  draftLinkWarnings,
   readDraft,
   writeDraft,
   type DraftFile,
@@ -19,7 +20,17 @@ import { clear, debounce, el } from './dom';
 import type { FormContext, TypingEdit } from './form-kit';
 import type { SettingsStore } from './app-settings';
 import { createHistory, type History } from './history';
-import { clockText, draftFileName, startChoices, type StartChoice } from './settings-logic';
+import {
+  clockText,
+  draftFileName,
+  draftLinkReports,
+  draftRepairNotice,
+  settingsDifferences,
+  startChoices,
+  type RepairNotice,
+  type StartChoice,
+} from './settings-logic';
+import type { OtherTabGuard } from './other-tab';
 import type { DeviceStorage } from './storage';
 import { changeBytes, textAfter, textBefore, toChange, type TypingChange } from './typing';
 import { buildLetterForm, type LetterView } from './letter-view';
@@ -37,6 +48,10 @@ interface Snapshot {
 export interface LetterDeps {
   settings: SettingsStore;
   storage: DeviceStorage;
+  /** Another tab changed the saved data. Saves are held back until the person chooses. */
+  guard?: OtherTabGuard;
+  /** Shows one short notice at the top of the app. */
+  notify?: (notice: RepairNotice) => void;
 }
 
 /** How long after the last change the draft is saved on the device. */
@@ -206,6 +221,7 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
 
   function refreshOutput(): void {
     updateCounter();
+    settings.setLetterFeedback(letter.feedback);
     let html: string;
     try {
       html = renderLetter(letter, settings.get());
@@ -376,6 +392,10 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
   }
   const saveSoon = debounce(saveNow, AUTOSAVE_MS);
   let saving = true;
+  // "Keep my version here" in the other-tab notice saves this letter at once.
+  deps.guard?.onKeep(() => {
+    if (saving) saveNow();
+  });
   function saveLater(): void {
     if (saving) saveSoon.run();
   }
@@ -538,20 +558,68 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
       first.addEventListener('click', () => finish(false));
       actions.append(first, cancel);
     } else {
+      // Keeping your own settings is the safe default, so it is the primary and focused button.
       first = el('button', {
         type: 'button',
         className: 'btn primary',
-        textContent: 'Use the settings from this draft',
-      });
-      first.addEventListener('click', () => finish(true));
-      const keep = el('button', {
-        type: 'button',
-        className: 'btn',
         textContent: 'Keep my settings',
       });
-      keep.addEventListener('click', () => finish(false));
-      actions.append(first, keep, cancel);
+      first.addEventListener('click', () => finish(false));
+      const use = el('button', {
+        type: 'button',
+        className: 'btn',
+        textContent: 'Use the settings from this draft',
+      });
+      use.addEventListener('click', () => finish(true));
+      actions.append(first, use, cancel);
     }
+    const differences = sameSettings ? [] : settingsDifferences(settings.get(), draft.settings);
+    let reports: ReturnType<typeof draftLinkReports> = [];
+    try {
+      reports = draftLinkReports(
+        draftLinkWarnings,
+        draft.letter,
+        settings.get(),
+        draft.settings,
+        !sameSettings,
+      );
+    } catch {
+      reports = [];
+    }
+    const linkSection = (): HTMLElement => {
+      const box = el('div', { className: 'warnings' }, [
+        el('p', { className: 'label', textContent: "Where this draft's links go" }),
+      ]);
+      const any = reports.some((r) => r.lines.length > 0);
+      if (!any) {
+        box.append(el('p', { className: 'hint', textContent: 'Nothing unusual was found.' }));
+      }
+      for (const report of reports) {
+        if (report.lines.length === 0) continue;
+        if (report.heading !== '') {
+          box.append(el('p', { className: 'hint', textContent: `${report.heading}:` }));
+        }
+        box.append(textList(report.lines));
+      }
+      return box;
+    };
+    const differenceSection = (): HTMLElement => {
+      const ul = el('ul', { className: 'warn-list' });
+      for (const d of differences) {
+        const li = el('li', { textContent: d.text });
+        if (d.hostText !== '') li.append(el('br'), d.hostText);
+        ul.append(li);
+      }
+      return el('div', { className: 'warnings' }, [
+        el('p', { className: 'label', textContent: 'Settings that are different' }),
+        el('p', {
+          className: 'hint',
+          textContent:
+            "Each line shows your value, then an arrow, then the draft's value. If you use the draft's settings, they are saved on this device and used for every letter you make. You cannot undo that with the Undo button. You can change them again in Settings.",
+        }),
+        ul,
+      ]);
+    };
     choicePanel.append(
       el('h2', { textContent: `Open ${name}?` }),
       el('p', {
@@ -576,10 +644,13 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
             textContent:
               'The draft was written with different settings (links, emails or logo). Do you want to use its settings too?',
           }),
+      ...(sameSettings ? [] : [differenceSection()]),
+      linkSection(),
       actions,
     );
+    // Save what was typed in the last second before the panel takes over, then pause saving.
+    saveSoon.flush();
     saving = false;
-    saveSoon.cancel();
     showEditor(false);
     first.focus();
   }
@@ -618,8 +689,11 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
   refreshOutput();
 
   const found = storage.loadDraft();
-  if (found?.ok) offerSavedDraft(found.draft);
-  else if (found && !found.ok) {
+  if (found?.ok) {
+    const notice = draftRepairNotice(found.notes);
+    if (notice) deps.notify?.(notice);
+    offerSavedDraft(found.draft);
+  } else if (found && !found.ok) {
     fileNote.textContent = 'A saved letter on this device could not be read, so it was not used.';
   }
 }
