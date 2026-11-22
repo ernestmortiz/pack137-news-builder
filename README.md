@@ -2,7 +2,7 @@
 
 A small tool for Cranford Cub Scouts Pack 137 volunteers. It turns the HTML of a TroopTrack announcement into HTML that follows the pack's design standards, and it builds the monthly "Pack 137 Stories" letter from a fill-in template. Nothing is sent anywhere: you copy the result back into TroopTrack.
 
-Status: version 1.0.0, the web release, is signed off. Phase 7, the Windows desktop app, is in review. Mac volunteers use the web version.
+Status: version 1.0.0, the web release, is signed off. Phase 7, the Windows desktop app, is merged. Mac volunteers use the web version. Phase 8, the Android app, is in progress.
 
 ## Status and releases
 

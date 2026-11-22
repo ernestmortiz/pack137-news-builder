@@ -27,4 +27,4 @@ The full brief is `docs/build-spec.md`. Read it before writing code. This file r
 
 ## Status
 
-Phases 0 to 6 are complete and merged. The owner signed off the web release (1.0.0); the owner pushes the v1.0.0 tag. Phase 7 (Windows wrapper) is built and awaiting the owner's test of the Windows installer; the Mac app was dropped (ADR 0006). Next: Phase 8, Android.
+Phases 0 to 7 are complete and merged. The owner signed off the web release (1.0.0) and pushes the v1.0.0 tag; the owner will test the Windows installer later; the Mac app was dropped (ADR 0006). Phase 8 (Android) is in progress: Tauri spike and a debug-signed test APK first; the permanent release key is an owner decision still to come.
