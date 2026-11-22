@@ -220,6 +220,16 @@ jobs:
           - api-level: 29
             informational: true
     steps:
+      # The runner's disk is small: the Rust and Gradle build plus an emulator image fill it
+      # ("No space left on device" on the first run). Remove large preinstalled tools this job
+      # never uses, and log what is free.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/share/swift \
+            /usr/local/share/powershell /usr/local/share/chromium /opt/hostedtoolcache/CodeQL \
+            /usr/local/lib/android/sdk/ndk/2[0-6]* || true
+          df -h /
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
@@ -252,6 +262,12 @@ jobs:
             exit 1
           fi
           cp "${found}" emulator-test.apk
+      # The APK is copied out, so the build folders are no longer needed: free their space for the
+      # emulator image.
+      - name: Remove build output before starting the emulator
+        run: |
+          rm -rf src-tauri/target src-tauri/gen/android/app/build src-tauri/gen/android/build ~/.gradle/caches
+          df -h /
       # The emulator needs the machine's virtualization device, which is off for ordinary users on
       # these runners until this rule is added (from the emulator action's documentation).
       - name: Enable KVM
