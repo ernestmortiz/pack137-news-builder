@@ -14,6 +14,7 @@ import type {
 import { lintOutput } from '../../src/core/lint-output';
 import type { TextRun } from '../../src/core/model';
 import { renderAnnouncement } from '../../src/core/render';
+import { tag } from '../../src/templates/components';
 
 // Built from its code point so this file holds no em dash.
 const EM = String.fromCharCode(0x2014);
@@ -760,5 +761,20 @@ describe('Help wanted layout', () => {
       'letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:8px;">Highest',
     );
     expect(noBadge).toContain(color.goldPale);
+  });
+});
+
+describe('quiet tags inside colored panels (owner decision 2026-11-22, option a)', () => {
+  it('keep the white fill and add a thin navy outline, at the same size as other tags', () => {
+    const quietOnPanel = tag({ text: 'Virtual', strength: 'quiet' }, true);
+    expect(quietOnPanel).toContain('background-color:#FFFFFF;');
+    expect(quietOnPanel).toContain('border:1px solid #151B4D;');
+    expect(quietOnPanel).toContain('padding:1px 7px;');
+  });
+
+  it('leave quiet tags on white and strong tags unchanged', () => {
+    expect(tag({ text: 'Virtual', strength: 'quiet' }, false)).not.toContain('border:');
+    expect(tag({ text: 'Please RSVP', strength: 'strong' }, true)).not.toContain('border:');
+    expect(tag({ text: 'Virtual', strength: 'quiet' }, false)).toContain('padding:2px 8px;');
   });
 });

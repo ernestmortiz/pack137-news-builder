@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { packConfig } from '../../src/config/pack.config';
 import { emptyLetter, letterWords, readTimeText, type LetterForm } from '../../src/core/letter';
 import { lintOutput } from '../../src/core/lint-output';
-import { renderLetter } from '../../src/core/render-letter';
+import { photoSpots, renderLetter } from '../../src/core/render-letter';
 import { defaultSettings, type PackSettings } from '../../src/core/settings';
 
 const t = (text: string, extra: { marks?: ('strong' | 'em')[]; href?: string } = {}) => ({
@@ -230,14 +230,15 @@ describe('renderLetter: story blocks', () => {
     expect(lint(html)).toEqual([]);
   });
 
-  it('leaves out a photo without a usable address', () => {
+  it('shows a photo spot, not an image, for a photo without a usable address', () => {
     const l = base();
     l.story.blocks = [
       { kind: 'photo', photo: { src: 'javascript:alert(1)', alt: 'A', caption: 'cap' } },
     ];
     const html = renderLetter(l);
     expect(html).not.toContain('<img src="javascript');
-    expect(html).not.toContain('>cap<');
+    expect(html).toContain('Insert photo here: A</p>');
+    expect(html).toContain('>cap</p>');
   });
 
   it('renders the stat band with gold numbers and lavender text', () => {
@@ -762,5 +763,102 @@ describe('renderLetter: settings', () => {
     const html = renderLetter(withHorizon(), s);
     expect(html).not.toContain('javascript:');
     expect(monthlyLint(html)).toEqual([]);
+  });
+});
+
+describe('renderLetter: photo spots', () => {
+  const monthlyLint = (html: string) => lintOutput(html, { monthly: true });
+  const spotBlocks = (): LetterForm => {
+    const l = base();
+    l.story.blocks = [
+      { kind: 'photo', photo: { src: 'https://x.org/a.jpg', alt: 'Fine', caption: '' } },
+      { kind: 'photo', photo: { src: '', alt: 'Campfire at dusk', caption: 'Around the fire.' } },
+      {
+        kind: 'stats',
+        stats: [
+          { value: '1', text: 'one' },
+          { value: '2', text: 'two' },
+        ],
+      },
+      { kind: 'photo', photo: { src: 'javascript:alert(1)', alt: '', caption: '' } },
+      {
+        kind: 'sidebar',
+        title: 'Recipe',
+        source: '',
+        body: [[t('Mix it.')]],
+        photo: { src: '  ', alt: 'Bannock', caption: 'Fresh bannock.' },
+      },
+    ];
+    return l;
+  };
+
+  it('renders a spot, then the caption, where a photo has no usable address', () => {
+    const html = renderLetter(spotBlocks());
+    expect(html).toContain(
+      '<p style="margin:0;padding:14px;border:2px dashed #151B4D;border-radius:12px;background-color:#FFE9B8;color:#151B4D;font-size:14px;font-weight:700;line-height:1.4;">Insert photo here: Campfire at dusk</p>',
+    );
+    expect(html.indexOf('Insert photo here: Campfire at dusk')).toBeLessThan(
+      html.indexOf('Around the fire.'),
+    );
+    expect(html).toContain('Insert photo here: a photo');
+    expect(html).toContain('Insert photo here: Bannock');
+    expect(html).toContain('Fresh bannock.');
+    expect(html).not.toContain('javascript:');
+    expect(html.match(/<img src="https:\/\/x\.org\/a\.jpg"/g)).toHaveLength(1);
+    expect(monthlyLint(html)).toEqual([]);
+  });
+
+  it('escapes a hostile alt inside the spot', () => {
+    const l = base();
+    const nasty = '<script>x</script> --> "q" \'s\'';
+    l.story.blocks = [{ kind: 'photo', photo: { src: '', alt: nasty, caption: '' } }];
+    const html = renderLetter(l);
+    expect(html).not.toContain('<script');
+    expect(html).not.toContain('-->' + ' ');
+    expect(html).toContain('Insert photo here: &lt;script&gt;');
+    expect(html).toContain('--&gt;');
+    expect(html).toContain('&gt; "q"');
+    expect(monthlyLint(html)).toEqual([]);
+  });
+
+  it('lists the spots in order with plain place names', () => {
+    expect(photoSpots(spotBlocks())).toEqual([
+      { where: 'Photo 2', alt: 'Campfire at dusk' },
+      { where: 'Photo 3', alt: '' },
+      { where: 'Sidebar photo in block 5', alt: 'Bannock', maxWidth: 512 },
+    ]);
+    expect(photoSpots(full())).toEqual([]);
+  });
+
+  it('does not count the spot text as reader words', () => {
+    const l = base();
+    l.story.blocks = [
+      { kind: 'photo', photo: { src: 'https://x.org/a.jpg', alt: 'A', caption: 'Two words' } },
+    ];
+    const withPhoto = letterWords(l);
+    l.story.blocks = [
+      { kind: 'photo', photo: { src: '', alt: 'A long alt text here', caption: 'Two words' } },
+    ];
+    expect(letterWords(l)).toBe(withPhoto);
+  });
+});
+
+describe('photoSpots: sidebar width cap', () => {
+  it('gives sidebar photo spots a 512px cap and photo blocks none', () => {
+    const letter = emptyLetter({ year: 2026, month: 12 });
+    letter.story.blocks.push(
+      { kind: 'photo', photo: { src: '', alt: 'A', caption: '' } },
+      {
+        kind: 'sidebar',
+        title: 'T',
+        source: '',
+        body: [],
+        photo: { src: '', alt: 'B', caption: '' },
+      },
+    );
+    expect(photoSpots(letter)).toEqual([
+      { where: 'Photo 1', alt: 'A' },
+      { where: 'Sidebar photo in block 2', alt: 'B', maxWidth: 512 },
+    ]);
   });
 });

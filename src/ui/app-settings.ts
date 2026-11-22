@@ -9,7 +9,7 @@ import {
   type PackSettings,
   type SettingsProblem,
 } from '../core/settings';
-import type { FeedbackText } from './settings-logic';
+import { settingsChangedOutside, settingsFingerprint, type FeedbackText } from './settings-logic';
 import type { DeviceStorage } from './storage';
 
 export interface SettingsStore {
@@ -21,6 +21,10 @@ export interface SettingsStore {
   subscribe(listener: (settings: PackSettings) => void): () => void;
   /** Problems found when the saved settings were read at start-up. Empty when all was well. */
   loadProblems(): SettingsProblem[];
+  /** True when the settings read at start-up differ from the defaults and were never seen on this device. */
+  changedOutside(): boolean;
+  /** Records the current settings as seen. Call only when the person saved or chose them. */
+  markSeen(): void;
   /** The feedback subject and body in the letter on screen, once the letter is open. */
   letterFeedback(): FeedbackText | undefined;
   setLetterFeedback(feedback: FeedbackText): void;
@@ -32,6 +36,7 @@ export function createSettingsStore(storage: DeviceStorage): SettingsStore {
   const loaded = storage.loadSettings();
   let current: PackSettings = loaded?.settings ?? defaultSettings();
   const problems = loaded?.problems ?? [];
+  const outside = settingsChangedOutside(current, storage.loadSettingsSeen());
   let feedback: FeedbackText | undefined;
   const feedbackListeners = new Set<() => void>();
   const listeners = new Set<(settings: PackSettings) => void>();
@@ -54,6 +59,10 @@ export function createSettingsStore(storage: DeviceStorage): SettingsStore {
       return () => listeners.delete(listener);
     },
     loadProblems: () => [...problems],
+    changedOutside: () => outside,
+    markSeen() {
+      storage.saveSettingsSeen(settingsFingerprint(current));
+    },
     letterFeedback: () => feedback,
     setLetterFeedback(next) {
       if (feedback?.subject === next.subject && feedback.body === next.body) return;

@@ -13,6 +13,8 @@ import type {
 } from '../core/forms';
 import { ALT_HELP, altFeedback } from './alt-ui';
 import { el } from './dom';
+import { shrinkControl } from './photo-shrink';
+import { markSpelling } from './field-kinds';
 import { createKit, type FormContext, type Kit } from './form-kit';
 import { dateWithYear, fromIsoDate, toIsoDate } from './paths';
 
@@ -26,6 +28,8 @@ export interface FormView {
   setField(path: (string | number)[], value: string, selection: [number, number]): boolean;
   /** The control for a field on screen, if any. */
   fieldControl(path: (string | number)[]): HTMLElement | null;
+  /** Bring the form up to date with text typed a moment ago. Call before reading the form. */
+  flush(): void;
 }
 
 /* ---------- pieces shared by layouts ---------- */
@@ -94,6 +98,7 @@ function dateField(
     className: 'control date',
     id: `d-${path.join('-')}`,
   });
+  markSpelling(startInput, 'date');
   startInput.value = row.date ? toIsoDate(row.date.start) : '';
   const startText = el('span', { className: 'date-note' });
   const endInput = el('input', {
@@ -101,6 +106,7 @@ function dateField(
     className: 'control date',
     id: `e-${path.join('-')}`,
   });
+  markSpelling(endInput, 'date');
   endInput.value = row.date?.end ? toIsoDate(row.date.end) : '';
   const endText = el('span', { className: 'date-note' });
   const moved = kit.checkbox(
@@ -341,6 +347,17 @@ function layoutFields(kit: Kit, form: AnnouncementForm, ctx: FormContext): HTMLE
         () => undefined,
         false,
       );
+      const pictureSrc = kit.text(
+        'Picture address',
+        ['image', 'src'],
+        () => form.image?.src ?? '',
+        (v) => setImage(form, { src: v }),
+        {
+          url: true,
+          hint: 'Upload the picture in TroopTrack, then paste its address here. Photo too big? Use Shrink a photo first. The preview shows a box instead of the picture.',
+        },
+      );
+      pictureSrc.append(shrinkControl('Shrink a photo'));
       return [
         cardFields(kit, form),
         kit.group('Intro', [
@@ -352,16 +369,7 @@ function layoutFields(kit: Kit, form: AnnouncementForm, ctx: FormContext): HTMLE
           ),
         ]),
         kit.group('Picture (optional)', [
-          kit.text(
-            'Picture address',
-            ['image', 'src'],
-            () => form.image?.src ?? '',
-            (v) => setImage(form, { src: v }),
-            {
-              url: true,
-              hint: 'Upload the picture in TroopTrack, then paste its address here. The preview shows a box instead of the picture.',
-            },
-          ),
+          pictureSrc,
           kit.text(
             'Picture description',
             ['image', 'alt'],
@@ -500,5 +508,6 @@ export function buildForm(form: AnnouncementForm, ctx: FormContext): FormView {
     refreshSuggestions: kit.refreshSuggestions,
     setField: kit.setField,
     fieldControl: kit.fieldControl,
+    flush: kit.flush,
   };
 }

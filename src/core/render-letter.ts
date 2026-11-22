@@ -5,7 +5,7 @@
  */
 import { color } from '../config/tokens';
 import { esc, isEmptyRich, lines, richText } from '../templates/components';
-import { bodyText, row } from '../templates/letter/layout';
+import { bodyText, isPhotoSpot, row } from '../templates/letter/layout';
 import {
   aroundRows,
   closingRows,
@@ -67,4 +67,34 @@ export function renderLetter(
     footerRows(settings),
   );
   return letterShell(summary, rows);
+}
+
+/**
+ * Every photo the letter shows as a spot (no usable address), in order, for the editor's warnings.
+ * Photo blocks are numbered among photo blocks ("Photo 2"); a sidebar photo names its block
+ * ("Sidebar photo in block 5", counting every story block from 1).
+ */
+/**
+ * maxWidth is set for sidebar photos, whose box is 512px wide, so Finish photos never gives them a
+ * wider width attribute (Outlook for Windows ignores max-width).
+ */
+export function photoSpots(
+  letter: LetterForm,
+): { where: string; alt: string; maxWidth?: number }[] {
+  const out: { where: string; alt: string; maxWidth?: number }[] = [];
+  let photoNo = 0;
+  letter.story.blocks.forEach((block, i) => {
+    if (block.kind === 'photo') {
+      photoNo += 1;
+      if (isPhotoSpot(block.photo))
+        out.push({ where: `Photo ${photoNo}`, alt: block.photo.alt.trim() });
+    } else if (block.kind === 'sidebar' && block.photo !== undefined && isPhotoSpot(block.photo)) {
+      out.push({
+        where: `Sidebar photo in block ${i + 1}`,
+        alt: block.photo.alt.trim(),
+        maxWidth: 512,
+      });
+    }
+  });
+  return out;
 }

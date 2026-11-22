@@ -21,16 +21,16 @@ export interface PreviewFrames {
   clear(): void;
 }
 
-export function createPreviewFrames(): PreviewFrames {
+export function createPreviewFrames(label = 'Preview'): PreviewFrames {
   const frames = previewWidths.map((width) => {
     const frame = el('iframe', { className: 'preview-frame', width: String(width), height: '640' });
     frame.setAttribute('sandbox', '');
-    frame.title = `Preview, ${width} pixels wide`;
+    frame.title = `${label}, ${width} pixels wide`;
     frame.setAttribute('loading', 'eager');
     const scroll = el('div', { className: 'frame-scroll' }, [frame]);
     scroll.tabIndex = 0;
     scroll.setAttribute('role', 'region');
-    scroll.setAttribute('aria-label', `Preview at ${width} pixels wide`);
+    scroll.setAttribute('aria-label', `${label} at ${width} pixels wide`);
     const figure = el('figure', { className: 'preview' }, [
       el('figcaption', {
         textContent: `${PREVIEW_NAMES[width] ?? 'Preview'}: ${width}px wide`,

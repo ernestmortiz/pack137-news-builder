@@ -100,7 +100,7 @@ function decodePart(raw: string): { text: string; ok: boolean } {
 
 function addresses(text: string): string[] {
   return text
-    .split(',')
+    .split(/[,;]/)
     .map((a) => a.trim())
     .filter((a) => a !== '');
 }

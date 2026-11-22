@@ -577,3 +577,140 @@ input.time {
 .confirm {
   margin-top: 8px;
 }
+
+/* keyboard and screen reader helpers */
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: 0;
+  z-index: 20;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 16px;
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--navy);
+  font-weight: 700;
+  text-decoration: underline;
+  transform: translateY(-120%);
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: translateY(8px);
+  outline: 3px solid var(--navy);
+  outline-offset: 0;
+  /* White outside the ring, so it shows even on the dark masthead. */
+  box-shadow: 0 0 0 6px var(--white);
+}
+.shell {
+  position: relative;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.error-notice {
+  margin: 12px 0;
+  border: 2px solid var(--navy);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--gold-pale);
+  color: var(--navy);
+  font-weight: 700;
+}
+.error-notice p {
+  margin: 0;
+}
+/* A preview frame is its own page, so the ring goes on the box around it when it has focus. */
+.frame-scroll:focus-within {
+  outline: 3px solid var(--navy);
+  outline-offset: 2px;
+}
+.preview-frame:focus,
+.preview-frame:focus-visible {
+  outline: none;
+}
+/* Repaired-data and other-tab notices at the top of the app: same look as the error notice,
+   lighter weight, so they read as information rather than an alarm. */
+.notices:empty {
+  display: none;
+}
+.notices .warnings,
+.warnings[role='alert'] {
+  margin: 12px 0;
+  border: 2px solid var(--navy);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--gold-pale);
+  color: var(--navy);
+}
+.warnings p {
+  margin: 0 0 8px 0;
+}
+.warnings p:last-child {
+  margin-bottom: 0;
+}
+/* Shrink a photo: button, small preview and result line beside a photo address field. */
+.shrink {
+  margin-top: 8px;
+}
+.shrink-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.shrink-button {
+  max-width: 100%;
+}
+.shrink-thumb {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border: 1px solid var(--lavender);
+  border-radius: 6px;
+}
+.shrink-note {
+  flex: 1 1 200px;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.shrink-note:empty {
+  display: none;
+}
+.shrink-lock {
+  margin: 4px 0 0;
+}
+.old-address {
+  margin: 0 0 10px;
+  padding: 10px;
+  background: var(--gold-pale);
+  border-radius: 8px;
+}
+.old-address p {
+  margin: 0 0 6px;
+}
+.old-address-text {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  color: var(--navy);
+}
+.finish-steps {
+  margin: 0 0 12px;
+  padding-left: 22px;
+}
+.finish-steps li {
+  margin-bottom: 4px;
+}
+.finish-results {
+  margin-top: 12px;
+}

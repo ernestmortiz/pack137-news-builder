@@ -11,8 +11,10 @@ import {
   type SettingsProblem,
 } from '../core/settings';
 import { clear, debounce, el, uid } from './dom';
+import { kindOfInputType, markSpelling } from './field-kinds';
 import type { SettingsStore } from './app-settings';
 import {
+  differingSettingNames,
   emailLinkDetails,
   MONTH_NAMES,
   moveLink,
@@ -71,8 +73,8 @@ export function mountSettings(root: HTMLElement, store: SettingsStore): void {
       type: opts.type ?? 'text',
       value: opts.value,
       autocomplete: 'off',
-      spellcheck: false,
     });
+    markSpelling(input, kindOfInputType(opts.type ?? 'text'));
     if (opts.inputMode) input.inputMode = opts.inputMode;
     input.setAttribute('aria-describedby', box.id);
     input.addEventListener('input', () => {
@@ -89,6 +91,23 @@ export function mountSettings(root: HTMLElement, store: SettingsStore): void {
 
   /* ---------- sections ---------- */
   const otherBox = el('div', { className: 'warnings' });
+  const differsBox = el('div', { className: 'warnings' });
+  differsBox.setAttribute('role', 'status');
+  function showDifferences(): void {
+    clear(differsBox);
+    const names = differingSettingNames(store.get());
+    differsBox.hidden = names.length === 0;
+    if (names.length === 0) return;
+    differsBox.append(
+      el('p', { textContent: 'These settings are different from the Pack 137 defaults.' }),
+      el(
+        'ul',
+        { className: 'warn-list' },
+        names.map((n) => el('li', { textContent: n })),
+      ),
+      el('p', { className: 'hint', textContent: 'Use the restore button below to put them back.' }),
+    );
+  }
   const savedNote = el('p', { className: 'hint' });
   savedNote.setAttribute('role', 'status');
 
@@ -262,6 +281,13 @@ export function mountSettings(root: HTMLElement, store: SettingsStore): void {
     restoreButton.hidden = true;
     confirmYes.focus();
   });
+  confirmBox.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !confirmBox.hidden) {
+      event.preventDefault();
+      event.stopPropagation();
+      confirmNo.click();
+    }
+  });
   confirmNo.addEventListener('click', () => {
     confirmBox.hidden = true;
     restoreButton.hidden = false;
@@ -333,8 +359,10 @@ export function mountSettings(root: HTMLElement, store: SettingsStore): void {
     } finally {
       ownChange = false;
     }
+    if (saved) store.markSeen();
     showProblems(result.problems);
     showEmailLinks(store.get());
+    showDifferences();
     savedNote.textContent = saved
       ? ''
       : 'Could not save on this device. Your changes still work until you close this page.';
@@ -444,6 +472,7 @@ export function mountSettings(root: HTMLElement, store: SettingsStore): void {
           'They are used by the weekly announcement and the monthly letter, and they travel inside a downloaded draft. Changes save by themselves.',
       }),
       savedNote,
+      differsBox,
       el('div', { className: 'row-actions' }, [restoreButton]),
       confirmBox,
     ]),
@@ -451,6 +480,7 @@ export function mountSettings(root: HTMLElement, store: SettingsStore): void {
     body,
   );
   redrawAll();
+  showDifferences();
 
   // The letter's feedback wording is part of the feedback link, so show it as it is typed.
   store.subscribeFeedback(() => showEmailLinks(store.get()));
@@ -461,5 +491,6 @@ export function mountSettings(root: HTMLElement, store: SettingsStore): void {
     applyLater.cancel();
     working = copyOf(settings);
     redrawAll();
+    showDifferences();
   });
 }

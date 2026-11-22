@@ -1,5 +1,5 @@
 /**
- * Device storage (build spec 8.3 and 9). Only two keys are ever used, both namespaced. Every read and
+ * Device storage (build spec 8.3 and 9). Only three keys are ever used, both namespaced. Every read and
  * write is wrapped, because private windows and blocked storage throw. Values are JSON text and
  * always go back through validateSettings or readDraft when read, so stored text is never trusted.
  */
@@ -7,6 +7,7 @@ import { readDraft, type DraftReadResult } from '../core/draft';
 import { validateSettings, type PackSettings, type SettingsResult } from '../core/settings';
 
 export const SETTINGS_KEY = 'pack137:settings';
+export const SETTINGS_SEEN_KEY = 'pack137:settings-seen';
 export const DRAFT_KEY = 'pack137:letter-draft';
 
 /** The part of Storage that is used. */
@@ -22,6 +23,9 @@ export interface DeviceStorage {
   /** True when the write worked. */
   saveSettings(settings: PackSettings): boolean;
   clearSettings(): boolean;
+  /** The fingerprint of the settings this device last saw, or undefined. */
+  loadSettingsSeen(): string | undefined;
+  saveSettingsSeen(fingerprint: string): boolean;
   /** The saved draft, read through readDraft, or undefined when there is none or storage is blocked. */
   loadDraft(): DraftReadResult | undefined;
   /** `text` is the output of writeDraft. True when the write worked. */
@@ -87,6 +91,8 @@ export function createDeviceStorage(
       }
     },
     clearSettings: () => remove(SETTINGS_KEY),
+    loadSettingsSeen: () => read(SETTINGS_SEEN_KEY),
+    saveSettingsSeen: (fingerprint) => write(SETTINGS_SEEN_KEY, fingerprint),
     loadDraft() {
       const text = read(DRAFT_KEY);
       if (text === undefined) return undefined;

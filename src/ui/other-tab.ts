@@ -52,6 +52,7 @@ export function guardStorage(storage: DeviceStorage, guard: OtherTabGuard): Devi
     ...storage,
     saveSettings: (settings) => !guard.blocked() && storage.saveSettings(settings),
     saveDraft: (text) => !guard.blocked() && storage.saveDraft(text),
+    saveSettingsSeen: (fingerprint) => !guard.blocked() && storage.saveSettingsSeen(fingerprint),
     clearSettings: () => !guard.blocked() && storage.clearSettings(),
     clearDraft: () => !guard.blocked() && storage.clearDraft(),
   };

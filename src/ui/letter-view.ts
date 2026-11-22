@@ -19,9 +19,12 @@ import {
 } from '../core/letter';
 import type { RichText } from '../core/forms';
 import { ALT_HELP, altFeedback } from './alt-ui';
+import { announce } from './announce';
 import { el, uid } from './dom';
+import { markSpelling } from './field-kinds';
 import { createKit, type FormContext } from './form-kit';
 import { paragraphs } from './form-view';
+import { shrinkControl } from './photo-shrink';
 import {
   BLOCK_KINDS,
   blockName,
@@ -46,6 +49,8 @@ export interface LetterView {
   setField(path: FieldPath, value: string, selection: [number, number]): boolean;
   /** The control for a field on screen, if any. */
   fieldControl(path: FieldPath): HTMLElement | null;
+  /** Bring the letter up to date with text typed a moment ago. Call before reading it. */
+  flush(): void;
 }
 
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
@@ -54,7 +59,6 @@ const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
 }));
 
 const URL_HINT = 'Starts with https:// or mailto:';
-const PHOTO_URL_HINT = 'Starts with https://';
 
 /* ---------- small pieces ---------- */
 
@@ -140,9 +144,11 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
     withTime: boolean,
   ): HTMLElement {
     const dateInput = el('input', { type: 'date', className: 'control date', id: uid('d') });
+    markSpelling(dateInput, 'date');
     dateInput.value = toIsoDate(item.date);
     const shown = el('p', { className: 'date-note' });
     const timeInput = el('input', { type: 'time', className: 'control time', id: uid('t') });
+    markSpelling(timeInput, 'time');
     timeInput.step = '60';
     timeInput.value = item.time ? toTimeValue(item.time) : '';
     const noTime = el('button', {
@@ -215,28 +221,42 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
     return el('div', { className: 'when' }, parts);
   }
 
-  /** Photo address, description and caption, with the TroopTrack steps and the child-name rule. */
+  /**
+   * Photo description and caption, the shrinker, and the steps for TroopTrack. The photo itself is
+   * inserted in TroopTrack after pasting, so there is no address field. An older draft that still
+   * has an address shows it read-only, with a button that turns it into a photo spot.
+   */
   function photoFields(photo: PhotoField, path: FieldPath): Node[] {
-    const srcNote = emptyNote(
-      'Paste the photo address from TroopTrack.',
-      () => photo.src.trim() === '',
-    );
     const feedback = altFeedback(
       () => photo.alt,
       () => photo.caption,
       true,
     );
-    const src = kit.text(
-      'Photo address',
-      [...path, 'src'],
-      () => photo.src,
-      (v) => {
-        photo.src = v;
-        srcNote.update();
-      },
-      { url: true, hint: PHOTO_URL_HINT },
-    );
-    src.append(srcNote.node);
+    const oldAddress = el('div', { className: 'old-address' });
+    const syncOldAddress = (): void => {
+      oldAddress.replaceChildren();
+      const address = photo.src.trim();
+      oldAddress.hidden = address === '';
+      if (address === '') return;
+      const useSpot = el('button', {
+        type: 'button',
+        className: 'btn small',
+        textContent: 'Use a photo spot instead',
+      });
+      useSpot.addEventListener('click', () => {
+        ctx.begin();
+        photo.src = '';
+        ctx.step('switched a photo to a photo spot');
+        syncOldAddress();
+        announce('This photo is now a photo spot.');
+      });
+      oldAddress.append(
+        el('p', { className: 'hint', textContent: 'This photo uses an address saved earlier:' }),
+        el('p', { className: 'old-address-text', textContent: address }),
+        useSpot,
+      );
+    };
+    syncOldAddress();
     const alt = kit.text(
       'Photo description (required)',
       [...path, 'alt'],
@@ -251,9 +271,11 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
     return [
       el('p', {
         className: 'hint step-note',
-        textContent: 'Upload the photo in TroopTrack, copy its address, paste it here.',
+        textContent:
+          "Leave a spot for this photo. After you paste the letter into TroopTrack, replace the Insert photo here box with the photo using TroopTrack's image button. Then use Finish photos below to add the descriptions and make the photos fit phones. Photo too big? Use Shrink a photo first.",
       }),
-      src,
+      oldAddress,
+      shrinkControl('Shrink a photo for the letter', 'spot'),
       alt,
       kit.text(
         'Caption (optional)',
@@ -348,7 +370,7 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
           [...path, 'stats', k, 'value'],
           () => stat.value,
           (v) => (stat.value = v),
-          { hint: 'Shown large in gold, such as 48 or 3,000.' },
+          { hint: 'Shown large in gold, such as 48 or 3,000.', kind: 'number' },
         ),
         kit.text(
           'Line of text under it',
@@ -449,7 +471,7 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
             if (year !== undefined) letter.issue.year = year;
             yearNote.node.hidden = year !== undefined || v.trim() === '';
           },
-          { hint: 'Four digits, like 2026.' },
+          { hint: 'Four digits, like 2026.', kind: 'number' },
         );
         field.append(yearNote.node);
         return field;
@@ -839,5 +861,5 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
     signOff.element,
     footer,
   );
-  return { element, setField: kit.setField, fieldControl: kit.fieldControl };
+  return { element, setField: kit.setField, fieldControl: kit.fieldControl, flush: kit.flush };
 }

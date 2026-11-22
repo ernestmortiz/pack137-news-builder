@@ -107,6 +107,11 @@ describe('mailtoDetails', () => {
   it('is null for other links', () => {
     expect(mailtoDetails('https://example.org')).toBeNull();
   });
+  it('treats a semicolon as another address', () => {
+    expect(alerts('mailto:pack@example.org;someone@evil.example')).toEqual([
+      'Also sends to: pack@example.org, someone@evil.example',
+    ]);
+  });
   it('handles a plain address with no query', () => {
     expect(texts('mailto:pack@example.org')).toEqual([
       'Email link, full value: mailto:pack@example.org',

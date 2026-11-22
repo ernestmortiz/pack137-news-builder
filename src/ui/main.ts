@@ -6,8 +6,15 @@ import { mountLetter } from './letter';
 import { createSettingsStore } from './app-settings';
 import { mountSettings } from './settings-view';
 import { createOtherTabGuard, guardStorage, isWatchedKey, OTHER_TAB_MESSAGE } from './other-tab';
-import { settingsRepairNotice, type RepairNotice } from './settings-logic';
+import {
+  SETTINGS_OUTSIDE_MESSAGE,
+  differingSettingNames,
+  settingsRepairNotice,
+  type RepairNotice,
+} from './settings-logic';
 import { createDeviceStorage } from './storage';
+import { installErrorNotice } from './error-notice';
+import { flushAll } from './safety';
 import './styles.css';
 
 type Screen = 'converter' | 'monthly' | 'settings';
@@ -36,6 +43,15 @@ function applyTokens(root: HTMLElement): void {
   for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
 }
 
+/** Where "Skip to the editor" lands: the first marked place that is showing, else the panel. */
+function skipTarget(panel: HTMLElement): HTMLElement {
+  for (const node of panel.querySelectorAll<HTMLElement>('[data-skip]')) {
+    if (node.getClientRects().length > 0) return node;
+  }
+  panel.tabIndex = -1;
+  return panel;
+}
+
 function mount(app: HTMLElement): void {
   const rawStorage = createDeviceStorage();
   const guard = createOtherTabGuard();
@@ -43,7 +59,7 @@ function mount(app: HTMLElement): void {
   // Read once from the real storage so repairs are noticed, then every save goes through the guard.
   const settings = createSettingsStore(storage);
   const noticeBox = el('div', { className: 'notices' });
-  const addNotice = (notice: RepairNotice): void => {
+  const addNotice = (notice: RepairNotice, onDismiss?: () => void): void => {
     const dismiss = el('button', { type: 'button', className: 'btn', textContent: 'Dismiss' });
     const box = el('div', { className: 'warnings', role: 'status' }, [
       el('p', { textContent: notice.message }),
@@ -57,11 +73,20 @@ function mount(app: HTMLElement): void {
       ]),
       el('div', { className: 'row-actions' }, [dismiss]),
     ]);
-    dismiss.addEventListener('click', () => box.remove());
+    dismiss.addEventListener('click', () => {
+      onDismiss?.();
+      box.remove();
+    });
     noticeBox.append(box);
   };
   const settingsNotice = settingsRepairNotice(settings.loadProblems());
   if (settingsNotice) addNotice(settingsNotice);
+  if (settings.changedOutside()) {
+    addNotice(
+      { message: SETTINGS_OUTSIDE_MESSAGE, details: differingSettingNames(settings.get()) },
+      () => settings.markSeen(),
+    );
+  }
 
   // Another tab saved a draft or settings. Hold back saving here until the person chooses.
   const otherTab = el('div', { className: 'warnings', role: 'alert' });
@@ -103,14 +128,17 @@ function mount(app: HTMLElement): void {
   panels.monthly = el('div', { className: 'panel', id: 'panel-monthly' }, [
     el('h2', { textContent: screens.monthly.title }),
   ]);
-  panels.settings = el('div', { className: 'panel', id: 'panel-settings' }, [
-    el('h2', { textContent: screens.settings.title }),
-  ]);
+  const settingsHeading = el('h2', { textContent: screens.settings.title });
+  settingsHeading.tabIndex = -1;
+  settingsHeading.dataset.skip = '';
+  panels.settings = el('div', { className: 'panel', id: 'panel-settings' }, [settingsHeading]);
   mountSettings(panels.settings, settings);
   // Built the first time the tab opens. After that the screen stays in memory, so nothing typed is lost.
   let monthlyMounted = false;
 
   function select(key: Screen, focus = false): void {
+    // Text typed a moment ago reaches the form and the saved draft before the screen changes.
+    flushAll();
     for (const k of order) {
       const on = k === key;
       buttons[k].setAttribute('aria-selected', String(on));
@@ -152,8 +180,21 @@ function mount(app: HTMLElement): void {
     panels[key].setAttribute('aria-labelledby', `tab-${key}`);
   }
 
+  // The first thing a keyboard reaches on every tab. It moves to the editor of the open tab.
+  const skip = el('a', {
+    className: 'skip-link',
+    href: '#main-content',
+    textContent: 'Skip to the editor',
+  });
+  skip.addEventListener('click', (event) => {
+    event.preventDefault();
+    const open = order.find((k) => !panels[k].hidden) ?? 'converter';
+    skipTarget(panels[open]).focus();
+  });
+
   app.replaceChildren(
     el('div', { className: 'shell' }, [
+      skip,
       el('header', { className: 'masthead' }, [
         el('small', { textContent: packConfig.eyebrow }),
         el('h1', { textContent: 'Pack 137 News Builder' }),
@@ -161,9 +202,9 @@ function mount(app: HTMLElement): void {
       noticeBox,
       otherTab,
       tabs,
-      el('main', {}, [panels.converter, panels.monthly, panels.settings]),
+      el('main', { id: 'main-content' }, [panels.converter, panels.monthly, panels.settings]),
       el('footer', {
-        textContent: `Version ${__APP_VERSION__}. Nothing you paste leaves this device.`,
+        textContent: `Version ${__APP_VERSION__}. This tool never sends what you paste or type anywhere.`,
       }),
     ]),
   );
@@ -171,6 +212,7 @@ function mount(app: HTMLElement): void {
 }
 
 const app = document.getElementById('app');
+installErrorNotice();
 if (app) {
   applyTokens(document.documentElement);
   mount(app);

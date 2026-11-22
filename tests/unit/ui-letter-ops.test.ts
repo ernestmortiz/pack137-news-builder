@@ -152,7 +152,10 @@ describe('things to look at', () => {
     expect(list).toContain(
       'Photo 1: Add a short description of the photo, so people using screen readers know what it shows.',
     );
-    expect(list).toContain('Photo 1: the photo has no address yet.');
+    expect(list).toContain(
+      'Photo 1 is a photo spot. After pasting, replace the Insert photo here box with the photo in TroopTrack, then use Finish photos.',
+    );
+    expect(list.some((m) => m.includes('no address yet'))).toBe(false);
   });
 
   it('is quiet once filled in, and ignores sections that are off', () => {
@@ -174,6 +177,30 @@ describe('things to look at', () => {
     expect(letterWarnings(letter)).toHaveLength(1);
     setSectionEnabled(letter, 'around', false);
     expect(letterWarnings(letter)).toEqual([]);
+  });
+});
+
+describe('things to look at: photo spots', () => {
+  it('names each spot in the same words as the renderer and skips address warnings for it', () => {
+    const letter = blank();
+    letter.story.blocks.push(
+      { kind: 'photo', photo: { src: 'https://example.org/a.jpg', alt: 'Camp', caption: '' } },
+      { kind: 'photo', photo: { src: '', alt: 'Campfire', caption: '' } },
+      {
+        kind: 'sidebar',
+        title: 'Recipe',
+        source: '',
+        body: [],
+        photo: { src: '', alt: 'Bannock', caption: '' },
+      },
+    );
+    const list = letterWarnings(letter);
+    const note =
+      'After pasting, replace the Insert photo here box with the photo in TroopTrack, then use Finish photos.';
+    expect(list).toContain(`Photo 2 is a photo spot. ${note}`);
+    expect(list).toContain(`Sidebar photo in block 3 is a photo spot. ${note}`);
+    expect(list.filter((m) => m.includes('photo spot'))).toHaveLength(2);
+    expect(list.some((m) => m.includes('address'))).toBe(false);
   });
 });
 
@@ -220,12 +247,12 @@ describe('things to look at: photo descriptions', () => {
     return letter;
   };
   const altWarnings = (letter: LetterForm) =>
-    letterWarnings(letter).filter((m) => m.startsWith('Photo 2'));
+    letterWarnings(letter).filter((m) => m.startsWith('Photo 1'));
 
-  it('gives one warning per problem, named by block number', () => {
+  it('gives one warning per problem, named by photo number', () => {
     expect(altWarnings(photoLetter('Scouts at camp'))).toEqual([]);
     expect(altWarnings(photoLetter(''))).toHaveLength(1);
-    expect(altWarnings(photoLetter('Photo of scouts'))[0]).toMatch(/^Photo 2: .*Photo of/);
+    expect(altWarnings(photoLetter('Photo of scouts'))[0]).toMatch(/^Photo 1: .*Photo of/);
     expect(altWarnings(photoLetter('IMG_1234.jpg'))[0]).toMatch(/file name/);
     expect(altWarnings(photoLetter('Scouts at camp', 'scouts at camp.'))[0]).toMatch(
       /repeats the caption/,
@@ -274,14 +301,15 @@ describe('warnings for addresses that would be left out', () => {
       ),
     ).toBe(true);
   });
-  it('warns about a photo address that is unusable or not secure', () => {
+  it('turns an unusable photo address into a spot, and warns about an insecure one', () => {
     const l = blank();
     l.story.blocks = [
       { kind: 'photo', photo: { src: 'ftp://x.example/a.jpg', alt: 'A tent', caption: '' } },
       { kind: 'photo', photo: { src: 'http://x.example/a.jpg', alt: 'A tent', caption: '' } },
     ];
     const warnings = letterWarnings(l);
-    expect(warnings.some((w) => w.startsWith('Photo 1: ') && w.includes('left out'))).toBe(true);
+    // An address that cannot be used becomes a photo spot in the letter.
+    expect(warnings.some((w) => w.startsWith('Photo 1 is a photo spot.'))).toBe(true);
     expect(warnings).toContain(
       "Photo 2: This photo's address is not secure (http). Use the https address from TroopTrack.",
     );

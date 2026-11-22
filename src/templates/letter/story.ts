@@ -10,7 +10,9 @@ import {
   caption,
   leadHtml,
   panelTable,
+  isPhotoSpot,
   photoImg,
+  photoSpot,
   pill,
   row,
 } from './layout';
@@ -45,9 +47,9 @@ function contributor(block: Extract<StoryBlock, { kind: 'contributor' }>, top: n
 }
 
 function photoBlock(block: Extract<StoryBlock, { kind: 'photo' }>, top: number): string {
-  const img = photoImg(block.photo, CARD_INNER);
-  if (img === '') return '';
-  const wrapper = `<p style="margin:0;color:${color.muted};font-size:13px;font-weight:700;">${img}</p>`;
+  const wrapper = isPhotoSpot(block.photo)
+    ? photoSpot(block.photo)
+    : `<p style="margin:0;color:${color.muted};font-size:13px;font-weight:700;">${photoImg(block.photo, CARD_INNER)}</p>`;
   return row(`${top}px 24px 0 24px`, lines(wrapper, caption(block.photo.caption)));
 }
 
@@ -79,7 +81,12 @@ function statsBlock(block: Extract<StoryBlock, { kind: 'stats' }>, top: number):
 
 function sidebarBlock(block: Extract<StoryBlock, { kind: 'sidebar' }>, top: number): string {
   const body = block.body.filter((p) => !isEmptyRich(p));
-  const img = block.photo === undefined ? '' : photoImg(block.photo, CARD_INNER - 40);
+  const img =
+    block.photo === undefined
+      ? ''
+      : isPhotoSpot(block.photo)
+        ? photoSpot(block.photo)
+        : photoImg(block.photo, CARD_INNER - 40);
   const photoCaption =
     block.photo === undefined || img === '' || block.photo.caption.trim() === ''
       ? ''

@@ -1,0 +1,73 @@
+name: Release
+# Pushing a version tag (for example v1.0.0) builds the web app and attaches it to a GitHub
+# release as a zip. The zip works when unzipped and opened from disk, and on any static host
+# (spec 3 and 13). The desktop and Android builds join this workflow in Phases 7 and 8.
+#
+# Least privilege: the build job installs and runs third-party code (npm packages, Playwright)
+# with a read-only token that is not kept on disk. Only the publish job can write, and it runs
+# nothing but the GitHub CLI on the finished zip. Actions are pinned to commit SHAs (v4).
+on:
+  push:
+    tags: ['v*.*.*']
+permissions: {}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Check the tag matches package.json
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match package.json version ${version}."
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - name: Zip the web build and its checksum
+        run: |
+          npm run build
+          name="pack137-news-builder-${GITHUB_REF_NAME}-web"
+          rm -rf release
+          mkdir -p "release/${name}"
+          cp -r dist/. "release/${name}/"
+          cp docs/using-the-web-build.md "release/${name}/HOW-TO-USE.md"
+          (cd release && zip -r -q "${name}.zip" "${name}" && sha256sum "${name}.zip" > "${name}.zip.sha256")
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-files
+          path: |
+            release/*.zip
+            release/*.zip.sha256
+          retention-days: 5
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-files
+          path: release
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" release/*.zip release/*.zip.sha256 \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Pack 137 News Builder ${GITHUB_REF_NAME}" \
+            --notes "Web build: unzip and open index.html, or put the folder on any web host. See HOW-TO-USE.md inside the zip and CHANGELOG.md. The .sha256 file lets you check the zip was not changed."

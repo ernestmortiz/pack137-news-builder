@@ -40,6 +40,11 @@ Owner decisions, 2026-11-22 (Phase 5):
 6. A letter already started keeps its own button and photo ask links when the volunteer email or photo form setting changes; new letters use the new settings.
 7. Opening a draft always asks before using the settings stored in it.
 
+## Desktop and Android wrappers (Phases 7 and 8)
+
+1. The wrapper's Content Security Policy must match the web build's (BUILD_CSP in vite.config.ts), including `blob:` in img-src for the Shrink a photo thumbnail, and nothing looser.
+2. Download draft and Shrink a photo save files through a browser download; the wrappers need a working save path for both.
+
 ## To verify in a real browser before release (Phase 6)
 
 With the network panel open, paste `<img src="https://example.org/a.png"><link rel=stylesheet href="https://example.org/x.css"><iframe src="https://example.org/"></iframe>` and confirm the parse makes no requests. The review reasoned this from the HTML spec; it has not been observed on a device.

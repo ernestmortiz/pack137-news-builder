@@ -90,6 +90,9 @@ export function safeUrl(raw: string): string | null {
   const rest = url.slice(scheme.length);
   if (rest === '' || /^\s/.test(rest)) return null;
   if (scheme.toLowerCase() === 'mailto:') return scheme + encodeMailto(rest);
+  // Userinfo ("user@host") makes a link show one site and open another, so refuse it.
+  const authority = /^[^/?#]*/.exec(rest)?.[0] ?? '';
+  if (authority.includes('@')) return null;
   return scheme + percentEncode(rest, URL_KEEP);
 }
 
@@ -167,14 +170,21 @@ export function badge(text: string, tone: 'gold' | 'navy'): string {
   );
 }
 
-/** A small tag after an event name. Quiet tags use white inside a colored panel. */
+/**
+ * A small tag after an event name. Quiet tags use white inside a colored panel, with a thin navy
+ * outline so the tag still shows in mail apps that drop a white background (Outlook on a phone,
+ * seen 2026-11-22; owner decision, option a). The padding loses the outline's 1px, so every tag
+ * is the same size.
+ */
 export function tag(t: Tag, onPanel: boolean): string {
-  const quietBg = onPanel ? color.white : color.lavender;
-  const bg = t.strength === 'strong' ? color.navy : quietBg;
-  const fg = t.strength === 'strong' ? color.goldLight : color.navy;
+  const strong = t.strength === 'strong';
+  const outlined = !strong && onPanel;
+  const bg = strong ? color.navy : onPanel ? color.white : color.lavender;
+  const fg = strong ? color.goldLight : color.navy;
+  const box = outlined ? `border:1px solid ${color.navy};padding:1px 7px;` : 'padding:2px 8px;';
   return (
     `<span style="${PILL_BASE}background-color:${bg};color:${fg};font-size:11px;font-weight:700;` +
-    `text-transform:uppercase;padding:2px 8px;border-radius:${radius.control}px;">${nbspText(t.text)}</span>`
+    `text-transform:uppercase;${box}border-radius:${radius.control}px;">${nbspText(t.text)}</span>`
   );
 }
 

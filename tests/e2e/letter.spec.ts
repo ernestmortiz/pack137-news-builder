@@ -133,10 +133,9 @@ test('filled fields reach the 600px preview and the counter follows the typing',
   await contributor.getByLabel('Bold lead').fill('Camp Crafts');
   await contributor.getByLabel('Text after the lead').fill('Every Scout made a lanyard.');
 
-  // A photo, with address and description.
+  // A photo spot, with a description.
   await addBlock(page, 'Photo: One picture with a caption');
   const photo = block(page, 2);
-  await photo.getByLabel('Photo address').fill('https://example.org/photos/camp.jpg');
   await photo.getByLabel('Photo description (required)').fill('Scouts around a campfire');
 
   // A stat band.

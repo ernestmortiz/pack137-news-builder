@@ -2,7 +2,16 @@
 
 A small tool for Cranford Cub Scouts Pack 137 volunteers. It turns the HTML of a TroopTrack announcement into HTML that follows the pack's design standards, and it builds the monthly "Pack 137 Stories" letter from a fill-in template. Nothing is sent anywhere: you copy the result back into TroopTrack.
 
-Status: the core pipeline (Phase 1) is done, but there is still no screen to use it. The converter screen comes in Phase 3. The letter editor is not built yet.
+Status: Phases 0 to 5 are complete and merged. Phase 6, the web release, is in progress.
+
+## Status and releases
+
+The web release is the next step. Two guides cover it:
+
+- [Release checklist](docs/release-checklist.md) explains how to publish a new version, including the manual email test.
+- [Using the web build](docs/using-the-web-build.md) explains how volunteers unzip the zip file and use the tool. A copy of it is inside each release zip as `HOW-TO-USE.md`.
+
+[CHANGELOG.md](CHANGELOG.md) lists what changed in each version.
 
 ## Run it
 
