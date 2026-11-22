@@ -895,3 +895,10 @@ describe('bare web address links in the letter (spec 6.1, 2026-11-22)', () => {
     expect(words).not.toContain('word-break');
   });
 });
+
+describe('letter card wraps long unbroken text (spec 6.1, 2026-11-22)', () => {
+  it('the white card table carries word-break:break-word;', () => {
+    const html = renderLetter(base(), defaultSettings());
+    expect(html).toMatch(/<table [^>]*bgcolor="#FFFFFF" style="[^"]*;word-break:break-word;"/);
+  });
+});

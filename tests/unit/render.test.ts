@@ -459,7 +459,7 @@ describe('card shell', () => {
   it('uses the approved shell and omits an empty label and title', () => {
     const html = render(message());
     expect(html).toContain(
-      'align="center" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="max-width:600px;margin:0 auto;border-collapse:separate;background-color:#FFFFFF;border:1px solid #E3E6F5;border-radius:12px;font-family:Inter,Arial,Helvetica,sans-serif;"',
+      'align="center" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="max-width:600px;margin:0 auto;border-collapse:separate;background-color:#FFFFFF;border:1px solid #E3E6F5;border-radius:12px;font-family:Inter,Arial,Helvetica,sans-serif;word-break:break-word;"',
     );
     const bare = render(message({ label: ' ', title: '' }));
     expect(bare).not.toContain('letter-spacing');
@@ -818,4 +818,21 @@ describe('bare web address links (spec 6.1, 2026-11-22)', () => {
     for (const s of ['Sign up', 'Read the guide.', 'and/or', 'example.org', 'a. b/c'])
       expect(looksLikeWebAddress(s)).toBe(false);
   });
+});
+
+describe('card table wraps long unbroken text (spec 6.1, 2026-11-22)', () => {
+  const forms: [string, AnnouncementForm][] = [
+    ['message', message()],
+    ['call to action', cta()],
+    ['date list', dateList(section({ rows: [row()] }))],
+    ['help wanted', help()],
+    ['link list', linkList()],
+  ];
+  for (const [name, form] of forms) {
+    it(`${name}: the outer card table ends its style with word-break:break-word;`, () => {
+      const html = render(form);
+      const first = /^<table [^>]*style="([^"]*)"/.exec(html);
+      expect(first?.[1]).toMatch(/;word-break:break-word;$/);
+    });
+  }
 });

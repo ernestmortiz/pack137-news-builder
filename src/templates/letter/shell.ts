@@ -62,7 +62,7 @@ export function mastheadRow(
 /** Wraps the card rows: preview text, Outlook font rule, grey page, 600px wrapper and card. */
 export function letterShell(preview: string, rows: string): string {
   const card = lines(
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" align="center" bgcolor="${color.white}" style="width:100%;max-width:${maxEmailWidth}px;background-color:${color.white};border-radius:${radius.panel}px;margin:0 auto;border-collapse:separate;font-family:${fontStack};">`,
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" align="center" bgcolor="${color.white}" style="width:100%;max-width:${maxEmailWidth}px;background-color:${color.white};border-radius:${radius.panel}px;margin:0 auto;border-collapse:separate;font-family:${fontStack};word-break:break-word;">`,
     indent(rows, 2),
     '</table>',
   );

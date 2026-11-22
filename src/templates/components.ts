@@ -284,7 +284,7 @@ export function cardShell(label: string, title: string, body: string): string {
       `<p style="margin:8px 0 0 0;color:${color.white};font-size:20px;font-weight:700;line-height:1.3;">${esc(title)}</p>`,
   );
   return lines(
-    `<table role="presentation" width="100%" align="center" cellpadding="0" cellspacing="0" border="0" bgcolor="${color.white}" style="max-width:600px;margin:0 auto;border-collapse:separate;background-color:${color.white};border:1px solid ${color.lavender};border-radius:${radius.panel}px;font-family:${fontStack};">`,
+    `<table role="presentation" width="100%" align="center" cellpadding="0" cellspacing="0" border="0" bgcolor="${color.white}" style="max-width:600px;margin:0 auto;border-collapse:separate;background-color:${color.white};border:1px solid ${color.lavender};border-radius:${radius.panel}px;font-family:${fontStack};word-break:break-word;">`,
     '  <tr>',
     `    <td bgcolor="${color.navy}" style="background-color:${color.navy};border-radius:${radius.panel}px ${radius.panel}px 0 0;padding:${space.card}px;font-family:${fontStack};">`,
     indent(header, 6),
