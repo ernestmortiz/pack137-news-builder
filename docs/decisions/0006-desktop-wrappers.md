@@ -11,13 +11,13 @@ Reason:
 
 How each need is met:
 
-| Need | Web build | Wrapper |
-|---|---|---|
-| Copy HTML | `navigator.clipboard`, with the select-and-copy box as fallback | The same |
-| Open draft, Shrink a photo | File picker (`<input type=file>`) | The same; the system webview shows the native picker |
-| Download draft, shrunk photo | Browser download | A download handler in the wrapper's Rust code saves into the Downloads folder, adding " (1)" when the name is taken, as browsers do (ADR 0004, wrapper point 2) |
-| Saved work | Browser storage | The webview's storage, inside the app, separate from any browser |
-| Content Security Policy | BUILD_CSP meta tag | The same meta tag. Tauri's own CSP setting is left empty so Tauri does not add sources to it (ADR 0004, wrapper point 1) |
+| Need                         | Web build                                                       | Wrapper                                                                                                                                                         |
+| ---------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Copy HTML                    | `navigator.clipboard`, with the select-and-copy box as fallback | The same                                                                                                                                                        |
+| Open draft, Shrink a photo   | File picker (`<input type=file>`)                               | The same; the system webview shows the native picker                                                                                                            |
+| Download draft, shrunk photo | Browser download                                                | A download handler in the wrapper's Rust code saves into the Downloads folder, adding " (1)" when the name is taken, as browsers do (ADR 0004, wrapper point 2) |
+| Saved work                   | Browser storage                                                 | The webview's storage, inside the app, separate from any browser                                                                                                |
+| Content Security Policy      | BUILD_CSP meta tag                                              | The same meta tag. Tauri's own CSP setting is left empty so Tauri does not add sources to it (ADR 0004, wrapper point 1)                                        |
 
 Further locks in the wrapper:
 
