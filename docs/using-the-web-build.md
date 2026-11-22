@@ -39,10 +39,11 @@ Keep the folder. Do not delete it while you are using the tool.
 ## Where your work is saved
 
 - Your work is saved in your web browser, on this computer only.
-- Nothing is sent to the internet, to the pack or to another computer.
+- The tool never sends what you paste or type to the internet, to the pack or to another computer.
 - On the monthly letter screen, the words "Saved on this device" show that your work has been saved.
 - Your saved work does not move to another computer. A different browser on the same computer does not see it either.
 - In Chrome, every file you open from a folder on this computer shares the same saved work. So a second copy of the tool, opened from another folder in Chrome, can show the same saved work.
+- Because of that, any other web page file you open from your computer in the same browser could read your saved letter or change your saved settings. Only open web page files you trust in that browser. If the tool ever says your settings were changed outside it, open Settings and check them, or press Restore Pack 137 defaults.
 - Clearing your browser's history or site data can delete saved work.
 
 ## Keep a copy with Download draft
@@ -71,6 +72,7 @@ If the Copy button does not work, the tool shows the code in a box. Click inside
 - The tool does not check spelling. Your web browser does.
 - A word with a wavy red line may be misspelled. Right-click the word to see suggestions.
 - Pack names such as "Webelos" may show a red line. You can ignore it.
+- Some browsers have an optional "enhanced" or cloud spell check (for example Chrome's Enhanced spell check, or Microsoft Editor in Edge). If you have turned it on, the browser itself may send what you type to its spelling service. The tool does not. Leave it off if you do not want that.
 
 ## Pictures in the preview
 

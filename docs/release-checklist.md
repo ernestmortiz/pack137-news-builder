@@ -81,6 +81,19 @@ Stop the release and tell the project owner if you see any of these:
 - The "I can help" button missing in Outlook for Windows.
 - Text overlapping or content missing in any app.
 
+## Step 2b: Check the tool itself in Firefox and Safari
+
+The automatic browser tests run in Chrome only. Before each release, open the zip's `index.html` straight from disk in current Firefox (Windows or Mac) and current Safari (Mac), with the internet turned off, and check:
+
+1. The tool opens and shows the three tabs: Weekly announcement, Monthly letter and Settings.
+2. Pasting an announcement fills the form and the three previews.
+3. Copy new HTML works, and so does Copy letter HTML.
+4. Typing in the letter shows "Saved on this device". Close the browser, open `index.html` again, and the letter is offered back.
+5. Download draft saves a file, and Open draft opens it again.
+6. Underlined spelling shows in text fields and not in address fields.
+
+If any of these fail, do not tag the release. Tell the project owner which browser and step failed.
+
 ## Step 3: Answer two questions
 
 This test must answer two questions. Write each answer down and send it to the project owner.
@@ -113,7 +126,7 @@ Write "Kept" if all of these are in the TroopTrack code and Outlook shows the bu
 5. Create the tag. Run `git tag v1.0.0`, then `git push origin v1.0.0`. The tag must be a lowercase `v` followed by the version in `package.json`. If they do not match, the release stops with a message.
 6. Open the Actions tab. Open the "Release" run for the tag. It runs the checks again, runs the browser tests, builds the web files and makes the zip.
 7. If the run fails, no release is made. Do not move or delete the tag yourself. Tell the project owner what the message said.
-8. When the run is green, open the Releases page. You should see a release called "Pack 137 News Builder v1.0.0" with one zip file attached. The file is named `pack137-news-builder-v1.0.0-web.zip`.
+8. When the run is green, open the Releases page. You should see a release called "Pack 137 News Builder v1.0.0" with the zip file and its checksum attached: `pack137-news-builder-v1.0.0-web.zip` and `pack137-news-builder-v1.0.0-web.zip.sha256`. The checksum lets anyone check that a copy of the zip passed around the pack was not changed.
 9. Download the zip. Test it the way a volunteer will. Unzip it, double-click `index.html`, and check the version shown in the tool matches the release. Try this with the internet turned off.
 10. Send the project owner the link to the release page. Wait for the owner's sign-off before you tell volunteers about it.
 
