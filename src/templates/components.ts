@@ -122,10 +122,27 @@ function lines(...parts: (string | false | undefined)[]): string {
 const LINK_STYLE = `color:${color.navy};font-weight:700;text-decoration:underline;`;
 const EVENT_LINK_STYLE = `${LINK_STYLE}font-size:16px;`;
 
+/**
+ * True when a link's visible text is a bare web address (spec 6.1, 2026-11-22). The rule: after
+ * removing tags and trimming, the text starts with http://, https:// or www., or it has no
+ * whitespace and holds both a dot and a slash. Such text has no break opportunities, so it gets
+ * `word-break:break-all` and never widens the card on a phone. Ordinary words never match.
+ */
+export function looksLikeWebAddress(innerHtml: string): boolean {
+  const text = innerHtml
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .trim();
+  if (/^(https?:\/\/|www\.)/i.test(text)) return true;
+  return !/\s/.test(text) && text.includes('.') && text.includes('/');
+}
+
 /** A link. Everything but mailto opens in a new tab with a safe rel. `href` must be from safeUrl. */
 export function anchor(href: string, style: string, inner: string): string {
   const attrs = /^mailto:/i.test(href) ? '' : ' target="_blank" rel="noopener noreferrer"';
-  return `<a href="${escAttr(href)}"${attrs} style="${style}">${inner}</a>`;
+  const wrap =
+    looksLikeWebAddress(inner) && !/word-break:/i.test(style) ? 'word-break:break-all;' : '';
+  return `<a href="${escAttr(href)}"${attrs} style="${style}${wrap}">${inner}</a>`;
 }
 
 /** Rich text: marks, links and line breaks. A link with an unusable URL is plain text. */

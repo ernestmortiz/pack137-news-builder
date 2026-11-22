@@ -211,6 +211,8 @@ Photo spot (monthly letter; 2026-11-22). Stands where a photo with no usable add
 
 Link inside a paragraph: `color:#151B4D;font-weight:700;text-decoration:underline;`, with `target="_blank" rel="noopener noreferrer"` except on `mailto:`.
 
+Bare web addresses (2026-11-22): when a link's visible text starts with `http://`, `https://` or `www.`, or has no spaces and holds both a dot and a slash, the link style ends with `word-break:break-all;`, so a long address may break anywhere and never widens the card on a narrow screen. Links with ordinary words are unchanged. Outlook for Windows ignores it, which is accepted because its window is wide.
+
 Monthly letter, Outlook rules (2026-11-22): bullet lists indent with a margin on the `ul` (`margin:10px 0 0 22px;padding:0`) and each `li` except the last carries only `margin-bottom`; masthead, sidebar and feedback text use `<p>` margins; the white card table carries `bgcolor`; contributor and Coming up badges are one-cell tables, as in the November issue.
 
 ## 7. Feature 1: Announcement Converter

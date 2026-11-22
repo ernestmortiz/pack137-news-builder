@@ -778,3 +778,44 @@ describe('quiet tags inside colored panels (owner decision 2026-11-22, option a)
     expect(tag({ text: 'Virtual', strength: 'quiet' }, false)).toContain('padding:2px 8px;');
   });
 });
+
+describe('bare web address links (spec 6.1, 2026-11-22)', () => {
+  const url = 'https://www.signupgenius.com/go/4090F4CAEAE2AA4F58-61725464-stmichael';
+  const anchors = (html: string): string[] => html.match(/<a [^>]*>[^<]*<\/a>/g) ?? [];
+
+  it('adds word-break to an address link in an announcement paragraph only', () => {
+    const html = render(
+      message({
+        paragraphs: [
+          [
+            t('Sign up here: '),
+            t(url, { href: url }),
+            t(' or '),
+            t('Sign up', { href: 'https://example.org/s' }),
+          ],
+        ],
+      }),
+    );
+    const [address, words] = anchors(html);
+    expect(address).toContain(
+      `style="color:${color.navy};font-weight:700;text-decoration:underline;word-break:break-all;"`,
+    );
+    expect(words).not.toContain('word-break');
+    expect(words).toContain(
+      `style="color:${color.navy};font-weight:700;text-decoration:underline;"`,
+    );
+  });
+
+  it('applies the rule to www., and to no-space text with a dot and a slash', async () => {
+    const { looksLikeWebAddress } = await import('../../src/templates/components');
+    for (const s of [
+      'www.example.org',
+      'HTTP://x.org',
+      'example.org/a/b',
+      '<strong>https://a.b/c</strong>',
+    ])
+      expect(looksLikeWebAddress(s)).toBe(true);
+    for (const s of ['Sign up', 'Read the guide.', 'and/or', 'example.org', 'a. b/c'])
+      expect(looksLikeWebAddress(s)).toBe(false);
+  });
+});

@@ -198,3 +198,20 @@ test('screenshots of the three preview frames for fixture 1', async ({ page, con
     await figure.screenshot({ path: `test-results/screens/1-pack-calendar-${width}.png` });
   }
 });
+
+test('a long web address link does not widen the 250px or 375px preview', async ({
+  page,
+  context,
+}) => {
+  const seen = await watch(context, page);
+  const owner =
+    '<div><p><strong>The First Presbyterian Church is having Scout Sunday on February 8th, 10am-11am.</strong></p><p>Please RSVP via the TroopTrack event.</p><p>If you are interested, please signup here: <a href="https://www.signupgenius.com/go/4090F4CAEAE2AA4F58-61725464-stmichael">https://www.signupgenius.com/go/4090F4CAEAE2AA4F58-61725464-stmichael</a>.</p></div>';
+  await paste(page, owner);
+  for (const width of [250, 375]) {
+    const body = frame(page, width).locator('body');
+    await expect(body).toContainText('signupgenius');
+    const scrollWidth = await body.evaluate(() => document.documentElement.scrollWidth);
+    expect(scrollWidth).toBeLessThanOrEqual(width);
+  }
+  expect(seen.remote).toEqual([]);
+});
