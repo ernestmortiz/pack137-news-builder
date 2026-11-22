@@ -2,6 +2,7 @@ import { color, fontStack } from '../config/tokens';
 import { packConfig } from '../config/pack.config';
 import { mountConverter } from './converter';
 import { el } from './dom';
+import { mountLetter } from './letter';
 import './styles.css';
 
 type Screen = 'converter' | 'monthly';
@@ -44,11 +45,9 @@ function mount(app: HTMLElement): void {
   panels.converter = converter;
   panels.monthly = el('div', { className: 'panel', id: 'panel-monthly' }, [
     el('h2', { textContent: screens.monthly.title }),
-    el('p', {
-      textContent:
-        'Fill in the monthly letter template and copy the finished HTML. Coming in Phase 4.',
-    }),
   ]);
+  // Built the first time the tab opens. After that the screen stays in memory, so nothing typed is lost.
+  let monthlyMounted = false;
 
   function select(key: Screen, focus = false): void {
     for (const k of order) {
@@ -56,6 +55,10 @@ function mount(app: HTMLElement): void {
       buttons[k].setAttribute('aria-selected', String(on));
       buttons[k].tabIndex = on ? 0 : -1;
       panels[k].hidden = !on;
+    }
+    if (key === 'monthly' && !monthlyMounted) {
+      monthlyMounted = true;
+      mountLetter(panels.monthly);
     }
     if (focus) buttons[key].focus();
   }

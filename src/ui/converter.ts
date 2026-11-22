@@ -4,7 +4,6 @@
  * form reach the page, and every string is set with textContent or .value.
  */
 import { packConfig } from '../config/pack.config';
-import { previewWidths } from '../config/tokens';
 import { todayFrom } from '../core/dates';
 import {
   applySuggestion,
@@ -28,7 +27,7 @@ import type { FormContext, TypingEdit } from './form-kit';
 import { createHistory } from './history';
 import { buildGuide } from './guide';
 import { capIssues, remapAfterRemove, remapAfterSwap } from './paths';
-import { previewDocument } from './preview';
+import { createPreviewFrames } from './preview-frames';
 
 /** Largest paste accepted, in bytes (ADR 0004 UI 5). */
 export const MAX_PASTE_BYTES = 2 * 1024 * 1024;
@@ -40,12 +39,6 @@ const LAYOUTS: { id: Layout; name: string; use: string }[] = [
   { id: 'date-list', name: 'Date list', use: 'Events by date' },
   { id: 'help-wanted', name: 'Help wanted', use: 'Volunteer asks' },
 ];
-
-const PREVIEW_NAMES: Record<number, string> = {
-  250: 'Small phone, with TroopTrack around it',
-  375: 'Phone',
-  600: 'Desktop',
-};
 
 interface Session {
   form: AnnouncementForm;
@@ -182,24 +175,7 @@ export function mountConverter(root: HTMLElement): void {
     codeArea,
   ]);
 
-  const frames = previewWidths.map((width) => {
-    const frame = el('iframe', { className: 'preview-frame', width: String(width), height: '640' });
-    // An empty sandbox attribute turns every permission off: no scripts, no same origin.
-    frame.setAttribute('sandbox', '');
-    frame.title = `Preview, ${width} pixels wide`;
-    frame.setAttribute('loading', 'eager');
-    const scroll = el('div', { className: 'frame-scroll' }, [frame]);
-    scroll.tabIndex = 0;
-    scroll.setAttribute('role', 'region');
-    scroll.setAttribute('aria-label', `Preview at ${width} pixels wide`);
-    const figure = el('figure', { className: 'preview' }, [
-      el('figcaption', {
-        textContent: `${PREVIEW_NAMES[width] ?? 'Preview'}: ${width}px wide`,
-      }),
-      scroll,
-    ]);
-    return { frame, figure };
-  });
+  const frames = createPreviewFrames();
 
   const right = el('div', { className: 'column output' }, [
     el('section', { className: 'card' }, [
@@ -216,7 +192,7 @@ export function mountConverter(root: HTMLElement): void {
         textContent:
           'Pictures show as grey boxes here. They appear normally once the email is sent.',
       }),
-      ...frames.map((f) => f.figure),
+      ...frames.figures,
     ]),
   ]);
 
@@ -284,8 +260,7 @@ export function mountConverter(root: HTMLElement): void {
     );
     codeArea.value = html;
     // The preview works on a copy of the output. The code and the copy button keep the original.
-    const doc = previewDocument(html);
-    for (const f of frames) f.frame.srcdoc = doc;
+    frames.show(html);
   }
   const refreshLater = debounce(refreshOutput, 150);
 
@@ -433,7 +408,7 @@ export function mountConverter(root: HTMLElement): void {
     clear(layoutBox);
     clear(issuesBox);
     codeArea.value = '';
-    for (const f of frames) f.frame.srcdoc = '';
+    frames.clear();
   }
 
   function handlePaste(): void {

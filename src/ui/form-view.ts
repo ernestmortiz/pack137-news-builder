@@ -51,7 +51,7 @@ function cardFields(kit: Kit, form: AnnouncementForm): HTMLElement {
  * A repeater over a list of rich text. The list lives in the form as `RichText[]`, so editing
  * writes straight into that array by index.
  */
-function paragraphs(
+export function paragraphs(
   kit: Kit,
   noun: string,
   addLabel: string,
