@@ -16,6 +16,11 @@ export type RichText = Inline[];
 export interface ButtonField {
   text: string;
   url: string;
+  /**
+   * The volunteer's style choice (owner decision 2026-11-22): navy with white text, or gold with
+   * navy text. Missing means navy.
+   */
+  color?: 'navy' | 'gold';
 }
 
 /** A small pill after an event name. Quiet: Virtual, In person, TBD. Strong: Please RSVP, Rescheduled. */
@@ -92,12 +97,20 @@ interface CardFields {
 export interface MessageForm extends CardFields {
   layout: 'message';
   paragraphs: RichText[];
+  /**
+   * Paragraphs shown in a pale-yellow box (owner decision 2026-11-22), by position: `boxed[i]`
+   * belongs to `paragraphs[i]`. Missing or false means no box. Boxed paragraphs next to each
+   * other share one box.
+   */
+  boxed?: boolean[];
   button?: ButtonField;
 }
 
 export interface CallToActionForm extends CardFields {
   layout: 'call-to-action';
   paragraph: RichText;
+  /** The paragraph in a pale-yellow box (owner decision 2026-11-22). Missing means no box. */
+  boxed?: boolean;
   button: ButtonField;
 }
 
