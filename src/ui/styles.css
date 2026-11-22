@@ -638,3 +638,23 @@ input.time {
 .preview-frame:focus-visible {
   outline: none;
 }
+/* Repaired-data and other-tab notices at the top of the app: same look as the error notice,
+   lighter weight, so they read as information rather than an alarm. */
+.notices:empty {
+  display: none;
+}
+.notices .warnings,
+.warnings[role='alert'] {
+  margin: 12px 0;
+  border: 2px solid var(--navy);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--gold-pale);
+  color: var(--navy);
+}
+.warnings p {
+  margin: 0 0 8px 0;
+}
+.warnings p:last-child {
+  margin-bottom: 0;
+}
