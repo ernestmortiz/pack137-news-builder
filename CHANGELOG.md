@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Web release hardening (Phase 6): the web build works when unzipped and opened from disk with no internet; a strict page policy (no outgoing connections); spell check by the browser; faster typing in very large fields; a plain-words error notice; an accessibility pass (skip links, keyboard use, focus, live regions, 44px targets, contrast).
+- Photos in the monthly letter: photos are inserted with TroopTrack's editor. The letter marks each one as a photo spot with its description and caption, and a Finish photos step takes the code back from TroopTrack and gives each photo its description and a phone-safe width.
+- Shrink a photo: makes a phone-friendly copy of a photo on the device (at most 1104 px wide, about 300 KB, location and camera details removed).
+- Quiet tags inside colored panels get a thin navy outline, so they still show where Outlook drops white backgrounds.
+- Release workflow: pushing a version tag builds the zip and its checksum with least-privilege permissions and pinned actions. Release checklist and volunteer guide added.
+- Security fixes from the final review: misleading web addresses with an @ are refused, settings changed outside the tool are flagged, and the privacy wording is exact.
 - Drafts and settings (Phase 5): the monthly letter autosaves on the device and says so, offers to keep working, start next month from it or start blank, and can be downloaded and opened as a draft file. A Settings tab holds the logo, footer links, pack emails, photo form, year at a glance and program year month, kept on the device and used by both features.
 - Draft files and stored values are treated as untrusted: size and total budgets, field-by-field checks, plain-word notes on anything replaced, a warning for every link that sends hidden copies, and "Keep my settings" as the default with every changed setting shown.
 - The em dash lint rule now also catches em dashes in regular expressions and escapes.
