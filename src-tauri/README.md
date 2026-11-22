@@ -7,9 +7,11 @@ Volunteers read `docs/installing-the-desktop-app.md`. This file is for whoever m
 ## What the wrapper does
 
 - Opens one window (1200 by 860, minimum 360 wide) on the bundled `dist/` files.
-- Sends every download to the person's Downloads folder (the home folder if there is none). It keeps the file name the page suggested, reduced to a plain name, and adds ` (1)`, ` (2)` before the extension when the name is taken, as browsers do. This is `on_download` in `src/lib.rs`. Download draft and Shrink a photo both save through a normal browser download, and the UI already says "Look in your Downloads folder" (ADR 0004, Desktop and Android wrappers, point 2).
-- Locks navigation to the app's own origin. `on_navigation` allows `tauri://localhost` (macOS and Linux), `http://tauri.localhost` and `https://tauri.localhost` (Windows), `about:blank` and `about:srcdoc` (the sandboxed preview frames), and `blob:` addresses that carry the app's own origin (the download links). Everything else is refused. `on_new_window` refuses every new window. The Vite dev server is allowed only in a dev run (`cfg!(dev)`).
+- Sends every download to the person's Downloads folder (the home folder if there is none). Only the kinds of file the app makes are saved: `.json` (drafts) and `.jpg` or `.jpeg` (shrunk photos). Anything else, such as `.exe` or `.command`, is refused. It keeps the file name the page suggested, reduced to plain letters, digits, spaces and `-_.()`, and adds ` (1)`, ` (2)` before the extension when the name is taken, as browsers do. It never writes over a file, a broken link counts as taken, and with no Downloads or home folder the download is refused. This is `on_download` in `src/lib.rs`. Download draft and Shrink a photo both save through a normal browser download, and the UI already says "Look in your Downloads folder" (ADR 0004, Desktop and Android wrappers, point 2).
+- Locks navigation to the app's own origin. `on_navigation` allows only the origin Tauri serves on that platform: `tauri://localhost` on macOS and Linux, `http://tauri.localhost` on Windows. The other forms are refused, because Tauri does not serve them there and they could reach the network or another program. It also allows `about:blank` and `about:srcdoc` (the sandboxed preview frames), and `blob:` addresses that carry the app's own origin (the download links). Everything else is refused. `on_new_window` refuses every new window. The Vite dev server on port 5173 is allowed only in a dev run (`cfg!(dev)`).
 - Refuses every permission request (camera, location, notifications and so on). The page asks for none.
+- Turns off Tauri's own drag and drop handling (`dragDropEnabled: false`), so nothing native listens for dropped files.
+- The Windows installer sets up Microsoft WebView2 only if the PC lacks it (`webviewInstallMode` is the download bootstrapper). Windows 10 and 11 normally have it. That download at install time is the only time anything uses the internet; the app never does.
 
 ## What the wrapper does not do
 
@@ -34,7 +36,7 @@ Do not change `csp` to a string, and do not edit the policy here. Edit `BUILD_CS
 
 ## The no-IPC decision
 
-Tauri always puts `window.__TAURI_INTERNALS__` into the page. With no capabilities, every command is refused. The smoke test calls eight commands, among them `plugin:app|version`, `plugin:event|listen`, `plugin:window|close` and `plugin:fs|read_file`, plus an unknown one. All are refused. The refusal text names the missing permission, which shows the permission check ran and found no capability. The policy also sets `connect-src 'none'`, so the page has no fetch channel to Tauri either.
+Tauri always puts `window.__TAURI_INTERNALS__` into the page. With no capabilities, every command is refused. The smoke test calls eight commands, among them `plugin:app|version`, `plugin:event|listen`, `plugin:window|close` and `plugin:fs|read_file`, plus an unknown one. All are refused. The refusal text names the missing permission, which shows the permission check ran and found no capability. The policy's `connect-src 'none'` closes Tauri's fetch channel, but Tauri falls back to the web view's message channel, which no policy covers. So the permission check, with no capability granted, is the real barrier. Keep it that way: `tests/unit/wrapper-config.test.ts` fails if a capability appears.
 
 ## Versions
 
@@ -64,10 +66,12 @@ Needs Node 22 and the toolchain below.
 
 - the window loads the app and the footer shows `Version` and the `package.json` number;
 - the meta CSP is in force, a `fetch` fails with a reported violation, `window.__TAURI__` is undefined and no `__TAURI_INTERNALS__` command can run;
-- Download draft writes a `.json` into a temporary Downloads folder, a second press makes ` (1)`, a third ` (2)`, and an odd name with folder parts is saved as a plain name;
-- the window stays on its own origin when the page sets `location.href` to a real local web server, to `https://example.org/` or to a `data:` address, and `window.open` and a `target="_blank"` link open nothing and reach no server.
+- Download draft writes a `.json` into a temporary Downloads folder, a second press makes ` (1)`, a third ` (2)`, an odd name with folder parts is saved as a plain name, and `.command` and `.exe` downloads are refused;
+- the window stays on its own origin when the page sets `location.href` to a real local web server, to `https://example.org/` or to a `data:` address, and `window.open` and a `target="_blank"` link open nothing and reach no server, and a `blob:` page made by script cannot run inline script (the app's policy carries over).
 
-It needs `webkit2gtk-driver` and `xvfb` from apt, and `cargo install tauri-driver --version 2.1.0 --locked`. It uses a private home folder, so it never touches the real Downloads folder. Set `SKIP_BUILD=1` to reuse a built app. `.github/workflows/wrappers.yml` runs it on pull requests that touch this folder.
+It needs `webkit2gtk-driver` and `xvfb` from apt, and `cargo install tauri-driver --version 2.1.0 --locked`. It uses a private home folder, so it never touches the real Downloads folder. Set `SKIP_BUILD=1` to reuse a built app. `.github/workflows/wrappers.yml` runs it on pull requests that touch this folder, the UI, `index.html`, the build config or the test itself. `tests/unit/wrapper-config.test.ts` runs in the main CI on every push and fails if a capability, plugin, CSP string or extra Rust dependency appears.
+
+Install a test installer from `wrappers.yml` only when it was built from a branch in this repository. The installer jobs do not run for pull requests from forks, because a fork could put anything in an installer.
 
 Known limits:
 
@@ -77,7 +81,7 @@ Known limits:
 
 ## Toolchain per platform
 
-- All: Rust (stable, 1.77.2 or newer), Node 22.
+- All: Rust, the release pinned in `rust-toolchain.toml` (rustup installs it on first use, or run `rustup toolchain install` in this folder), and Node 22. CI checks that `Cargo.lock` matches `Cargo.toml` (`cargo fetch --locked`).
 - Windows: Microsoft C++ Build Tools (the "Desktop development with C++" workload) and the WebView2 runtime. Windows 10 and 11 have WebView2. The NSIS installer is `installMode: currentUser`, so end users need no administrator rights. Tauri downloads NSIS itself at build time.
 - macOS: Xcode Command Line Tools. The `.dmg` can only be built on macOS, which is why CI uses a macOS runner.
 - Linux (smoke test only, not a shipped build): `build-essential`, `pkg-config`, `libwebkit2gtk-4.1-dev`, `librsvg2-dev`, `xvfb`, `webkit2gtk-driver`.
