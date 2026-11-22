@@ -147,9 +147,14 @@ export function comingUpRows(c: LetterForm['comingUp']): string {
   const ps = paragraphs.map((p, i) => {
     const last = i === paragraphs.length - 1;
     const bottom = i === 0 && !last ? '4px' : last && button !== '' ? '16px' : '0';
-    return `<p style="margin:${p.top} 0 ${bottom} 0;${PANEL_P}">${p.html}</p>`;
+    const top = i === 0 ? '12px' : p.top;
+    return `<p style="margin:${top} 0 ${bottom} 0;${PANEL_P}">${p.html}</p>`;
   });
-  const inner = lines(pill([LETTER_HEADINGS.comingUp]), ...ps, button);
+  const gap =
+    paragraphs.length === 0 && button !== ''
+      ? '<div style="height:12px;line-height:12px;font-size:1px;">&nbsp;</div>'
+      : '';
+  const inner = lines(pill([LETTER_HEADINGS.comingUp]), ...ps, gap, button);
   const panel = panelTable('goldPale', `padding:20px;${FONT}`, inner);
   return row('24px 24px 0 24px', panel);
 }

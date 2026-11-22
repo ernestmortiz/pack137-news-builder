@@ -10,7 +10,7 @@ import { esc, indent, lines, safeWebUrl, escAttr } from '../components';
 import { row } from './layout';
 
 /** Invisible filler so mail apps do not pull body text into the preview. */
-const FILLER = Array.from({ length: 8 }, () => '͏&zwnj;').join(' ') + '&nbsp;';
+const FILLER = Array.from({ length: 80 }, () => '&#847;&zwnj;').join(' ') + '&nbsp;';
 
 /** The hidden preview-text div: the summary plus the read time, then the filler. First in the output. */
 export function previewDiv(text: string): string {
@@ -36,9 +36,9 @@ export function mastheadRow(issue: MonthOfYear): string {
   const logoCell =
     logo === null
       ? ''
-      : `<td valign="middle" align="center" style="padding:16px 8px 16px 16px;width:110px;"><img src="${escAttr(logo)}" width="90" height="90" alt="${escAttr(`Cranford Cub Scouts ${packConfig.packName} logo`)}" style="display:block;width:90px;max-width:100%;height:90px;border-radius:50%;border:0;"></td>`;
+      : `<td valign="middle" align="center" style="padding:16px 8px 16px 16px;width:110px;color:${color.lavender};font-family:${fontStack};font-size:12px;"><img src="${escAttr(logo)}" width="90" height="90" alt="${escAttr(`Cranford Cub Scouts ${packConfig.packName} logo`)}" style="display:block;width:90px;max-width:100%;height:90px;border-radius:50%;border:0;"></td>`;
   const textCell = lines(
-    `<td valign="middle" style="padding:16px 20px;font-family:${fontStack};">`,
+    `<td valign="middle" style="padding:16px 20px 16px 8px;font-family:${fontStack};">`,
     `  <div style="color:${color.goldLight};font-size:11px;font-weight:700;letter-spacing:0.5px;">${esc(packConfig.eyebrow)}</div>`,
     `  <h1 style="margin:0;padding-top:4px;color:${color.white};font-size:22px;font-weight:700;line-height:1.3;">${esc(packConfig.monthlyTitle)}</h1>`,
     `  <div style="color:${color.lavender};font-size:13px;padding-top:4px;">${esc(formatMonthYear(issue))}</div>`,

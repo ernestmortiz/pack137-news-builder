@@ -80,9 +80,15 @@ export function pill(parts: string[]): string {
     .map((p) => esc(p.toUpperCase()))
     .join(' &middot; ');
   if (text === '') return '';
-  return (
-    `<span style="display:inline-block;background-color:${color.navy};color:${color.white};` +
-    `font-size:12px;font-weight:700;letter-spacing:0.5px;padding:4px 10px;border-radius:${radius.control}px;">${text}</span>`
+  const hex = color.navy;
+  return lines(
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">',
+    '  <tr>',
+    `    <td bgcolor="${hex}" style="background-color:${hex};border-radius:${radius.control}px;padding:4px 10px;">`,
+    `      <span style="color:${color.white};font-family:${fontStack};font-size:12px;font-weight:700;letter-spacing:0.5px;">${text}</span>`,
+    '    </td>',
+    '  </tr>',
+    '</table>',
   );
 }
 

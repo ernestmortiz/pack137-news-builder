@@ -614,3 +614,63 @@ describe('renderLetter: read time text', () => {
     expect(renderLetter(full())).toBe(renderLetter(full()));
   });
 });
+
+describe('renderLetter: review fixes', () => {
+  it('puts each badge in a one-cell navy table with 8px corners and wrapping text', () => {
+    const html = renderLetter(full());
+    expect(html).toMatch(
+      /<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">\s*<tr>\s*<td bgcolor="#151B4D" style="background-color:#151B4D;border-radius:8px;padding:4px 10px;">\s*<span style="[^"]*font-size:12px;font-weight:700;letter-spacing:0\.5px;">JUSTIN DALY &middot; PROGRAM DIRECTOR<\/span>/,
+    );
+    expect(html).toMatch(/>COMING UP<\/span>/);
+    expect(html).not.toContain('nowrap');
+  });
+
+  it('keeps a gap of at least 12px after the badge and before the button in a minimal Coming up', () => {
+    const l = full();
+    l.comingUp.intro = '';
+    l.comingUp.items = [];
+    l.comingUp.howToHelp = [];
+    const html = renderLetter(l);
+    expect(html).toMatch(/COMING UP<\/span>[\s\S]*?<\/table>\s*<div style="height:12px;/);
+    expect(lint(html)).toEqual([]);
+    const withItem = renderLetter(full());
+    expect(withItem).toMatch(/<p style="margin:12px 0 4px 0;/);
+  });
+
+  it('gives the logo cell a readable alt text color and the masthead title cell the reference padding', () => {
+    const html = renderLetter(base());
+    expect(html).toMatch(
+      /<td valign="middle" align="center" style="[^"]*color:#E3E6F5;[^"]*font-family:Inter[^"]*font-size:12px;"><img/,
+    );
+    expect(html).toContain('padding:16px 20px 16px 8px;');
+  });
+
+  it('keeps a 10px gap between the story title and a first contributor, and 14px before other blocks', () => {
+    expect(renderLetter(full())).toContain('<td style="padding:10px 24px 0 24px;');
+    const l = base();
+    l.story.blocks = [
+      { kind: 'photo', photo: { src: 'https://x.org/a.jpg', alt: 'A', caption: '' } },
+    ];
+    expect(renderLetter(l)).toContain('<td style="padding:14px 24px 0 24px;');
+  });
+
+  it('pads the preview text with about 80 invisible pairs', () => {
+    const html = renderLetter(base());
+    expect(html.match(/&#847;&zwnj;/g)?.length).toBe(80);
+    expect(lint(html)).toEqual([]);
+  });
+
+  it('percent-encodes header injection in the feedback subject and body', () => {
+    const l = full();
+    l.feedback.subject = 'x&bcc=evil@x.org';
+    l.feedback.body = 'hi%0Abcc:evil@x.org';
+    const html = renderLetter(l);
+    const href = /href="(mailto:[^"]*newsletter[^"]*)"/.exec(html)?.[1] ?? '';
+    expect(href).toContain('subject=x%26bcc%3Devil%40x.org');
+    expect(href).toContain('%250Abcc%3A');
+    const query = href.split('?')[1] ?? '';
+    const names = query.split('&amp;').map((p) => p.split('=')[0]);
+    expect(names).toEqual(['subject', 'body']);
+    expect(href).not.toMatch(/[?&;](bcc|cc|to)=/i);
+  });
+});
