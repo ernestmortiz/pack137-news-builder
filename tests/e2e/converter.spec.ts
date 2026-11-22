@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { color as tokens } from '../../src/config/tokens';
 import { lintOutput } from '../../src/core/lint-output';
 
 const dir = fileURLToPath(new URL('../fixtures/weekly', import.meta.url));
@@ -248,3 +249,73 @@ for (const layout of ['Message', 'Call to action', 'Date list', 'Help wanted', '
     expect(seen.remote).toEqual([]);
   });
 }
+
+/* ---------- style choices: button color and yellow box (owner decision 2026-11-22) ---------- */
+
+const MESSAGE_PASTE =
+  '<p>Our pack meeting moves to the school gym this month.</p>' +
+  '<p>Please bring a chair and a snack to share.</p>';
+
+test('Button color and Yellow box: set, undo twice, and boxes follow their paragraph', async ({
+  page,
+  context,
+}) => {
+  const seen = await watch(context, page);
+  await paste(page, MESSAGE_PASTE);
+  await expect(page.getByRole('radio', { name: /^Message/ })).toBeChecked();
+
+  const item = (n: number) => page.getByRole('group', { name: new RegExp(`^Paragraph ${n}`) });
+  const box = (n: number) => item(n).getByRole('checkbox', { name: 'Yellow box' });
+  const color = page.getByLabel('Button color');
+  await expect(color).toHaveValue('navy');
+  await expect(box(1)).not.toBeChecked();
+  await expect(page.getByText('Puts this paragraph in a pale-yellow box.')).toHaveCount(1);
+
+  // Give the optional button text and a link so the preview can show it.
+  await page.getByLabel('Button text').fill('Get directions');
+  await page.getByLabel('Button link').fill('https://example.org/gym');
+
+  await color.selectOption('gold');
+  await box(1).check();
+  await expect(color).toHaveValue('gold');
+  await expect(box(1)).toBeChecked();
+  await expect(box(2)).not.toBeChecked();
+
+  // The preview shows a gold button cell and a pale-yellow box.
+  await showCode(page);
+  expect(lintOutput(await codeBox(page).inputValue())).toEqual([]);
+  const body = frame(page, 375).locator('body');
+  await expect(
+    body.locator(`td[style*="${tokens.gold};" i]`).filter({ hasText: 'Get directions' }),
+  ).toHaveCount(1);
+  await expect(
+    body.locator(`td[style*="${tokens.goldPale}" i]`).filter({ hasText: 'pack meeting' }),
+  ).not.toHaveCount(0);
+
+  // Undo twice: the box, then the color.
+  const undo = page.getByRole('button', { name: 'Undo', exact: true });
+  await undo.click();
+  await expect(box(1)).not.toBeChecked();
+  await expect(color).toHaveValue('gold');
+  await undo.click();
+  await expect(color).toHaveValue('navy');
+  const redo = page.getByRole('button', { name: 'Redo', exact: true });
+  await redo.click();
+  await redo.click();
+  await expect(color).toHaveValue('gold');
+  await expect(box(1)).toBeChecked();
+
+  // Moving the first paragraph down takes its tick with it.
+  await page.getByRole('button', { name: 'Move down: paragraph 1' }).click();
+  await expect(box(1)).not.toBeChecked();
+  await expect(box(2)).toBeChecked();
+  await expect(item(2).getByRole('textbox')).toHaveValue(/pack meeting/);
+  // Undo puts text and tick back together.
+  await undo.click();
+  await expect(box(1)).toBeChecked();
+  await expect(item(1).getByRole('textbox')).toHaveValue(/pack meeting/);
+  await expect(box(2)).not.toBeChecked();
+
+  expect(seen.errors).toEqual([]);
+  expect(seen.remote).toEqual([]);
+});

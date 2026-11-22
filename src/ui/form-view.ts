@@ -12,7 +12,8 @@ import type {
   Tag,
 } from '../core/forms';
 import { ALT_HELP, altFeedback } from './alt-ui';
-import { el } from './dom';
+import { el, uid } from './dom';
+import { boxedMoved, boxedRemoved, isBoxed, setBoxed } from './boxed';
 import { shrinkControl } from './photo-shrink';
 import { markSpelling } from './field-kinds';
 import { createKit, type FormContext, type Kit } from './form-kit';
@@ -52,6 +53,32 @@ function cardFields(kit: Kit, form: AnnouncementForm): HTMLElement {
   ]);
 }
 
+/** The yellow-box setting that goes with each paragraph of a list. */
+export interface ParagraphBox {
+  get(index: number): boolean;
+  set(index: number, on: boolean): void;
+  moved(from: number, to: number): void;
+  removed(index: number): void;
+}
+
+const BOX_HINT =
+  'Puts this paragraph in a pale-yellow box. Use it for the one thing people must not miss.';
+
+/** The "Yellow box" tick under a paragraph. The hint shows under the first paragraph only. */
+function boxRow(kit: Kit, box: ParagraphBox, index: number): HTMLElement {
+  const tick = kit.checkbox(
+    'Yellow box',
+    () => box.get(index),
+    (on) => box.set(index, on),
+  );
+  const hintId = uid('hint');
+  if (index === 0) tick.input.setAttribute('aria-describedby', hintId);
+  return el('div', { className: 'field' }, [
+    tick.wrapper,
+    ...(index === 0 ? [el('p', { className: 'hint', id: hintId, textContent: BOX_HINT })] : []),
+  ]);
+}
+
 /**
  * A repeater over a list of rich text. The list lives in the form as `RichText[]`, so editing
  * writes straight into that array by index.
@@ -62,6 +89,7 @@ export function paragraphs(
   addLabel: string,
   arrayPath: (string | number)[],
   list: RichText[],
+  box?: ParagraphBox,
 ): HTMLElement {
   return kit.repeater<RichText>({
     noun,
@@ -69,6 +97,8 @@ export function paragraphs(
     arrayPath,
     items: list,
     create: () => [],
+    onMoved: box?.moved,
+    onRemoved: box?.removed,
     body: (_item, index, path) => [
       kit.rich(
         `Text of ${noun} ${index + 1}`,
@@ -78,6 +108,7 @@ export function paragraphs(
           list[index] = v;
         },
       ),
+      ...(box ? [boxRow(kit, box, index)] : []),
     ],
   });
 }
@@ -311,7 +342,12 @@ function layoutFields(kit: Kit, form: AnnouncementForm, ctx: FormContext): HTMLE
       return [
         cardFields(kit, form),
         kit.group('Text', [
-          paragraphs(kit, 'paragraph', 'Add a paragraph', ['paragraphs'], form.paragraphs),
+          paragraphs(kit, 'paragraph', 'Add a paragraph', ['paragraphs'], form.paragraphs, {
+            get: (i) => isBoxed(form, i),
+            set: (i, on) => setBoxed(form, i, on),
+            moved: (from, to) => boxedMoved(form, from, to),
+            removed: (i) => boxedRemoved(form, i),
+          }),
         ]),
         kit.buttonGroup(
           'Button (optional)',
@@ -332,6 +368,17 @@ function layoutFields(kit: Kit, form: AnnouncementForm, ctx: FormContext): HTMLE
             (v) => (form.paragraph = v),
             4,
           ),
+          el('div', { className: 'field' }, [
+            kit.checkbox(
+              'Yellow box',
+              () => form.boxed === true,
+              (on) => {
+                if (on) form.boxed = true;
+                else delete form.boxed;
+              },
+            ).wrapper,
+            el('p', { className: 'hint', textContent: BOX_HINT }),
+          ]),
         ]),
         kit.buttonGroup(
           'Button',
