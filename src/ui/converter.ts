@@ -25,6 +25,7 @@ import { clear, debounce, el } from './dom';
 import { buildForm, type FormView } from './form-view';
 import type { FormContext, TypingEdit } from './form-kit';
 import { createHistory } from './history';
+import { changeBytes, textAfter, textBefore, toChange, type TypingChange } from './typing';
 import { buildGuide } from './guide';
 import { capIssues, remapAfterRemove, remapAfterSwap } from './paths';
 import { createPreviewFrames } from './preview-frames';
@@ -54,7 +55,7 @@ interface Snapshot {
 }
 
 /** One typed change in one field, with the caret either side. */
-interface TypingPatch extends Omit<TypingEdit, 'label'> {
+interface TypingPatch extends TypingChange {
   layout: Layout;
 }
 
@@ -72,7 +73,7 @@ export function mountConverter(root: HTMLElement): void {
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
   /** The text of the paste box as of the last time the form was filled from it. */
   let committedPaste = '';
-  const history = createHistory<Snapshot, TypingPatch>();
+  const history = createHistory<Snapshot, TypingPatch>({ patchBytes: changeBytes });
   let pendingBefore: Snapshot | null = null;
 
   function capture(): Snapshot {
@@ -272,7 +273,7 @@ export function mountConverter(root: HTMLElement): void {
     typed(edit: TypingEdit) {
       if (!layout) return;
       const { label, ...patch } = edit;
-      history.recordPatch({ ...patch, layout }, label);
+      history.recordPatch({ ...toChange(patch), layout }, label);
       refreshLater.run();
       updateHistoryBar();
     },
@@ -587,9 +588,14 @@ export function mountConverter(root: HTMLElement): void {
       restore(move.state);
     } else {
       const patch = move.patch;
-      const text = move.direction === 'undo' ? patch.before : patch.after;
+      const field = view?.fieldControl(patch.path);
+      const now =
+        field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement
+          ? field.value
+          : '';
+      const text = move.direction === 'undo' ? textBefore(now, patch) : textAfter(now, patch);
       const sel = move.direction === 'undo' ? patch.selBefore : patch.selAfter;
-      if (view?.setField(patch.path, text, sel)) {
+      if (field && view?.setField(patch.path, text, sel)) {
         target = view.fieldControl(patch.path);
         refreshLater.run();
       }

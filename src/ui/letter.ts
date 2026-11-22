@@ -11,12 +11,13 @@ import { browserClipboardEnv, copyText } from './clipboard';
 import { clear, debounce, el } from './dom';
 import type { FormContext, TypingEdit } from './form-kit';
 import { createHistory } from './history';
+import { changeBytes, textAfter, textBefore, toChange, type TypingChange } from './typing';
 import { buildLetterForm, type LetterView } from './letter-view';
 import { letterWarnings, nextMonth } from './letter-ops';
 import { createPreviewFrames } from './preview-frames';
 
 /** One typed change in one field, with the caret either side. */
-type TypingPatch = Omit<TypingEdit, 'label'>;
+type TypingPatch = TypingChange;
 
 /** Everything the screen is drawn from. A step that is not typing keeps two of these. */
 interface Snapshot {
@@ -28,7 +29,7 @@ export function mountLetter(root: HTMLElement): void {
   let letter: LetterForm = emptyLetter(nextMonth(todayFrom(new Date())));
   let view: LetterView | null = null;
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
-  const history = createHistory<Snapshot, TypingPatch>();
+  const history = createHistory<Snapshot, TypingPatch>({ patchBytes: changeBytes });
   let pendingBefore: Snapshot | null = null;
 
   const capture = (): Snapshot => ({ letter: structuredClone(letter) });
@@ -185,9 +186,7 @@ export function mountLetter(root: HTMLElement): void {
     suggestions: () => [],
     warnings: () => [],
     typed(edit: TypingEdit) {
-      const { label, ...patch } = edit;
-      history.recordPatch(patch, label);
-      updateCounter();
+      history.recordPatch(toChange(edit), edit.label);
       refreshLater.run();
       updateHistoryBar();
     },
@@ -264,11 +263,15 @@ export function mountLetter(root: HTMLElement): void {
       restore(move.state);
     } else {
       const patch = move.patch;
-      const text = move.direction === 'undo' ? patch.before : patch.after;
+      const field = view?.fieldControl(patch.path);
+      const now =
+        field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement
+          ? field.value
+          : '';
+      const text = move.direction === 'undo' ? textBefore(now, patch) : textAfter(now, patch);
       const sel = move.direction === 'undo' ? patch.selBefore : patch.selAfter;
-      if (view?.setField(patch.path, text, sel)) {
+      if (field && view?.setField(patch.path, text, sel)) {
         target = view.fieldControl(patch.path);
-        updateCounter();
         refreshLater.run();
       }
     }
