@@ -28,6 +28,14 @@ describe('classify', () => {
     );
   });
 
+  it('reads a date behind a bullet or ornament', () => {
+    expect(
+      layoutOf(
+        '<ul><li>\u2022 Dec 6 Meeting</li><li>\u27A4 Dec 8 Hike</li><li>\u2605 Dec 15 Pack meeting</li></ul>',
+      ),
+    ).toBe('date-list');
+  });
+
   it('does not suggest Date list when only one item is dated', () => {
     expect(
       layoutOf('<ul><li>Dec 6 Meeting</li><li>Bring snacks</li><li>Wear class B</li></ul>'),

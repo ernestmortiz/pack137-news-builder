@@ -1,0 +1,70 @@
+{
+  "layout": "link-list",
+  "today": "2026-11-21",
+  "edits": [
+    {
+      "path": [
+        "label"
+      ],
+      "value": "In the news",
+      "why": "human copy edit: owner typed the label (SOURCES 4)"
+    },
+    {
+      "path": [
+        "image",
+        "alt"
+      ],
+      "value": "Scouting for Food",
+      "why": "human copy edit: owner added alt text for the logo (SOURCES 4)"
+    },
+    {
+      "path": [
+        "intro"
+      ],
+      "value": [
+        {
+          "kind": "text",
+          "text": "Thank you to every family who helped collect 1,098 bags of food. Here is the coverage and the story behind it.",
+          "marks": []
+        }
+      ],
+      "why": "human copy edit: owner added the thank-you sentence (SOURCES 4)"
+    },
+    {
+      "path": [
+        "items",
+        0,
+        "note"
+      ],
+      "value": "TAPinto Cranford, Fri Nov 13",
+      "why": "human copy edit: owner wrote the source note with outlet and date (SOURCES 4)"
+    },
+    {
+      "path": [
+        "items",
+        1,
+        "text"
+      ],
+      "value": "Pack 137 Scouting for Food Thank You Letter",
+      "why": "human copy edit: owner fixed the capital F in \"for\" (SOURCES 4)"
+    },
+    {
+      "path": [
+        "items",
+        1,
+        "note"
+      ],
+      "value": "From the pack, on Google Drive",
+      "why": "human copy edit: owner wrote the source note (SOURCES 4)"
+    },
+    {
+      "path": [
+        "items",
+        2,
+        "text"
+      ],
+      "value": "A Short History of Scouting for Food Generosity in Cranford",
+      "why": "human copy edit: owner changed the headline to title case (SOURCES 4)"
+    }
+  ]
+}

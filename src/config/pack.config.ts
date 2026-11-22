@@ -25,6 +25,48 @@ export const packConfig = {
   /** Month the program year starts (1 = January). Used by the date helper. */
   programYearStartMonth: 9,
   wordsPerMinute: 230,
+  /**
+   * Names that keep their capitals when a heading or a button is put in sentence case. Matched in
+   * any capitals and written back as listed here. A longer name wins over a shorter one.
+   */
+  properNouns: [
+    'Pack 137',
+    'Cub Scouts',
+    'Cub Scout',
+    'Scouts BSA',
+    'Pinewood Derby',
+    'Blue and Gold',
+    'Arrow of Light',
+    'Webelos',
+    'Den',
+    'Lions',
+    'Tigers',
+    'Wolves',
+    'Bears',
+    'Cranford',
+    'First Presbyterian Church of Cranford',
+    'Springfield Ave',
+    'TroopTrack',
+    'SignUpGenius',
+    'Google Drive',
+    'Google Forms',
+    'Toys for Tots',
+    'Scouting for Food',
+    'TAPinto',
+  ],
+  /**
+   * Well-known sites. In a Link list, a link to one of them gets `note` as its source line.
+   * With `subdomains`, "www.youtube.com" counts as "youtube.com".
+   */
+  knownSites: [
+    { host: 'drive.google.com', subdomains: false, note: 'On Google Drive' },
+    { host: 'docs.google.com', subdomains: false, note: 'On Google Docs' },
+    { host: 'forms.gle', subdomains: false, note: 'On Google Forms' },
+    { host: 'youtube.com', subdomains: true, note: 'On YouTube' },
+    { host: 'youtu.be', subdomains: false, note: 'On YouTube' },
+    { host: 'facebook.com', subdomains: true, note: 'On Facebook' },
+    { host: 'tapinto.net', subdomains: true, note: 'TAPinto' },
+  ],
 } as const;
 
 export type PackConfig = typeof packConfig;

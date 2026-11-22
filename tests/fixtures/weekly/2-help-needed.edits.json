@@ -1,0 +1,135 @@
+{
+  "layout": "help-wanted",
+  "today": "2026-11-21",
+  "edits": [
+    {
+      "path": [
+        "label"
+      ],
+      "value": "Volunteer",
+      "why": "human copy edit: owner typed the label (SOURCES 2)"
+    },
+    {
+      "path": [
+        "title"
+      ],
+      "value": "The pack could use your help",
+      "why": "human copy edit: owner typed the title (SOURCES 2)"
+    },
+    {
+      "path": [
+        "intro"
+      ],
+      "value": [
+        {
+          "kind": "text",
+          "text": "Thank you to every family who already pitches in. If you can help with any of the items below, reach out to your den leader, ",
+          "marks": []
+        },
+        {
+          "kind": "text",
+          "text": "pack leadership",
+          "marks": [],
+          "href": "https://pack137.trooptrack.com/manage/troops/23117?tab=leadership"
+        },
+        {
+          "kind": "text",
+          "text": ", or email ",
+          "marks": []
+        },
+        {
+          "kind": "text",
+          "text": "cranfordpack137@gmail.com",
+          "marks": [],
+          "href": "mailto:cranfordpack137@gmail.com"
+        },
+        {
+          "kind": "text",
+          "text": " and tell us which one.",
+          "marks": []
+        }
+      ],
+      "why": "human copy edit: owner added the thank-you sentence and rewrote the intro (SOURCES 2)"
+    },
+    {
+      "path": [
+        "ask",
+        "title"
+      ],
+      "value": "Legal and finance help",
+      "why": "tool gap: heading should be sentence case (spec 6) and \"&\" should read \"and\"; the \"&\" fix is offered but the case change is not"
+    },
+    {
+      "path": [
+        "ask",
+        "paragraphs",
+        0
+      ],
+      "value": [
+        {
+          "kind": "text",
+          "text": "The Committee is exploring forming a 501(c)(3) nonprofit. It would strengthen the pack's stability and give us more freedom in how we run programs and manage funds.",
+          "marks": []
+        }
+      ],
+      "why": "human copy edit: owner rewrote the nonprofit paragraph (SOURCES 2)"
+    },
+    {
+      "path": [
+        "ask",
+        "paragraphs",
+        1
+      ],
+      "value": [
+        {
+          "kind": "text",
+          "text": "If you or a family member is an ",
+          "marks": []
+        },
+        {
+          "kind": "text",
+          "text": "attorney, CPA, or finance pro",
+          "marks": [
+            "strong"
+          ]
+        },
+        {
+          "kind": "text",
+          "text": ", the Committee would love a brief consultation on the steps to set this up.",
+          "marks": []
+        }
+      ],
+      "why": "human copy edit: owner fixed the grammar in the second paragraph (SOURCES 2)"
+    },
+    {
+      "path": [
+        "ask",
+        "button",
+        "url"
+      ],
+      "value": "mailto:cranfordpack137@gmail.com?subject=Help with nonprofit formation",
+      "why": "human copy edit: owner spaced out the email subject, \"Help with nonprofit formation\" (SOURCES 2)"
+    },
+    {
+      "path": [
+        "outro"
+      ],
+      "value": [
+        {
+          "kind": "text",
+          "text": "Not your area? There are plenty of other ways to help, big and small.",
+          "marks": []
+        }
+      ],
+      "why": "human copy edit: owner replaced the list pointer with a closing line (SOURCES 2)"
+    },
+    {
+      "path": [
+        "secondary",
+        "text"
+      ],
+      "value": "See all help needed",
+      "why": "human copy edit: owner reworded the secondary button (SOURCES 2)"
+    }
+  ]
+}

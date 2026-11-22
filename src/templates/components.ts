@@ -6,16 +6,13 @@
 import { color, fontStack, radius, space } from '../config/tokens';
 import { formatDate, formatRange, isValidDate } from '../core/dates';
 import type { ButtonField, DateField, DateRow, ImageField, RichText, Tag } from '../core/forms';
+import { EM_DASH, emDashesToCommas } from '../core/helpers/text';
 
 /* ---------- text and URL safety ---------- */
 
-// Built from its code point so this file holds no em dash itself.
-const EM_DASH = String.fromCharCode(0x2014);
-const EM_DASH_RUN = new RegExp(`\\s*${EM_DASH}\\s*`, 'g');
-
 /** Em dashes (with the spaces around them) become ", " and line breaks become spaces. */
 export function cleanText(text: string): string {
-  return text.replace(EM_DASH_RUN, ', ').replace(/[\r\n]+/g, ' ');
+  return emDashesToCommas(text).replace(/[\r\n]+/g, ' ');
 }
 
 /** Text content: escapes & < >. Apostrophes and quotes stay as typed. */

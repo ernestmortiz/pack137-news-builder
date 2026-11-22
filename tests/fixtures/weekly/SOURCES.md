@@ -13,7 +13,7 @@ The PDF itself notes that four of the five originals (all but the pack calendar)
 
 ## Hand edits recorded in the PDF
 
-These become `N-name.edits.json` once the form exists (Phase 3).
+These are recorded in `N-name.edits.json` (Phase 3). Each edit says whether it is a human copy edit or a tool gap.
 
 1. Pack calendar: weekday added to every date, dates stacked above events. Red and green text replaced by a "Please RSVP" pill and a plain note line. "Virtual", "In person" and "TBD" became pills; numbered lists removed. Wording: "On going" to "Ongoing", "Weigh In" to "Weigh-In", "Blue & Gold" to "Blue and Gold".
 2. Help needed: highest-need item moved into a highlight panel with its own button. Copy rewritten ("is looking the formation of an 501(c)(3) non-profit"). Email subject "HelpWithNonProfitFormation" became "Help with nonprofit formation". Thank-you sentence added at the top. Still to check: the "pack leadership" link goes to a `/manage/` page.

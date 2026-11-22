@@ -1,0 +1,41 @@
+{
+  "layout": "call-to-action",
+  "today": "2026-11-21",
+  "edits": [
+    {
+      "path": [
+        "label"
+      ],
+      "value": "Share your photos",
+      "why": "human copy edit: owner typed the label (SOURCES 3)"
+    },
+    {
+      "path": [
+        "title"
+      ],
+      "value": "Year-in-Review Poster Board",
+      "why": "human copy edit: owner typed the title (SOURCES 3)"
+    },
+    {
+      "path": [
+        "paragraph"
+      ],
+      "value": [
+        {
+          "kind": "text",
+          "text": "It's never too soon to share your favorite pack memories. Every photo you send helps tell this year's story, so thank you for adding yours.",
+          "marks": []
+        }
+      ],
+      "why": "human copy edit: owner fixed \"to soon\", added the thank-you sentence and replaced the underlined link with a button (SOURCES 3)"
+    },
+    {
+      "path": [
+        "button",
+        "text"
+      ],
+      "value": "Upload your photos",
+      "why": "human copy edit: owner shortened the button text (SOURCES 3)"
+    }
+  ]
+}

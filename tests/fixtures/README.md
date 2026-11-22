@@ -7,7 +7,17 @@ Each fixture is a real pasted input and the approved output. The test is: the in
 Files live in `tests/fixtures/weekly/`. Each announcement has three files with the same prefix, where `N` is the announcement number and `name` is a short label:
 
 - `N-name.input.html`: the HTML copied from the TroopTrack code view, exactly as pasted. Do not edit it, tidy it or re-indent it. If the original had odd spacing, broken tags or stray styles, they stay. The hostile and messy parts are the point.
-- `N-name.edits.json`: the form edits that were applied by hand to reach the approved wording, such as the chosen layout, retyped titles, corrected dates and copy changes. The exact format is pending. It will be fixed in Phase 3, when the form exists and the edits have something to be recorded against. Until then this file is not required and no test reads it.
+- `N-name.edits.json`: the hand edits that turn what the tool fills in into the approved form. Format:
+
+  ```json
+  {
+    "layout": "date-list",
+    "today": "2026-11-21",
+    "edits": [{ "path": ["sections", 0, "name"], "value": "Take action now", "why": "tool gap: ..." }]
+  }
+  ```
+
+  `layout` is the layout the tool suggests. `today` is the fixed clock for the fill. Each edit sets the value at `path` in the form, with `setAt` semantics (`src/core/helpers/paths.ts`), in order. A path may point at a whole section, row, list or field, but prefer one field per edit, so the count shows how far the tool is from the approved output. The `why` starts with `human copy edit:` (a wording or design choice by the owner, with the SOURCES.md item) or `tool gap:` (something the tool should have got). `tests/unit/fill-golden.test.ts` applies the edits to `fillForm(parse(input), layout, ...)`, expects exactly `N-name.form.json`, and renders it against `.expected.html`. It also holds a count of edits per fixture that may only go down.
 - `N-name.expected.html`: the approved output as sent. These are already present.
 
 Current announcements:
@@ -18,7 +28,6 @@ Current announcements:
 4. `4-in-the-news`
 5. `5-webelos-dens-10-11`
 
-Only the `.expected.html` files exist today. The `.input.html` files must come from the project owner, because only the owner has the original TroopTrack code. Until they arrive, the pipeline tests re-paste each approved output and check that no content is lost.
 
 ## Monthly letter
 

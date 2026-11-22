@@ -3,6 +3,7 @@
  * model. The suggestion is only a default; the user can switch layout at any time.
  */
 import { matchLeadingDate } from './dates';
+import { cleanOddText } from './helpers/odd-characters';
 import type { Block, ContentModel, Inline, Layout } from './model';
 
 export interface Classification {
@@ -55,7 +56,13 @@ function mostly(list: Inline[][], test: (runs: Inline[]) => boolean): boolean {
   return list.length >= 2 && list.filter(test).length * 2 > list.length;
 }
 
-const startsWithDate = (runs: Inline[]) => matchLeadingDate(textOf(runs), ANY_DAY, 9) !== null;
+/** A leading bullet or ornament (spec 7.4 odd characters) does not hide the date behind it. */
+const startsWithDate = (runs: Inline[]) =>
+  matchLeadingDate(
+    cleanOddText(textOf(runs).trimStart(), { leadOnly: true }).text.trimStart(),
+    ANY_DAY,
+    9,
+  ) !== null;
 
 function isLinkEntry(runs: Inline[]): boolean {
   const all = textOf(runs).trim().length;
