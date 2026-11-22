@@ -27,4 +27,4 @@ The full brief is `docs/build-spec.md`. Read it before writing code. This file r
 
 ## Status
 
-Phases 0 to 8 are built. Version 1.1.0 is the first published release (web zip, Windows installer, signed Android app); the owner pushes the v1.1.0 tag after PR #7 merges. The Mac app was dropped (ADR 0006). The Android release key is in the owner's `android-release` GitHub environment and backup only. Next: Phase 9, handover.
+Phases 0 to 8 are built. Version 1.1.0 is the first published release (web zip, Windows installer, signed Android app); the owner pushes the v1.1.0 tag after PR #7 merges. The Mac app was dropped (ADR 0006). The Android release key is in the owner's `android-release` GitHub environment and backup only. Phase 9 (handover: user guide, maintainer guide, release checklist) is in review. All spec phases are then done.

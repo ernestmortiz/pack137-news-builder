@@ -109,6 +109,8 @@ On a Windows PC, install the app by following `docs/installing-the-desktop-app.m
 
 If any of these fail, do not tag the release. Tell the project owner which computer and step failed.
 
+The Android app is checked automatically, because the pack has no test phone (owner decision 2026-11-22). Open the latest "Wrappers" run for the main branch or the last pull request and check that the job "android-emulator (34, false)" is green: it ran 22 checks on an Android 14 emulator (paste, copy, saving into Downloads, the photo picker, saved work after a restart, no internet, no permissions, the 360dp screen). The job "android-emulator (29, true)" is expected to fail and does not block a release. If someone in the pack has an Android phone, installing the test `.apk` from the draft and repeating checks 2 to 6 above is still worth doing.
+
 ## Step 3: Answer two questions
 
 This test must answer two questions. Write each answer down and send it to the project owner.
@@ -144,6 +146,7 @@ Write "Kept" if all of these are in the TroopTrack code and Outlook shows the bu
 8. When the run is green, open the Releases page. You should see a release called "Pack 137 News Builder v1.0.0" with these files attached: `pack137-news-builder-v1.0.0-web.zip`, `pack137-news-builder-v1.0.0-windows-setup.exe`, `pack137-news-builder-v1.0.0-android.apk`, a `.sha256` checksum file for each of the three, and `INSTALLING-THE-DESKTOP-APP.md`. A checksum lets anyone check that a copy passed around the pack was not changed.
 9. Download the zip. Test it the way a volunteer will. Unzip it, double-click `index.html`, and check the version shown in the tool matches the release. Try this with the internet turned off.
 10. Send the project owner the link to the release page. Wait for the owner's sign-off before you tell volunteers about it.
+11. On the Releases page, delete any "Test build for pull request #N" drafts that are left over.
 
 ## What the release makes
 
