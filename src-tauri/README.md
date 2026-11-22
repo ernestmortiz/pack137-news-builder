@@ -1,4 +1,4 @@
-# Desktop wrapper (Tauri 2)
+# Desktop and Android wrapper (Tauri 2)
 
 This folder wraps the web app in the operating system's own web view, for Windows (and, from Phase 8, Android). There is no Mac app: current macOS will not run an app Apple has not notarized, so Mac volunteers use the web build (ADR 0006). It is a thin shell. The web build in `dist/` is the product, and the wrapper hosts it. No feature exists in the wrapper that is not in the web build (spec section 3).
 
@@ -8,7 +8,7 @@ Volunteers read `docs/installing-the-desktop-app.md`. This file is for whoever m
 
 - Opens one window (1200 by 860, minimum 360 wide) on the bundled `dist/` files.
 - Sends every download to the person's Downloads folder (the home folder if there is none). Only the kinds of file the app makes are saved: `.json` (drafts) and `.jpg` or `.jpeg` (shrunk photos). Anything else, such as `.exe` or `.command`, is refused. It keeps the file name the page suggested, reduced to plain letters, digits, spaces and `-_.()`, and adds ` (1)`, ` (2)` before the extension when the name is taken, as browsers do. It never writes over a file, a broken link counts as taken, and with no Downloads or home folder the download is refused. This is `on_download` in `src/lib.rs`. Download draft and Shrink a photo both save through a normal browser download, and the UI already says "Look in your Downloads folder" (ADR 0004, Desktop and Android wrappers, point 2).
-- Locks navigation to the app's own origin. `on_navigation` allows only the origin Tauri serves on that platform: `tauri://localhost` on Linux (the smoke test), `http://tauri.localhost` on Windows. The other forms are refused, because Tauri does not serve them there and they could reach the network or another program. It also allows `about:blank` and `about:srcdoc` (the sandboxed preview frames), and `blob:` addresses that carry the app's own origin (the download links). Everything else is refused. `on_new_window` refuses every new window. The Vite dev server on port 5173 is allowed only in a dev run (`cfg!(dev)`).
+- Locks navigation to the app's own origin. `on_navigation` allows only the origin Tauri serves on that platform: `tauri://localhost` on Linux (the smoke test), `http://tauri.localhost` on Windows and Android. The other forms are refused, because Tauri does not serve them there and they could reach the network or another program. It also allows `about:blank` and `about:srcdoc` (the sandboxed preview frames), and `blob:` addresses that carry the app's own origin (the download links). Everything else is refused. `on_new_window` refuses every new window. The Vite dev server on port 5173 is allowed only in a dev run (`cfg!(dev)`).
 - Refuses every permission request (camera, location, notifications and so on). The page asks for none.
 - Turns off Tauri's own drag and drop handling (`dragDropEnabled: false`), so nothing native listens for dropped files.
 - The Windows installer sets up Microsoft WebView2 only if the PC lacks it (`webviewInstallMode` is the download bootstrapper). Windows 10 and 11 normally have it. That download at install time is the only time anything uses the internet; the app never does.
@@ -79,10 +79,42 @@ Known limits:
 - On Linux, the navigation lock alone also stops `window.open` and `target="_blank"`. `on_new_window` is a second guard, which has not been shown necessary on Linux. Keep it.
 - On Linux, WebKitGTK's own default already saves to the Downloads folder with numbered names, so the first run cannot tell the download handler from the default. The second run, with no Downloads folder, does tell them apart: without the handler the file lands in the working folder, with it in the home folder. The file name cleanup is covered by the Rust unit tests.
 
+## Android (Phase 8, first step: a test APK from CI)
+
+The Android project is `gen/android`, made by `npx tauri android init` and committed (Tauri's advice). `gen/schemas` stays ignored. It was edited by hand, so do not regenerate it over the top without reading `git diff`:
+
+- `AndroidManifest.xml`: no `uses-permission` at all (the template adds `INTERNET`), no TV entries, `allowBackup="false"` so Google does not copy saved work to the cloud, `usesCleartextTraffic="false"` in every build type (the template turns it on for debug builds).
+- `app/build.gradle.kts`: `minSdk = 29` (Android 10, spec 13), and the two `usesCleartextTraffic` placeholders removed.
+- `MainActivity.kt`: pads the window by the system bar, cutout and keyboard insets. Android 15 and later force apps edge to edge, which would put the page under the status bar.
+- `res/mipmap-*`, `res/values/ic_launcher_background.xml`: the pack icon instead of Tauri's.
+- Drawables and the Hello World layout of the template are unused; the layout was left in place.
+
+What Tauri 2.12.5 with wry 0.57.1 gives the page on Android, from the source in `Cargo.lock` (paths are inside `~/.cargo/registry/src/*/`):
+
+- File picker: yes. `wry-0.57.1/src/android/kotlin/RustWebChromeClient.kt` implements `onShowFileChooser` (line 310) and opens the system picker (`showFilePicker`, line 399). It asks for no permission unless the input has the `capture` attribute, which the app does not use. The system picker needs no storage permission on Android 10 and later.
+- Downloads: no. There is no `DownloadListener` anywhere in `wry-0.57.1/src/android`, and `src/android/mod.rs` never reads the download handler. `on_download` is not called on Android, so an `<a download>` with a Blob address does nothing. See "Open problem: saving files on Android" below.
+- `on_navigation` applies: `RustWebView.kt` `loadUrl` and `RustWebViewClient.kt` `shouldOverrideUrlLoading` both call it (`src/android/binding.rs` line 345). `on_permission_request` applies for camera, microphone, location, protected media and MIDI. `on_new_window` does not apply (tauri `webview/mod.rs`, documented "Android / iOS: Not supported"); the navigation lock and `javaScriptCanOpenWindowsAutomatically` with no `onCreateWindow` mean `window.open` opens nothing, but that has not been seen on a phone.
+- Origin: `http://tauri.localhost` (tauri `protocol/mod.rs` line 32, `cfg!(windows) || cfg!(target_os = "android")`). `is_app_origin` in `src/lib.rs` uses that form on Android.
+- Storage: `RustWebView.kt` sets `domStorageEnabled`, so `localStorage` is kept in the app's private data. Not yet seen across a restart on a phone.
+- Clipboard: `http://tauri.localhost` counts as a secure context in Chromium (any `*.localhost`), so `navigator.clipboard.writeText` should work after a tap, with the app's own fallback if it does not. Not yet seen on a phone.
+- Network: the app is served by `shouldInterceptRequest` (`RustWebViewClient.kt`), which does not use the network stack, so the `INTERNET` permission is removed. The CI job fails if the APK asks for any permission other than the one AndroidX adds to every app. Whether the WebView starts without `INTERNET` is known only from experience of other apps, not from a test here; if the test APK shows a blank page, that is the first thing to check.
+- `on_download` and `on_new_window` stay in `lib.rs` and do nothing on Android, so there is one codebase.
+
+### Open problem: saving files on Android
+
+Download draft and Shrink a photo cannot save a file on Android yet. The page's Blob link is handed to the WebView, which has no `DownloadListener`, so nothing happens. A listener cannot read the Blob either: the Blob address is only readable inside the page, and the page's policy (`connect-src 'none'`) stops `fetch` and `XMLHttpRequest` from reading it, even from a script that Kotlin runs in the page. Options are listed in the Phase 8 proposal; none is built yet.
+
+### Building
+
+CI is the path (`wrappers.yml`, job `android`): Java 17, the runner's Android SDK and NDK, `rustup target add aarch64-linux-android`, then `npx tauri android build --debug --apk --target aarch64`. Locally you need Android Studio's SDK (platform 37 and build tools), an NDK, `ANDROID_HOME`, `NDK_HOME` and Java 17 or later.
+
+The APK is a debug build signed with the Android debug key that Gradle makes on the runner. No keystore, password or token exists anywhere in the repository or the secrets, so each build has a different signature and Android refuses to update over the previous one: uninstall the old test app first (its saved work goes with it). A release APK needs a permanent key, which is the owner's decision and does not exist yet; `release.yml` has no Android job until it does. It would need the key and its passwords as repository secrets used only by a release job, `tauri android build --apk` (release profile), the same permission check, and the same hand-off through the Actions cache.
+
 ## Toolchain per platform
 
 - All: Rust, the release pinned in `rust-toolchain.toml` (rustup installs it on first use, or run `rustup toolchain install` in this folder), and Node 22. CI checks that `Cargo.lock` matches `Cargo.toml` (`cargo fetch --locked`).
 - Windows: Microsoft C++ Build Tools (the "Desktop development with C++" workload) and the WebView2 runtime. Windows 10 and 11 have WebView2. The NSIS installer is `installMode: currentUser`, so end users need no administrator rights. Tauri downloads NSIS itself at build time.
+- Android: Java 17 or later, the Android SDK (platform 37, build tools) and NDK, `ANDROID_HOME` and `NDK_HOME`, and `rustup target add aarch64-linux-android`. The Gradle wrapper downloads Gradle 9.6.1 and the Android Gradle plugin from `services.gradle.org`, Google's Maven and Maven Central at build time; the app itself never uses the network.
 - Linux (smoke test only, not a shipped build): `build-essential`, `pkg-config`, `libwebkit2gtk-4.1-dev`, `librsvg2-dev`, `xvfb`, `webkit2gtk-driver`.
 
 ## Icons
@@ -94,12 +126,13 @@ node scripts/make-icon.mjs --png
 npx tauri icon src-tauri/icons/source.png
 ```
 
-`tauri icon` also writes Android and iOS folders. They are deleted for now. Phase 8 will need the Android one. There is no real pack logo file in the repository. Replace `source.svg` with one when the owner supplies it.
+`tauri icon` also writes Android and iOS folders. They are not kept in `icons/`. The Android launcher icons were made from the same `source.png` (`npx tauri icon src-tauri/icons/source.png -o <empty folder>`) and copied into `gen/android/app/src/main/res/`, with the adaptive icon's background colour set to the navy from `src/config/tokens.ts`. There is no real pack logo file in the repository. Replace `source.svg` with one when the owner supplies it.
 
 ## Files
 
 - `tauri.conf.json`: product name, identifier `org.pack137.newsbuilder`, window, bundle settings, version from `package.json`.
 - `src/lib.rs`: the downloads, navigation and permission rules, with tests. `src/main.rs` only calls it.
 - `Cargo.toml`, `Cargo.lock`, `build.rs`: the Rust project.
+- `gen/android/`: the Android project (see above).
 - `icons/`: the generated icon set and its source.
 - `target/` and `gen/schemas/` are build output and are not committed.

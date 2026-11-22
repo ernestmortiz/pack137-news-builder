@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- The navy value in src/config/tokens.ts, so the adaptive icon blends with its foreground. -->
+  <color name="ic_launcher_background">#151B4D</color>
+</resources>

@@ -7,6 +7,10 @@
 //!    person's Downloads folder (ADR 0004, "Desktop and Android wrappers", point 2).
 //! 2. Navigation. The window may only show the app's own pages. Everything else is refused.
 //! 3. Permissions. The page asks for none, so every request is refused.
+//!
+//! The same code builds the Android app (`tauri android build`). There, wry does not call the
+//! download handler or the new window handler (both are documented as unsupported on Android),
+//! so those two guards do nothing; the navigation and permission rules do apply.
 
 use std::path::{Path, PathBuf};
 
@@ -22,16 +26,18 @@ const DEV_PORT: u16 = 5173;
 const DOWNLOAD_EXTENSIONS: [&str; 3] = ["json", "jpg", "jpeg"];
 
 /// True for the one origin Tauri serves the bundled app from on this platform:
-/// `http://tauri.localhost` on Windows, `tauri://localhost` on macOS and Linux. The other forms
-/// are not served by Tauri there and could reach the network or another program, so they are
-/// refused. In a dev run (`tauri dev`) the Vite dev server is allowed as well; a release build
-/// has no such branch.
+/// `http://tauri.localhost` on Windows and Android, `tauri://localhost` on macOS and Linux
+/// (tauri `protocol::origin`). The other forms are not served by Tauri there and could reach the
+/// network or another program, so they are refused. In a dev run (`tauri dev`) the Vite dev
+/// server is allowed as well; a release build has no such branch.
 fn is_app_origin(url: &Url) -> bool {
-    is_app_origin_on(url, cfg!(windows)) || is_dev_server(url)
+    is_app_origin_on(url, cfg!(any(windows, target_os = "android"))) || is_dev_server(url)
 }
 
-fn is_app_origin_on(url: &Url, windows: bool) -> bool {
-    let (scheme, host) = if windows {
+/// `dotted` is the Windows and Android form (`http://tauri.localhost`); otherwise the
+/// `tauri://localhost` form.
+fn is_app_origin_on(url: &Url, dotted: bool) -> bool {
+    let (scheme, host) = if dotted {
         ("http", "tauri.localhost")
     } else {
         ("tauri", "localhost")
@@ -168,6 +174,7 @@ fn on_download<R: tauri::Runtime>(webview: tauri::Webview<R>, event: DownloadEve
     true
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
@@ -203,6 +210,7 @@ mod tests {
 
     #[test]
     fn each_platform_allows_only_its_own_app_origin() {
+        // The dotted form is the one Windows and Android serve (tauri `protocol::origin`).
         assert!(is_app_origin_on(&url("http://tauri.localhost/"), true));
         assert!(is_app_origin_on(
             &url("http://tauri.localhost/index.html"),
@@ -218,7 +226,7 @@ mod tests {
         assert!(!is_app_origin_on(&url("http://tauri.localhost/"), false));
         assert!(!is_app_origin_on(&url("https://tauri.localhost/"), false));
 
-        for windows in [true, false] {
+        for dotted in [true, false] {
             for bad in [
                 "http://tauri.localhost:8080/",
                 "http://user@tauri.localhost/",
@@ -227,8 +235,8 @@ mod tests {
                 "tauri://example.org/",
             ] {
                 assert!(
-                    !is_app_origin_on(&url(bad), windows),
-                    "{bad} on windows={windows}"
+                    !is_app_origin_on(&url(bad), dotted),
+                    "{bad} on dotted={dotted}"
                 );
             }
         }
@@ -236,7 +244,7 @@ mod tests {
 
     #[test]
     fn allows_the_app_origin_and_inert_frames() {
-        let home = if cfg!(windows) {
+        let home = if cfg!(any(windows, target_os = "android")) {
             "http://tauri.localhost/"
         } else {
             "tauri://localhost/index.html"
