@@ -460,13 +460,23 @@ try {
     shrinkShown && /documentsui|photopicker|providers\.media|gallery|photos/i.test(pickerTop),
     `tab "${converterTab}"; before: ${beforePicker}; with picker: ${pickerTop}`,
   );
-  adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
-  const backInApp = await waitFor(
-    () => resumed().includes(PACKAGE),
-    'the app to come back',
-    15_000,
+  // Press Back as a person would: once, and again if the picker was still opening and ignored it
+  // (seen once on CI: the picker stayed in front after a single press). Up to three presses.
+  let presses = 0;
+  let backInApp = false;
+  while (presses < 3 && !backInApp) {
+    await sleep(presses === 0 ? 1_000 : 2_000);
+    adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
+    presses += 1;
+    backInApp = await waitFor(() => resumed().includes(PACKAGE), 'the app to come back', 6_000)
+      .then(() => true)
+      .catch(() => false);
+  }
+  check(
+    'e2. Back from the picker returns to the app',
+    backInApp,
+    `after ${presses} Back press${presses === 1 ? '' : 'es'}: ${resumed()}`,
   );
-  check('e2. Back from the picker returns to the app', backInApp === true, resumed());
 
   const jpegSize = await saveBlobAs('shrink-test.jpg', 'jpeg');
   const jpegSaved = await waitFor(
