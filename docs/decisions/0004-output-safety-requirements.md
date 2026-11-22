@@ -33,6 +33,13 @@ From the Phase 4 security review. Today pack.config.ts values are trusted consta
 2. Every URL setting (logo, standing links, photo form, year at a glance) goes through the same allow-list as pasted and typed links, and the settings screen shows the full value of every email link with its decoded parts (UI item 4).
 3. Draft files are parsed as data, validated against the schema version, and never trusted for paths or keys.
 
+Owner decisions, 2026-11-22 (Phase 5):
+
+4. Email settings are strict: only plain addresses made of letters, digits and `. _ + ~ -`, one `@` and a dotted host. Rarer valid forms (non-English characters, `%`) are refused.
+5. "Start next month from it" keeps last month's intro, story blocks and thank-yous to write over, and clears only the summary and past dated items.
+6. A letter already started keeps its own button and photo ask links when the volunteer email or photo form setting changes; new letters use the new settings.
+7. Opening a draft always asks before using the settings stored in it.
+
 ## To verify in a real browser before release (Phase 6)
 
 With the network panel open, paste `<img src="https://example.org/a.png"><link rel=stylesheet href="https://example.org/x.css"><iframe src="https://example.org/"></iframe>` and confirm the parse makes no requests. The review reasoned this from the HTML spec; it has not been observed on a device.
