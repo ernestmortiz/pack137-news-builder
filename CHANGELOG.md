@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Desktop apps (Phase 7): a Windows installer and a Mac disk image, built by the release workflow on Windows and Mac machines. They wrap the same web build in a window. The page inside can reach nothing on the computer, cannot leave the app's own pages, and never uses the internet. Download draft and Shrink a photo save into the Downloads folder. Unsigned; an install guide walks volunteers past the Windows and Mac warnings.
+- Test installers are built on every pull request that changes the desktop app, and a smoke test checks the real app on Linux.
+
 ## 1.0.0 (2026-11-22)
 
 - Web release hardening (Phase 6): the web build works when unzipped and opened from disk with no internet; a strict page policy (no outgoing connections); spell check by the browser; faster typing in very large fields; a plain-words error notice; an accessibility pass (skip links, keyboard use, focus, live regions, 44px targets, contrast).
