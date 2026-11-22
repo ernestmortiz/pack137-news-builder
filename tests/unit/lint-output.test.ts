@@ -39,8 +39,9 @@ describe('output linter', () => {
   });
 
   // Fixed in Phase 4: rgb() colors became token hex, the TroopTrack attachment line (with its
-  // class) was removed because attachments are added in TroopTrack after pasting (spec 8.2), and
-  // the logo gained a max-width. #8A90A6 is now the muted-light token.
+  // class) was removed because attachments are added in TroopTrack after pasting (spec 8.2), the
+  // logo gained a max-width, and the photo wrappers moved from #8A90A6 to muted so alt text shown
+  // in place of a blocked image meets 4.5:1.
   it('passes the corrected monthly letter with the monthly option', () => {
     const corrected = readFileSync(join(monthlyDir, '2026-11.corrected.html'), 'utf8');
     expect(lintOutput(corrected, { monthly: true })).toEqual([]);
@@ -231,7 +232,7 @@ describe('lintOutput: owner decisions of 2026-11-21', () => {
     ).toEqual([]);
   });
 
-  it('accepts the muted-light token', () => {
-    expect(lintOutput('<p style="color:#8A90A6;">x</p>')).toEqual([]);
+  it('rejects #8A90A6, retired 2026-11-22 because it fails 4.5:1 for alt text', () => {
+    expect(lintOutput('<p style="color:#8A90A6;">x</p>')).toEqual(['color #8A90A6 is not a token']);
   });
 });

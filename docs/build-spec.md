@@ -88,7 +88,6 @@ Tokens:
 - grey-page `#EEF1F6`: page background (monthly letter outer wrapper only)
 - ink `#1B1F2E`: body text
 - muted `#5B6275`: read-time line, photo captions, small notes (monthly letter)
-- muted-light `#8A90A6`: monthly letter photo wrappers only (approved 2026-11-21). It is 3.17:1 on white, below the 4.5:1 rule, so it must never color real text.
 - white `#FFFFFF` and lavender `#E3E6F5` are the only text colors on navy besides the golds
 - Font stack: `Inter,Arial,Helvetica,sans-serif`
 - Radius: 12px panels, 8px buttons and pills
@@ -107,6 +106,7 @@ Email-safe HTML rules (TroopTrack and mail clients strip a lot):
 - Buttons are a table cell with background color holding a padded `<a>`; minimum 44px tall. The cell also carries `mso-padding-alt` with the same padding, because Outlook for Windows ignores padding on the link (approved 2026-11-21).
 - Links: navy, bold, underlined, `target="_blank" rel="noopener noreferrer"` (not on `mailto:`).
 - Images: explicit `width`, `height:auto`, `display:block`, `border:0`, and an `alt` attribute. Alt text should describe the image; an image the user leaves without alt text is kept with `alt=""` and the tool warns about it (owner decision, 2026-11-21).
+- Alt text follows accessibility best practice (owner, 2026-11-22). When images are blocked it shows as text, so the text around an image meets 4.5:1. The tool warns, without blocking, when alt text is missing, starts with "Image of", "Photo of" or similar, looks like a file name, repeats the caption, or runs over 125 characters, and it reminds the writer to describe what the photo shows and never to name a child.
 - Text contrast at least 4.5:1. Only the token pairings above are allowed, which guarantees it.
 - No wrapper `<div>` nesting, no `id="isPasted"`, no `data-*` attributes, no editor classes in output.
 - Every image carries `max-width:100%;height:auto` so a 552px photo cannot overflow a phone screen.

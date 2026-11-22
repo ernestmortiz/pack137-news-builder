@@ -44,7 +44,7 @@ function contributor(block: Extract<StoryBlock, { kind: 'contributor' }>, top: n
 function photoBlock(block: Extract<StoryBlock, { kind: 'photo' }>, top: number): string {
   const img = photoImg(block.photo, CARD_INNER);
   if (img === '') return '';
-  const wrapper = `<p style="margin:0;color:${color.mutedLight};font-size:13px;font-weight:700;">${img}</p>`;
+  const wrapper = `<p style="margin:0;color:${color.muted};font-size:13px;font-weight:700;">${img}</p>`;
   return row(`${top}px 24px 0 24px`, lines(wrapper, caption(block.photo.caption)));
 }
 
