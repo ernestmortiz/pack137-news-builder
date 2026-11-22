@@ -17,6 +17,10 @@ import { emptyLetter, letterWords, readTimeText, type LetterForm } from '../core
 import { renderLetter } from '../core/render-letter';
 import { browserClipboardEnv, copyText } from './clipboard';
 import { clear, debounce, el } from './dom';
+import { markSpelling } from './field-kinds';
+import { registerFlush } from './safety';
+import { announce, createThrottle, SAVE_ANNOUNCE_GAP_MS } from './announce';
+import { SPELLING_NOTE } from './guide';
 import type { FormContext, TypingEdit } from './form-kit';
 import type { SettingsStore } from './app-settings';
 import { createHistory, type History } from './history';
@@ -70,7 +74,10 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
   let history = newHistory();
   let pendingBefore: Snapshot | null = null;
 
-  const capture = (): Snapshot => ({ letter: structuredClone(letter) });
+  const capture = (): Snapshot => {
+    view?.flush();
+    return { letter: structuredClone(letter) };
+  };
   /** Call just before a structural change. Keeps the letter as it is now. */
   function begin(): void {
     pendingBefore ??= capture();
@@ -96,15 +103,18 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
       textContent:
         'Fill in each section below. Your work is saved on this device as you go. Use Download draft to keep a copy or to move it to another device.',
     }),
+    el('p', { className: 'hint', textContent: SPELLING_NOTE }),
   ]);
   // Shown instead of the editor when a saved draft is found, or when a draft file is opened.
   const choicePanel = el('section', { className: 'card choice-panel' });
   choicePanel.hidden = true;
+  choicePanel.tabIndex = -1;
+  choicePanel.dataset.skip = '';
 
   const undoButton = el('button', { type: 'button', className: 'btn', textContent: 'Undo' });
   const redoButton = el('button', { type: 'button', className: 'btn', textContent: 'Redo' });
+  // Not a live region: autosave would speak again and again. `announce` speaks it sparingly.
   const saveNote = el('span', { className: 'history-note save-note' });
-  saveNote.setAttribute('role', 'status');
   const downloadButton = el('button', {
     type: 'button',
     className: 'btn',
@@ -117,8 +127,6 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
   const fileNote = el('p', { className: 'hint' });
   fileNote.setAttribute('role', 'status');
   const historyNote = el('span', { className: 'history-note' });
-  historyNote.setAttribute('role', 'status');
-  historyNote.setAttribute('aria-live', 'polite');
   const counter = el('p', { className: 'read-time' });
   counter.setAttribute('aria-label', 'Read time and word count');
   const historyBar = el('div', { className: 'history-bar letter-bar' }, [
@@ -149,6 +157,7 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
   /* ---------- form ---------- */
   const formHeading = el('h2', { textContent: 'Edit the letter' });
   formHeading.tabIndex = -1;
+  formHeading.dataset.skip = '';
   const formHost = el('div', { className: 'form-host' });
   const left = el('div', { className: 'column' }, [formHeading, formHost]);
 
@@ -165,7 +174,7 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
   copyNote.setAttribute('role', 'status');
   const codeArea = el('textarea', { id: 'letter-code-box', className: 'control code', rows: 12 });
   codeArea.readOnly = true;
-  codeArea.spellcheck = false;
+  markSpelling(codeArea, 'code');
   const codeDetails = el('details', { className: 'code-details' }, [
     el('summary', { textContent: 'Show the code' }),
     el('label', {
@@ -220,6 +229,7 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
   }
 
   function refreshOutput(): void {
+    view?.flush();
     updateCounter();
     settings.setLetterFeedback(letter.feedback);
     let html: string;
@@ -272,6 +282,7 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
 
   /* ---------- copy ---------- */
   copyButton.addEventListener('click', () => {
+    view?.flush();
     refreshLater.cancel();
     let html: string;
     try {
@@ -315,8 +326,10 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
   }
 
   function travel(kind: 'undo' | 'redo', from: 'button' | 'key'): void {
+    view?.flush();
     if (kind === 'undo' ? !history.canUndo() : !history.canRedo()) {
       historyNote.textContent = kind === 'undo' ? 'Nothing to undo.' : 'Nothing to redo.';
+      announce(historyNote.textContent);
       return;
     }
     const move = kind === 'undo' ? history.undo() : history.redo();
@@ -341,6 +354,7 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
       }
     }
     historyNote.textContent = `${words}: ${move.label}`;
+    announce(historyNote.textContent);
     updateHistoryBar();
     if (from === 'key') {
       if (target) target.focus();
@@ -375,12 +389,16 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
   });
 
   /* ---------- autosave (spec 8.3) ---------- */
+  const speakSave = createThrottle(SAVE_ANNOUNCE_GAP_MS);
   function reportSave(ok: boolean, when: Date): void {
     saveNote.textContent = ok
       ? `Saved on this device at ${clockText(when)}`
       : 'Could not save on this device';
+    if (!ok) announce('Could not save on this device');
+    else if (speakSave('saved', Date.now())) announce('Saved on this device');
   }
   function saveNow(): void {
+    view?.flush();
     const when = new Date();
     let ok: boolean;
     try {
@@ -400,9 +418,14 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
     if (saving) saveSoon.run();
   }
   // Closing or hiding the page counts as the last change, so nothing typed in the last second is lost.
-  window.addEventListener('pagehide', () => saveSoon.flush());
+  const settleAndSave = (): void => {
+    view?.flush();
+    saveSoon.flush();
+  };
+  registerFlush(settleAndSave);
+  window.addEventListener('pagehide', settleAndSave);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') saveSoon.flush();
+    if (document.visibilityState === 'hidden') settleAndSave();
   });
 
   /* ---------- choices: saved draft and opened files ---------- */
@@ -438,7 +461,17 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
     return ul;
   }
 
+  // Escape in the "open this draft?" question is the same as its Cancel button.
+  let escapeChoice: (() => void) | null = null;
+  choicePanel.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && escapeChoice && !choicePanel.hidden) {
+      event.preventDefault();
+      escapeChoice();
+    }
+  });
+
   function offerSavedDraft(draft: DraftFile): void {
+    escapeChoice = null;
     saving = false;
     clear(choicePanel);
     const buttons = el('div', { className: 'choice-list' });
@@ -490,6 +523,7 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
 
   /* ---------- download and open a draft file ---------- */
   downloadButton.addEventListener('click', () => {
+    view?.flush();
     fileNote.textContent = '';
     try {
       const text = writeDraft(letter, settings.get(), new Date());
@@ -522,6 +556,7 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
     const sameSettings = JSON.stringify(draft.settings) === JSON.stringify(settings.get());
     clear(choicePanel);
     const finish = (useSettings: boolean): void => {
+      escapeChoice = null;
       if (useSettings) settings.set(draft.settings);
       saving = true;
       showEditor(true);
@@ -542,6 +577,7 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
       textContent: 'Cancel, do not open it',
     });
     cancel.addEventListener('click', () => {
+      escapeChoice = null;
       saving = true;
       showEditor(true);
       fileNote.textContent = 'Nothing was changed.';
@@ -648,8 +684,9 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
       linkSection(),
       actions,
     );
+    escapeChoice = () => cancel.click();
     // Save what was typed in the last second before the panel takes over, then pause saving.
-    saveSoon.flush();
+    settleAndSave();
     saving = false;
     showEditor(false);
     first.focus();

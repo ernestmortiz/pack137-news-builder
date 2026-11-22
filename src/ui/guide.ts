@@ -1,6 +1,10 @@
 /** The five-step guide (build spec 7.1) with a drawn picture of TroopTrack's "<>" button. */
 import { el, svgEl } from './dom';
 
+/** Said once in each tool's help. The browser's own checker does the work; nothing is sent anywhere. */
+export const SPELLING_NOTE =
+  'Spelling is checked by your browser. Right-click an underlined word for suggestions.';
+
 export const GUIDE_STEPS: string[] = [
   'In TroopTrack, open the announcement and press the "<>" code view button. Select all and copy.',
   'Come back here and paste into the "Paste the old HTML here" box.',
@@ -55,5 +59,6 @@ export function buildGuide(): HTMLElement {
   return el('section', { className: 'card guide' }, [
     el('h2', { textContent: 'How it works' }),
     list,
+    el('p', { className: 'hint', textContent: SPELLING_NOTE }),
   ]);
 }

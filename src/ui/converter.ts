@@ -22,6 +22,9 @@ import { parse, type ParseResult } from '../core/pipeline';
 import { renderAnnouncement } from '../core/render';
 import { browserClipboardEnv, copyText } from './clipboard';
 import { clear, debounce, el } from './dom';
+import { markSpelling } from './field-kinds';
+import { announce } from './announce';
+import { registerFlush } from './safety';
 import { buildForm, type FormView } from './form-view';
 import type { FormContext, TypingEdit } from './form-kit';
 import { createHistory } from './history';
@@ -77,6 +80,7 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
   let pendingBefore: Snapshot | null = null;
 
   function capture(): Snapshot {
+    view?.flush();
     return structuredClone({
       pasteText: committedPaste,
       parsed,
@@ -103,8 +107,9 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
 
   /* ---------- paste section ---------- */
   const pasteArea = el('textarea', { id: 'paste-box', className: 'control paste', rows: 8 });
-  pasteArea.spellcheck = false;
+  markSpelling(pasteArea, 'code');
   pasteArea.autocomplete = 'off';
+  pasteArea.dataset.skip = '';
   pasteArea.setAttribute('aria-describedby', 'paste-hint paste-status');
   const status = el('p', { id: 'paste-status', className: 'status' });
   status.setAttribute('role', 'status');
@@ -169,7 +174,7 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
   copyNote.setAttribute('role', 'status');
   const codeArea = el('textarea', { id: 'code-box', className: 'control code', rows: 12 });
   codeArea.readOnly = true;
-  codeArea.spellcheck = false;
+  markSpelling(codeArea, 'code');
   const codeDetails = el('details', { className: 'code-details' }, [
     el('summary', { textContent: 'Show the code' }),
     el('label', { htmlFor: 'code-box', className: 'label', textContent: 'New HTML (read only)' }),
@@ -204,8 +209,6 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
   const undoButton = el('button', { type: 'button', className: 'btn', textContent: 'Undo' });
   const redoButton = el('button', { type: 'button', className: 'btn', textContent: 'Redo' });
   const historyNote = el('span', { className: 'history-note' });
-  historyNote.setAttribute('role', 'status');
-  historyNote.setAttribute('aria-live', 'polite');
   const historyBar = el('div', { className: 'history-bar' }, [undoButton, redoButton, historyNote]);
   historyBar.setAttribute('role', 'group');
   historyBar.setAttribute('aria-label', 'Undo and redo');
@@ -218,6 +221,10 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
     historyBar.hidden = parsed === null && !history.canUndo() && !history.canRedo();
   }
 
+  registerFlush(() => {
+    view?.flush();
+    handlePasteLater.flush();
+  });
   root.append(buildGuide(), pasteSection, historyBar, results);
 
   /* ---------- output ---------- */
@@ -242,6 +249,7 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
   }
 
   function refreshOutput(): void {
+    view?.flush();
     const session = current();
     if (!session) return;
     let html: string;
@@ -355,6 +363,7 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
   }
 
   function switchTo(next: Layout): void {
+    view?.flush();
     const session = current();
     if (!session || layout === null || next === layout) return;
     begin();
@@ -492,6 +501,7 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
 
   /* ---------- copy ---------- */
   copyButton.addEventListener('click', () => {
+    view?.flush();
     const session = current();
     if (!session) return;
     refreshLater.cancel();
@@ -530,6 +540,14 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
     confirmBox.hidden = false;
     startOver.hidden = true;
     confirmNo.focus();
+  });
+  // Escape closes the question and puts the keyboard back on the button that asked it.
+  confirmBox.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !confirmBox.hidden) {
+      event.preventDefault();
+      event.stopPropagation();
+      confirmNo.click();
+    }
   });
   confirmNo.addEventListener('click', () => {
     confirmBox.hidden = true;
@@ -575,9 +593,11 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
   }
 
   function travel(kind: 'undo' | 'redo', from: 'button' | 'key'): void {
+    view?.flush();
     handlePasteLater.flush();
     if (kind === 'undo' ? !history.canUndo() : !history.canRedo()) {
       historyNote.textContent = kind === 'undo' ? 'Nothing to undo.' : 'Nothing to redo.';
+      announce(historyNote.textContent);
       return;
     }
     const move = kind === 'undo' ? history.undo() : history.redo();
@@ -601,6 +621,7 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
       }
     }
     historyNote.textContent = `${words}: ${move.label}`;
+    announce(historyNote.textContent);
     updateHistoryBar();
     if (from === 'key') {
       if (target) target.focus();

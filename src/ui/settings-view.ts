@@ -11,6 +11,7 @@ import {
   type SettingsProblem,
 } from '../core/settings';
 import { clear, debounce, el, uid } from './dom';
+import { kindOfInputType, markSpelling } from './field-kinds';
 import type { SettingsStore } from './app-settings';
 import {
   emailLinkDetails,
@@ -71,8 +72,8 @@ export function mountSettings(root: HTMLElement, store: SettingsStore): void {
       type: opts.type ?? 'text',
       value: opts.value,
       autocomplete: 'off',
-      spellcheck: false,
     });
+    markSpelling(input, kindOfInputType(opts.type ?? 'text'));
     if (opts.inputMode) input.inputMode = opts.inputMode;
     input.setAttribute('aria-describedby', box.id);
     input.addEventListener('input', () => {
@@ -261,6 +262,13 @@ export function mountSettings(root: HTMLElement, store: SettingsStore): void {
     confirmBox.hidden = false;
     restoreButton.hidden = true;
     confirmYes.focus();
+  });
+  confirmBox.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !confirmBox.hidden) {
+      event.preventDefault();
+      event.stopPropagation();
+      confirmNo.click();
+    }
   });
   confirmNo.addEventListener('click', () => {
     confirmBox.hidden = true;

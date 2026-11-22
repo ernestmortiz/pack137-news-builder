@@ -38,7 +38,7 @@ export function replaceImagesWithPlaceholders(html: string): string {
 export function previewDocument(renderedHtml: string): string {
   return [
     '<!doctype html>',
-    '<html lang="en">',
+    '<html lang="en-US">',
     '<head>',
     '<meta charset="utf-8">',
     `<meta http-equiv="Content-Security-Policy" content="${PREVIEW_CSP}">`,

@@ -7,7 +7,8 @@ import type { CheckMe, FieldPath, Suggestion } from '../core/fill';
 import type { FormWarning } from '../core/form-warnings';
 import type { ButtonField, RichText } from '../core/forms';
 import { richToText, textToRich } from '../core/rich-text';
-import { clear, el, uid } from './dom';
+import { clear, debounce, el, uid } from './dom';
+import { type FieldKind, markSpelling } from './field-kinds';
 import { itemsFor, mailtoDetails, type MailLine, moveItem, samePath, warningPath } from './paths';
 
 export interface FormContext {
@@ -39,6 +40,9 @@ export interface TypingEdit {
   selBefore: [number, number];
   selAfter: [number, number];
 }
+
+/** How long a rich field waits after the last keystroke before the form takes its text. */
+export const COMMIT_DELAY_MS = 150;
 
 export const RICH_HINT = 'Type **bold**, _italic_, ~~struck~~ or [link text](https://example.org).';
 
@@ -97,6 +101,15 @@ export function createKit(ctx: FormContext) {
   let leftoverBox: HTMLElement | null = null;
   let leftoverChecks = 0;
   const warnTargets: { path: FieldPath; node: HTMLElement }[] = [];
+  /** Rich fields whose latest typing has not reached the form yet. */
+  const pending = new Set<{ control: HTMLElement; flush(): void }>();
+  /** Brings the form up to date with everything typed. Cheap when nothing is waiting. */
+  function flush(): void {
+    for (const item of pending) {
+      item.flush();
+      if (!item.control.isConnected) pending.delete(item);
+    }
+  }
   /** Text fields on screen, so undo can change one without redrawing the form. */
   const fields = new Map<
     string,
@@ -112,8 +125,16 @@ export function createKit(ctx: FormContext) {
     path: FieldPath,
     label: string,
     commit: (value: string) => void,
+    lazy = false,
   ): void {
     let known = control.value;
+    // A very large field is slow to parse. The undo step is still recorded per edit, but the form
+    // value catches up on a short pause, on leaving the field, and before anything reads the form.
+    const later = lazy ? debounce(() => commit(control.value), COMMIT_DELAY_MS) : null;
+    if (later) {
+      pending.add({ control, flush: later.flush });
+      control.addEventListener('blur', later.flush);
+    }
     let pre: [number, number] = [0, 0];
     control.addEventListener('beforeinput', (event) => {
       const kind = (event as InputEvent).inputType;
@@ -128,7 +149,8 @@ export function createKit(ctx: FormContext) {
       const before = known;
       const after = control.value;
       known = after;
-      commit(after);
+      if (later) later.run();
+      else commit(after);
       if (before === after) return;
       ctx.typed({
         path,
@@ -144,6 +166,7 @@ export function createKit(ctx: FormContext) {
       apply(value) {
         control.value = value;
         known = value;
+        later?.cancel();
         commit(value);
       },
     });
@@ -289,20 +312,27 @@ export function createKit(ctx: FormContext) {
     path: FieldPath,
     get: () => string,
     set: (value: string) => void,
-    options: { hint?: string; url?: boolean; placeholder?: string; rows?: number } = {},
+    options: {
+      hint?: string;
+      url?: boolean;
+      placeholder?: string;
+      rows?: number;
+      /** What the field holds. Free words are spell checked; numbers and the like are not. */
+      kind?: FieldKind;
+    } = {},
   ): HTMLElement {
     const input: HTMLInputElement | HTMLTextAreaElement =
       options.rows !== undefined
         ? el('textarea', { id: uid('f'), className: 'control', rows: options.rows })
         : el('input', { type: 'text', id: uid('f'), className: 'control' });
     input.value = get();
+    markSpelling(input, options.url === true ? 'url' : (options.kind ?? 'text'));
     if (options.placeholder !== undefined) input.placeholder = options.placeholder;
     const extras: HTMLElement[] = [];
     let showMailNow = (): void => {};
     if (options.url === true && input instanceof HTMLInputElement) {
       input.inputMode = 'url';
       input.autocapitalize = 'none';
-      input.spellcheck = false;
       input.autocomplete = 'off';
       const mail = el('div', { className: 'mailto' });
       const showMail = (): void => {
@@ -327,6 +357,7 @@ export function createKit(ctx: FormContext) {
     rows = 3,
   ): HTMLElement {
     const area = el('textarea', { id: uid('f'), className: 'control rich', rows });
+    markSpelling(area, 'text');
     area.value = richToText(get());
     const mail = el('div', { className: 'mailto' });
     const showMail = (runs: RichText): void => {
@@ -340,11 +371,17 @@ export function createKit(ctx: FormContext) {
       fillMail(mail, [...seen.values()]);
     };
     showMail(get());
-    trackTyping(area, path, label, (value) => {
-      const runs = textToRich(value);
-      set(runs);
-      showMail(runs);
-    });
+    trackTyping(
+      area,
+      path,
+      label,
+      (value) => {
+        const runs = textToRich(value);
+        set(runs);
+        showMail(runs);
+      },
+      true,
+    );
     return wrap(label, area, path, RICH_HINT, [mail]);
   }
 
@@ -568,6 +605,7 @@ export function createKit(ctx: FormContext) {
     refreshSuggestions,
     setField,
     fieldControl,
+    flush,
   };
 }
 

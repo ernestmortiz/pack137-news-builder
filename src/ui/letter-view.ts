@@ -20,6 +20,7 @@ import {
 import type { RichText } from '../core/forms';
 import { ALT_HELP, altFeedback } from './alt-ui';
 import { el, uid } from './dom';
+import { markSpelling } from './field-kinds';
 import { createKit, type FormContext } from './form-kit';
 import { paragraphs } from './form-view';
 import {
@@ -46,6 +47,8 @@ export interface LetterView {
   setField(path: FieldPath, value: string, selection: [number, number]): boolean;
   /** The control for a field on screen, if any. */
   fieldControl(path: FieldPath): HTMLElement | null;
+  /** Bring the letter up to date with text typed a moment ago. Call before reading it. */
+  flush(): void;
 }
 
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
@@ -140,9 +143,11 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
     withTime: boolean,
   ): HTMLElement {
     const dateInput = el('input', { type: 'date', className: 'control date', id: uid('d') });
+    markSpelling(dateInput, 'date');
     dateInput.value = toIsoDate(item.date);
     const shown = el('p', { className: 'date-note' });
     const timeInput = el('input', { type: 'time', className: 'control time', id: uid('t') });
+    markSpelling(timeInput, 'time');
     timeInput.step = '60';
     timeInput.value = item.time ? toTimeValue(item.time) : '';
     const noTime = el('button', {
@@ -348,7 +353,7 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
           [...path, 'stats', k, 'value'],
           () => stat.value,
           (v) => (stat.value = v),
-          { hint: 'Shown large in gold, such as 48 or 3,000.' },
+          { hint: 'Shown large in gold, such as 48 or 3,000.', kind: 'number' },
         ),
         kit.text(
           'Line of text under it',
@@ -449,7 +454,7 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
             if (year !== undefined) letter.issue.year = year;
             yearNote.node.hidden = year !== undefined || v.trim() === '';
           },
-          { hint: 'Four digits, like 2026.' },
+          { hint: 'Four digits, like 2026.', kind: 'number' },
         );
         field.append(yearNote.node);
         return field;
@@ -839,5 +844,5 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
     signOff.element,
     footer,
   );
-  return { element, setField: kit.setField, fieldControl: kit.fieldControl };
+  return { element, setField: kit.setField, fieldControl: kit.fieldControl, flush: kit.flush };
 }

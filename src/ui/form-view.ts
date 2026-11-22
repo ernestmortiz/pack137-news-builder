@@ -13,6 +13,7 @@ import type {
 } from '../core/forms';
 import { ALT_HELP, altFeedback } from './alt-ui';
 import { el } from './dom';
+import { markSpelling } from './field-kinds';
 import { createKit, type FormContext, type Kit } from './form-kit';
 import { dateWithYear, fromIsoDate, toIsoDate } from './paths';
 
@@ -26,6 +27,8 @@ export interface FormView {
   setField(path: (string | number)[], value: string, selection: [number, number]): boolean;
   /** The control for a field on screen, if any. */
   fieldControl(path: (string | number)[]): HTMLElement | null;
+  /** Bring the form up to date with text typed a moment ago. Call before reading the form. */
+  flush(): void;
 }
 
 /* ---------- pieces shared by layouts ---------- */
@@ -94,6 +97,7 @@ function dateField(
     className: 'control date',
     id: `d-${path.join('-')}`,
   });
+  markSpelling(startInput, 'date');
   startInput.value = row.date ? toIsoDate(row.date.start) : '';
   const startText = el('span', { className: 'date-note' });
   const endInput = el('input', {
@@ -101,6 +105,7 @@ function dateField(
     className: 'control date',
     id: `e-${path.join('-')}`,
   });
+  markSpelling(endInput, 'date');
   endInput.value = row.date?.end ? toIsoDate(row.date.end) : '';
   const endText = el('span', { className: 'date-note' });
   const moved = kit.checkbox(
@@ -500,5 +505,6 @@ export function buildForm(form: AnnouncementForm, ctx: FormContext): FormView {
     refreshSuggestions: kit.refreshSuggestions,
     setField: kit.setField,
     fieldControl: kit.fieldControl,
+    flush: kit.flush,
   };
 }
