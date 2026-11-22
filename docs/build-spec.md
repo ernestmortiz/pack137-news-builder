@@ -122,49 +122,53 @@ Tone (shown as guidance in the UI, not enforced):
 
 These patterns were approved on 2026-11-20 and revised on 2026-11-21 for narrow screens. The approved outputs are in the project doc `claude/pack137-weekly-announcements-html.md`; use them as the expected side of the golden fixtures. The renderer must reproduce them byte for byte apart from content.
 
-Card shell (every announcement):
+Revised on 2026-11-22 so every pattern holds up in Outlook for Windows (owner decision; see the Outlook rule in section 6). Every cell that holds text carries the font stack; cells inside nested tables also carry the body color, size and line height; spacing is set with margins on `<p>`, never padding on a `<div>`; colored cells carry `bgcolor` as well as `background-color`.
+
+Card shell (every announcement). Spaces in the label are written as `&nbsp;` so it cannot break.
 
 ```html
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin:0 auto;border-collapse:separate;background-color:#FFFFFF;border:1px solid #E3E6F5;border-radius:12px;font-family:Inter,Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" align="center" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="max-width:600px;margin:0 auto;border-collapse:separate;background-color:#FFFFFF;border:1px solid #E3E6F5;border-radius:12px;font-family:Inter,Arial,Helvetica,sans-serif;">
   <tr>
-    <td style="background-color:#151B4D;border-radius:12px 12px 0 0;padding:14px;">
-      <span style="display:inline-block;white-space:nowrap;background-color:#F7A823;color:#151B4D;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:8px;">{{label}}</span>
-      <div style="color:#FFFFFF;font-size:20px;font-weight:700;line-height:1.3;padding-top:8px;">{{title}}</div>
+    <td bgcolor="#151B4D" style="background-color:#151B4D;border-radius:12px 12px 0 0;padding:14px;font-family:Inter,Arial,Helvetica,sans-serif;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;"><tr><td bgcolor="#F7A823" style="background-color:#F7A823;color:#151B4D;font-family:Inter,Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;padding:4px 10px;border-radius:8px;">{{label}}</td></tr></table>
+      <p style="margin:8px 0 0 0;color:#FFFFFF;font-size:20px;font-weight:700;line-height:1.3;">{{title}}</p>
     </td>
   </tr>
   <tr>
-    <td style="padding:14px;color:#1B1F2E;font-size:15px;line-height:1.5;">{{body}}</td>
+    <td style="padding:14px;font-family:Inter,Arial,Helvetica,sans-serif;color:#1B1F2E;font-size:15px;line-height:1.5;">{{body}}</td>
   </tr>
 </table>
 ```
 
-Primary button (secondary button swaps to background `#E3E6F5` and text `#151B4D`):
+The card keeps a fluid width up to 600px. A fixed `width="600"` for Outlook waits for a real test send through TroopTrack, because TroopTrack's own wrapper decides the width there.
+
+Primary button (secondary button swaps to `#E3E6F5` in both `bgcolor` and `background-color`, and text `#151B4D`):
 
 ```html
 <table role="presentation" cellpadding="0" cellspacing="0" border="0">
   <tr>
-    <td style="background-color:#151B4D;border-radius:8px;mso-padding-alt:13px 22px;">
-      <a href="{{url}}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:13px 22px;color:#FFFFFF;font-size:16px;font-weight:700;line-height:18px;text-decoration:none;border-radius:8px;">{{text}}</a>
+    <td bgcolor="#151B4D" style="background-color:#151B4D;border-radius:8px;mso-padding-alt:13px 22px;">
+      <a href="{{url}}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:13px 22px;font-family:Inter,Arial,Helvetica,sans-serif;color:#FFFFFF;font-size:16px;font-weight:700;line-height:18px;text-decoration:none;border-radius:8px;">{{text}}</a>
     </td>
   </tr>
 </table>
 ```
 
-Date row. Single column, date stacked above the event, so it holds up at 250px wide. First row has no top border; later rows add `border-top:1px solid #E3E6F5`, or `#FFFFFF` inside a colored panel. A struck-through date wraps the date text in `<s>`. The two-column date row (96px date cell) is retired and must not be emitted.
+Date row. Single column, date stacked above the event, so it holds up at 250px wide. First row has no top border; later rows add `border-top:1px solid #E3E6F5` after the padding, or `#FFFFFF` inside a colored panel. A struck-through date wraps the date text in `<s>`. The two-column date row (96px date cell) is retired and must not be emitted.
 
 ```html
 <tr>
-  <td style="padding:10px 0;">
-    <div style="font-size:13px;font-weight:700;color:#151B4D;padding-bottom:2px;">{{date}}</div>
+  <td style="padding:10px 0;font-family:Inter,Arial,Helvetica,sans-serif;color:#1B1F2E;font-size:15px;line-height:1.5;">
+    <p style="margin:0 0 2px 0;font-size:13px;font-weight:700;color:#151B4D;">{{date}}</p>
     <div><a href="{{url}}" target="_blank" rel="noopener noreferrer" style="color:#151B4D;font-weight:700;text-decoration:underline;font-size:16px;">{{event}}</a> {{tags}}</div>
-    <div style="font-size:14px;color:#1B1F2E;padding-top:4px;">{{note}}</div>
+    <p style="margin:4px 0 0 0;font-size:14px;color:#1B1F2E;">{{note}}</p>
   </td>
 </tr>
 ```
 
-Link row (Link list layout, Ongoing and References sections): same cell, with the link on the first line and a 13px source or contact note under it. Any image in a Link list sits above the text at 80px wide, never in a side column.
+Link row (Link list layout, Ongoing and References sections): same cell, with the link on the first line and the source or contact note under it as `<p style="margin:2px 0 0 0;font-size:13px;color:#1B1F2E;">`. Any image in a Link list sits above the text at 80px wide, never in a side column.
 
-Tags (small pills after an event name):
+Tags (small pills after an event name). Spaces in tag text are written as `&nbsp;`. Outlook for Windows drops their padding and corners and shows them as shaded text; that is accepted.
 
 ```html
 <!-- quiet: Virtual, In person, TBD. Background #E3E6F5 on white, #FFFFFF inside a colored panel -->
@@ -173,32 +177,34 @@ Tags (small pills after an event name):
 <span style="display:inline-block;white-space:nowrap;background-color:#151B4D;color:#F9B93E;font-size:11px;font-weight:700;text-transform:uppercase;padding:2px 8px;border-radius:8px;">{{tag}}</span>
 ```
 
-Panels: highlight panel is a table cell with `background-color:#FFE9B8;border-radius:12px;padding:14px`. Quiet panel is the same with `#E3E6F5`. Section heading inside a card: `color:#151B4D;font-size:17px;font-weight:700;padding:20px 0 4px 0`.
+Panels: highlight panel is a table cell `<td bgcolor="#FFE9B8" style="background-color:#FFE9B8;border-radius:12px;padding:14px;font-family:Inter,Arial,Helvetica,sans-serif;color:#1B1F2E;font-size:15px;line-height:1.5;">`. Quiet panel is the same with `#E3E6F5` in both places.
 
-The patterns below were used in the approved outputs and were added to this section on 2026-11-21. The layout rules for using them are in `docs/decisions/0005-announcement-forms-and-golden-rule.md`.
+Panel name. A highlight panel's name is a one-cell table like the card label, with `bgcolor` and `background-color` `#151B4D` and color `#F9B93E`. A quiet panel's name is `<p style="margin:0;color:#151B4D;font-size:17px;font-weight:700;">`, followed by an optional subtitle `<p style="margin:2px 0 0 0;font-size:13px;color:#1B1F2E;">`.
 
-Panel name. A highlight panel's name is a strong pill with the badge's spacing: `display:inline-block;white-space:nowrap;background-color:#151B4D;color:#F9B93E;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:8px;`. A quiet panel's name is a heading `color:#151B4D;font-size:17px;font-weight:700;`, followed by an optional subtitle `font-size:13px;color:#1B1F2E;padding-top:2px;`.
+Section heading inside a card: `<p style="margin:20px 0 4px 0;color:#151B4D;font-size:17px;font-weight:700;">`.
 
 Spacer, before a panel that follows other content:
 
 ```html
-<div style="height:20px;line-height:20px;font-size:1px;">&nbsp;</div>
+<div style="height:20px;line-height:20px;font-size:1px;mso-line-height-rule:exactly;">&nbsp;</div>
 ```
 
-Help wanted ask title, inside the highlight panel: `color:#151B4D;font-size:18px;font-weight:700;line-height:1.3;padding:10px 0 6px 0;`.
+Help wanted ask title, inside the highlight panel: `<p style="margin:10px 0 6px 0;color:#151B4D;font-size:18px;font-weight:700;line-height:1.3;">`.
 
 Paragraphs are `<p>` with an explicit margin and nothing else, except ink color inside a panel:
 - Help wanted intro `margin:0 0 14px 0`; ask paragraphs `margin:0 0 10px 0`, the last `margin:0 0 14px 0`; outro `margin:18px 0 12px 0`.
 - Call to action and Message: `margin:0 0 14px 0` between paragraphs, `margin:0 0 16px 0` before a button, `margin:0` for a last paragraph with no button.
 - Link list intro `margin:0 0 6px 0`.
 
-Link list image, above the text:
+Link list image, above the text, in its own cell so the gap holds in Outlook:
 
 ```html
-<img src="{{src}}" width="80" alt="{{alt}}" style="display:block;width:80px;max-width:100%;height:auto;border:0;margin:0 0 12px 0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:0 0 12px 0;"><img src="{{src}}" width="80" alt="{{alt}}" style="display:block;width:80px;max-width:100%;height:auto;border:0;"></td></tr></table>
 ```
 
 Link inside a paragraph: `color:#151B4D;font-weight:700;text-decoration:underline;`, with `target="_blank" rel="noopener noreferrer"` except on `mailto:`.
+
+Monthly letter, Outlook rules (2026-11-22): bullet lists indent with a margin on the `ul` (`margin:10px 0 0 22px;padding:0`) and each `li` except the last carries only `margin-bottom`; masthead, sidebar and feedback text use `<p>` margins; the white card table carries `bgcolor`; contributor and Coming up badges are one-cell tables, as in the November issue.
 
 ## 7. Feature 1: Announcement Converter
 

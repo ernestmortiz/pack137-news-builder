@@ -40,8 +40,8 @@ export function mastheadRow(issue: MonthOfYear): string {
   const textCell = lines(
     `<td valign="middle" style="padding:16px 20px 16px 8px;font-family:${fontStack};">`,
     `  <div style="color:${color.goldLight};font-size:11px;font-weight:700;letter-spacing:0.5px;">${esc(packConfig.eyebrow)}</div>`,
-    `  <h1 style="margin:0;padding-top:4px;color:${color.white};font-size:22px;font-weight:700;line-height:1.3;">${esc(packConfig.monthlyTitle)}</h1>`,
-    `  <div style="color:${color.lavender};font-size:13px;padding-top:4px;">${esc(formatMonthYear(issue))}</div>`,
+    `  <h1 style="margin:4px 0 0 0;color:${color.white};font-size:22px;font-weight:700;line-height:1.3;">${esc(packConfig.monthlyTitle)}</h1>`,
+    `  <p style="margin:4px 0 0 0;color:${color.lavender};font-size:13px;">${esc(formatMonthYear(issue))}</p>`,
     '</td>',
   );
   const table = lines(
@@ -58,7 +58,7 @@ export function mastheadRow(issue: MonthOfYear): string {
 /** Wraps the card rows: preview text, Outlook font rule, grey page, 600px wrapper and card. */
 export function letterShell(preview: string, rows: string): string {
   const card = lines(
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" align="center" style="width:100%;max-width:${maxEmailWidth}px;background-color:${color.white};border-radius:${radius.panel}px;margin:0 auto;border-collapse:separate;font-family:${fontStack};">`,
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" align="center" bgcolor="${color.white}" style="width:100%;max-width:${maxEmailWidth}px;background-color:${color.white};border-radius:${radius.panel}px;margin:0 auto;border-collapse:separate;font-family:${fontStack};">`,
     indent(rows, 2),
     '</table>',
   );

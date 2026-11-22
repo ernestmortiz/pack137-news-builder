@@ -28,8 +28,11 @@ function part(p: ContributorPart): string {
   const items = p.items.map(leadItem).filter((html) => html !== '');
   if (items.length === 0) return '';
   return lines(
-    '<ul style="margin:10px 0 0 0;padding-left:22px;">',
-    ...items.map((html) => `  <li style="margin:0 0 6px 0;">${html}</li>`),
+    '<ul style="margin:10px 0 0 22px;padding:0;">',
+    ...items.map(
+      (html, i) =>
+        `  <li${i === items.length - 1 ? '' : ' style="margin-bottom:6px;"'}>${html}</li>`,
+    ),
     '</ul>',
   );
 }
@@ -76,11 +79,11 @@ function statsBlock(block: Extract<StoryBlock, { kind: 'stats' }>, top: number):
 
 function sidebarBlock(block: Extract<StoryBlock, { kind: 'sidebar' }>, top: number): string {
   const body = block.body.filter((p) => !isEmptyRich(p));
-  const img = block.photo === undefined ? '' : photoImg(block.photo, CARD_INNER - 40, '0 0 6px 0');
+  const img = block.photo === undefined ? '' : photoImg(block.photo, CARD_INNER - 40);
   const photoCaption =
     block.photo === undefined || img === '' || block.photo.caption.trim() === ''
       ? ''
-      : `<div style="font-size:13px;font-style:italic;">${esc(block.photo.caption)}</div>`;
+      : `<p style="margin:6px 0 0 0;font-size:13px;font-style:italic;">${esc(block.photo.caption)}</p>`;
   const hasTitle = block.title.trim() !== '';
   const hasSource = block.source.trim() !== '';
   if (!hasTitle && !hasSource && body.length === 0 && img === '') return '';
@@ -91,9 +94,9 @@ function sidebarBlock(block: Extract<StoryBlock, { kind: 'sidebar' }>, top: numb
   });
   const inner = lines(
     hasTitle &&
-      `<div style="color:${color.navy};font-size:17px;font-weight:700;padding-bottom:6px;">${esc(block.title)}</div>`,
+      `<p style="margin:0 0 6px 0;color:${color.navy};font-size:17px;font-weight:700;">${esc(block.title)}</p>`,
     hasSource &&
-      `<div style="font-size:13px;font-style:italic;padding-bottom:8px;">${esc(block.source)}</div>`,
+      `<p style="margin:0 0 8px 0;font-size:13px;font-style:italic;">${esc(block.source)}</p>`,
     ...paragraphs,
     img,
     photoCaption,

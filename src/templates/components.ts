@@ -147,14 +147,23 @@ export function isEmptyRich(runs: RichText): boolean {
 
 const PILL_BASE = 'display:inline-block;white-space:nowrap;';
 
-/** The gold label pill on navy, or the strong pill in a highlight panel. */
+/** Escaped text with every space written as &nbsp;, so a pill never wraps (Outlook ignores nowrap on spans). */
+function nbspText(text: string): string {
+  return esc(text).replace(/ /g, '&nbsp;');
+}
+
+/**
+ * The gold label pill on navy, or the strong pill in a highlight panel. A one-cell table, because
+ * Outlook for Windows ignores padding and background on a span.
+ */
 export function badge(text: string, tone: 'gold' | 'navy'): string {
   const bg = tone === 'gold' ? color.gold : color.navy;
   const fg = tone === 'gold' ? color.navy : color.goldLight;
   return (
-    `<span style="${PILL_BASE}background-color:${bg};color:${fg};font-size:11px;font-weight:700;` +
-    `letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:${radius.control}px;">` +
-    `${esc(text)}</span>`
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;">' +
+    `<tr><td bgcolor="${bg}" style="background-color:${bg};color:${fg};font-family:${fontStack};` +
+    'font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;' +
+    `padding:4px 10px;border-radius:${radius.control}px;">${nbspText(text)}</td></tr></table>`
   );
 }
 
@@ -165,7 +174,7 @@ export function tag(t: Tag, onPanel: boolean): string {
   const fg = t.strength === 'strong' ? color.goldLight : color.navy;
   return (
     `<span style="${PILL_BASE}background-color:${bg};color:${fg};font-size:11px;font-weight:700;` +
-    `text-transform:uppercase;padding:2px 8px;border-radius:${radius.control}px;">${esc(t.text)}</span>`
+    `text-transform:uppercase;padding:2px 8px;border-radius:${radius.control}px;">${nbspText(t.text)}</span>`
   );
 }
 
@@ -179,12 +188,12 @@ export function button(field: ButtonField | undefined, variant: 'primary' | 'sec
   const bg = variant === 'primary' ? color.navy : color.lavender;
   const fg = variant === 'primary' ? color.white : color.navy;
   const style =
-    `display:inline-block;padding:13px 22px;color:${fg};font-size:16px;font-weight:700;` +
+    `display:inline-block;padding:13px 22px;font-family:${fontStack};color:${fg};font-size:16px;font-weight:700;` +
     `line-height:18px;text-decoration:none;border-radius:${radius.control}px;`;
   return lines(
     '<table role="presentation" cellpadding="0" cellspacing="0" border="0">',
     '  <tr>',
-    `    <td style="background-color:${bg};border-radius:${radius.control}px;mso-padding-alt:13px 22px;">`,
+    `    <td bgcolor="${bg}" style="background-color:${bg};border-radius:${radius.control}px;mso-padding-alt:13px 22px;">`,
     `      ${anchor(href, style, esc(field.text))}`,
     '    </td>',
     '  </tr>',
@@ -202,28 +211,37 @@ export function image(field: ImageField | undefined): string {
   if (field === undefined) return '';
   const src = safeWebUrl(field.src);
   if (src === null) return '';
-  return (
-    `<img src="${escAttr(src)}" width="80" alt="${escAttr(field.alt.trim())}" ` +
-    `style="display:block;width:80px;max-width:100%;height:auto;border:0;margin:0 0 12px 0;">`
+  return lines(
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0">',
+    '  <tr>',
+    '    <td style="padding:0 0 12px 0;">',
+    `      <img src="${escAttr(src)}" width="80" alt="${escAttr(field.alt.trim())}" ` +
+      `style="display:block;width:80px;max-width:100%;height:auto;border:0;">`,
+    '    </td>',
+    '  </tr>',
+    '</table>',
   );
 }
 
 /** Section heading inside a card. */
 export function sectionHeading(name: string): string {
-  return `<div style="color:${color.navy};font-size:17px;font-weight:700;padding:20px 0 4px 0;">${esc(name)}</div>`;
+  return `<p style="margin:20px 0 4px 0;color:${color.navy};font-size:17px;font-weight:700;">${esc(name)}</p>`;
 }
 
 /** A 20px gap, used before a panel that follows other content. */
 export function spacer(): string {
-  return '<div style="height:20px;line-height:20px;font-size:1px;">&nbsp;</div>';
+  return '<div style="height:20px;line-height:20px;font-size:1px;mso-line-height-rule:exactly;">&nbsp;</div>';
 }
+
+/** Font stack, ink color and body size for a td in a nested table; Outlook does not inherit them. */
+const CELL_TEXT = `font-family:${fontStack};color:${color.ink};font-size:15px;line-height:1.5;`;
 
 /** A full-width highlight or quiet panel holding `inner`. */
 export function panel(bg: 'goldPale' | 'lavender', inner: string): string {
   return lines(
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;">',
     '  <tr>',
-    `    <td style="background-color:${color[bg]};border-radius:${radius.panel}px;padding:${space.panel}px;">`,
+    `    <td bgcolor="${color[bg]}" style="background-color:${color[bg]};border-radius:${radius.panel}px;padding:${space.panel}px;${CELL_TEXT}">`,
     indent(inner, 6),
     '    </td>',
     '  </tr>',
@@ -236,17 +254,17 @@ export function cardShell(label: string, title: string, body: string): string {
   const header = lines(
     label.trim() !== '' && badge(label, 'gold'),
     title.trim() !== '' &&
-      `<div style="color:${color.white};font-size:20px;font-weight:700;line-height:1.3;padding-top:8px;">${esc(title)}</div>`,
+      `<p style="margin:8px 0 0 0;color:${color.white};font-size:20px;font-weight:700;line-height:1.3;">${esc(title)}</p>`,
   );
   return lines(
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin:0 auto;border-collapse:separate;background-color:${color.white};border:1px solid ${color.lavender};border-radius:${radius.panel}px;font-family:${fontStack};">`,
+    `<table role="presentation" width="100%" align="center" cellpadding="0" cellspacing="0" border="0" bgcolor="${color.white}" style="max-width:600px;margin:0 auto;border-collapse:separate;background-color:${color.white};border:1px solid ${color.lavender};border-radius:${radius.panel}px;font-family:${fontStack};">`,
     '  <tr>',
-    `    <td style="background-color:${color.navy};border-radius:${radius.panel}px ${radius.panel}px 0 0;padding:${space.card}px;">`,
+    `    <td bgcolor="${color.navy}" style="background-color:${color.navy};border-radius:${radius.panel}px ${radius.panel}px 0 0;padding:${space.card}px;font-family:${fontStack};">`,
     indent(header, 6),
     '    </td>',
     '  </tr>',
     '  <tr>',
-    `    <td style="padding:14px;color:${color.ink};font-size:15px;line-height:1.5;">`,
+    `    <td style="padding:14px;font-family:${fontStack};color:${color.ink};font-size:15px;line-height:1.5;">`,
     indent(body, 6),
     '    </td>',
     '  </tr>',
@@ -294,15 +312,15 @@ export function rowBody(row: DateRow, onPanel: boolean): string {
     return lines(
       `${eventHtml(row)}${tags}`,
       hasNote &&
-        `<div style="font-size:13px;color:${color.ink};padding-top:2px;">${richText(row.note)}</div>`,
+        `<p style="margin:2px 0 0 0;font-size:13px;color:${color.ink};">${richText(row.note)}</p>`,
     );
   }
   const shown = row.date?.struck === true ? `<s>${esc(date)}</s>` : esc(date);
   return lines(
-    `<div style="font-size:13px;font-weight:700;color:${color.navy};padding-bottom:2px;">${shown}</div>`,
+    `<p style="margin:0 0 2px 0;font-size:13px;font-weight:700;color:${color.navy};">${shown}</p>`,
     `<div>${eventHtml(row)}${tags}</div>`,
     hasNote &&
-      `<div style="font-size:14px;color:${color.ink};padding-top:4px;">${richText(row.note)}</div>`,
+      `<p style="margin:4px 0 0 0;font-size:14px;color:${color.ink};">${richText(row.note)}</p>`,
   );
 }
 
@@ -319,7 +337,7 @@ export function rowsTable(
       i > 0 || options.firstBorder ? `border-top:1px solid ${color[options.separator]};` : '';
     return lines(
       '  <tr>',
-      `    <td style="padding:10px 0;${border}">`,
+      `    <td style="padding:10px 0;${border}${CELL_TEXT}">`,
       indent(rowBody(row, options.onPanel), 6),
       '    </td>',
       '  </tr>',

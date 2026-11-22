@@ -42,8 +42,11 @@ export function closingRows(c: LetterForm['closing']): string {
     ...paragraphs.map((p) => `<p style="margin:0 0 10px 0;">${richText(p)}</p>`),
     thanks.length > 0 &&
       lines(
-        '<ul style="margin:0;padding-left:22px;">',
-        ...thanks.map((p) => `  <li style="margin:0 0 8px 0;">${richText(p)}</li>`),
+        '<ul style="margin:0 0 0 22px;padding:0;">',
+        ...thanks.map(
+          (p, i) =>
+            `  <li${i === thanks.length - 1 ? '' : ' style="margin-bottom:8px;"'}>${richText(p)}</li>`,
+        ),
         '</ul>',
       ),
     c.closingLine.trim() !== '' && `<p style="margin:10px 0 0 0;">${esc(c.closingLine)}</p>`,
@@ -85,8 +88,11 @@ export function aroundRows(a: LetterForm['around']): string {
     a.intro.trim() !== '' && `<p style="margin:0 0 10px 0;">${esc(a.intro)}</p>`,
     items.length > 0 &&
       lines(
-        '<ul style="margin:0;padding-left:22px;">',
-        ...items.map((html) => `  <li style="margin:0 0 10px 0;">${html}</li>`),
+        '<ul style="margin:0 0 0 22px;padding:0;">',
+        ...items.map(
+          (html, i) =>
+            `  <li${i === items.length - 1 ? '' : ' style="margin-bottom:10px;"'}>${html}</li>`,
+        ),
         '</ul>',
       ),
   );
@@ -176,10 +182,10 @@ export function horizonRows(h: LetterForm['horizon']): string {
     heading(LETTER_HEADINGS.horizon, 20, '0 0 6px 0'),
     items.length > 0 &&
       lines(
-        '<ul style="margin:0;padding-left:22px;">',
+        '<ul style="margin:0 0 0 22px;padding:0;">',
         ...items.map(
           (html, i) =>
-            `  <li style="margin:${i === items.length - 1 ? '0' : '0 0 6px 0'};">${html}</li>`,
+            `  <li${i === items.length - 1 ? '' : ' style="margin-bottom:6px;"'}>${html}</li>`,
         ),
         '</ul>',
       ),
@@ -227,7 +233,7 @@ export function feedbackRows(f: LetterForm['feedback']): string {
     question,
     link !== '' && `<br>${link}`,
     f.note.trim() !== '' &&
-      `<div style="color:${color.muted};font-size:14px;padding-top:4px;">${esc(f.note)}</div>`,
+      `<p style="margin:4px 0 0 0;color:${color.muted};font-size:14px;">${esc(f.note)}</p>`,
   );
   if (inner === '') return '';
   const panel = panelTable(

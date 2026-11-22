@@ -15,7 +15,7 @@ function askPanel(form: HelpWantedForm): string {
     lines(
       hasBadge && badge(ask.badge, 'navy'),
       hasTitle &&
-        `<div style="color:${color.navy};font-size:18px;font-weight:700;line-height:1.3;padding:10px 0 6px 0;">${esc(ask.title)}</div>`,
+        `<p style="margin:10px 0 6px 0;color:${color.navy};font-size:18px;font-weight:700;line-height:1.3;">${esc(ask.title)}</p>`,
       ...paragraphs.map((runs, i) =>
         paragraph(
           runs,

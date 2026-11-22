@@ -97,7 +97,7 @@ test('edit the label, see the preview change, copy exactly the code shown', asyn
   await expect(page.getByText('Copied', { exact: true })).toBeVisible();
   await showCode(page);
   const shown = await codeBox(page).inputValue();
-  expect(shown).toContain('Zebra news');
+  expect(shown).toContain('Zebra&nbsp;news');
   expect(await clipboard(page)).toBe(shown);
   expect(lintOutput(shown)).toEqual([]);
   expect(seen.errors).toEqual([]);

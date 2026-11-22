@@ -249,11 +249,11 @@ describe('renderLetter: story blocks', () => {
 
   it('renders the sidebar with title, source, body, photo and caption, and leaves out empty parts', () => {
     const html = renderLetter(full());
-    expect(html).toContain('>Make it at home</div>');
-    expect(html).toContain('>Adapted from koa.com</div>');
+    expect(html).toContain('>Make it at home</p>');
+    expect(html).toContain('>Adapted from koa.com</p>');
     expect(html).toContain('<strong>Ingredients:</strong> flour.');
     expect(html).toContain('max-width:512px');
-    expect(html).toContain('>Fresh bannock.</div>');
+    expect(html).toContain('>Fresh bannock.</p>');
     const l = full();
     const sidebar = l.story.blocks[3];
     if (sidebar?.kind === 'sidebar') {
@@ -306,7 +306,7 @@ describe('renderLetter: optional sections', () => {
     l.around.items = [];
     l.horizon.items = [];
     const html = renderLetter(l);
-    expect(html).not.toContain('<ul style="margin:0;padding-left:22px;"></ul>');
+    expect(html).not.toContain('<ul style="margin:0 0 0 22px;padding:0;"></ul>');
     expect(html).not.toMatch(/<p style="[^"]*"><\/p>/);
     expect(html).not.toMatch(/<li[^>]*><\/li>/);
     expect(html).toContain('>James Mortimer</p>');
