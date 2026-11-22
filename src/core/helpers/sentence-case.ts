@@ -13,6 +13,10 @@
  * hyphenated word follows the same rules, so "First-Time" becomes "First-time".
  *
  * Every step reads the text once from left to right, so long text stays quick.
+ *
+ * `looksLikeTitleCase` says when the result is worth offering (owner, 2026-11-22): only for text
+ * written in Title Case. One ordinary word of four or more letters in lower case shows the writer
+ * is already using sentence case, and the capitals that are left are most likely names.
  */
 import { KEEP as KNOWN_SHORT_FORMS } from './shouting';
 
@@ -214,8 +218,17 @@ function isDateName(lower: string, around: Around): boolean {
   return false;
 }
 
+/** Called with each ordinary word: one that no rule above keeps as it is. */
+type Ordinary = (part: string) => void;
+
 /** One word, or one part of a hyphenated word, in sentence case. */
-function casePart(part: string, start: Start, around: Around, keep: KeepIndex): string {
+function casePart(
+  part: string,
+  start: Start,
+  around: Around,
+  keep: KeepIndex,
+  ordinary?: Ordinary,
+): string {
   if (part === '' || (!hasLower(part) && !hasUpper(part))) return part;
 
   const own = possessive(part);
@@ -238,6 +251,7 @@ function casePart(part: string, start: Start, around: Around, keep: KeepIndex): 
     return part;
   }
 
+  ordinary?.(part);
   const lowered = part.toLowerCase();
   if (start === 'capital') return capitalizeFirst(lowered);
   if (start === 'as-typed') return part.charAt(0) + lowered.slice(1);
@@ -249,15 +263,22 @@ function isAddress(core: string): boolean {
   return core.includes('@') || core.includes('://') || /^www\./i.test(core);
 }
 
-function caseWord(core: string, start: Start, around: Around, keep: KeepIndex): string {
+function caseWord(
+  core: string,
+  start: Start,
+  around: Around,
+  keep: KeepIndex,
+  ordinary?: Ordinary,
+): string {
   if (isAddress(core)) return core;
-  if (!core.includes('-') && !core.includes('/')) return casePart(core, start, around, keep);
+  if (!core.includes('-') && !core.includes('/'))
+    return casePart(core, start, around, keep, ordinary);
   let first = true;
   return core
     .split(/([-/])/)
     .map((part, i) => {
       if (i % 2 === 1 || part === '') return part;
-      const out = casePart(part, first ? start : 'none', around, keep);
+      const out = casePart(part, first ? start : 'none', around, keep, ordinary);
       first = false;
       return out;
     })
@@ -304,6 +325,34 @@ function startAfter(word: Word): Start {
  * Returns the text unchanged when it is already sentence case.
  */
 export function toSentenceCase(text: string, keep: readonly string[]): string {
+  return convert(text, keep);
+}
+
+/** A word that counts as written in lower case: four or more letters, no digit, no capital first. */
+function isLowerWord(part: string): boolean {
+  const first = part.charAt(0);
+  return first !== first.toUpperCase() && countLetters(part, 4) >= 4 && !/\p{N}/u.test(part);
+}
+
+/**
+ * True when the text looks like Title Case: every ordinary word of four or more letters starts
+ * with a capital. Ordinary leaves out what sentence case keeps anyway: the names in `keep`, months
+ * and weekdays, short forms such as RSVP, words with a capital inside, links, email addresses and
+ * words with a digit such as "8th" or "10am". Short words do not count either way, since Title
+ * Case leaves "the", "at" and "for" in lower case too.
+ *
+ * "Join Us at the Fair" is Title Case. "Join us for the Pinewood Derby" is not: "join us for" is
+ * already sentence case, so its capitals are names and are left to the writer.
+ */
+export function looksLikeTitleCase(text: string, keep: readonly string[]): boolean {
+  let lower = false;
+  convert(text, keep, (part) => {
+    if (!lower && isLowerWord(part)) lower = true;
+  });
+  return !lower;
+}
+
+function convert(text: string, keep: readonly string[], ordinary?: Ordinary): string {
   const index = indexOf(keep);
   const { words, tail } = wordsOf(text);
   const lettered = words.filter((w) => hasLower(w.core) || hasUpper(w.core)).length;
@@ -338,7 +387,7 @@ export function toSentenceCase(text: string, keep: readonly string[]): string {
       before: words[i - 1]?.core.toLowerCase() ?? '',
       after: words[i + 1]?.core.toLowerCase() ?? '',
     };
-    out += word.gap + word.lead + caseWord(word.core, start, around, index) + word.trail;
+    out += word.gap + word.lead + caseWord(word.core, start, around, index, ordinary) + word.trail;
     start = startAfter(word);
   }
   out += tail;

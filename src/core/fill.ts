@@ -27,8 +27,9 @@ import type {
 import { dateLabel, readLeadingDate, weekdayMismatchMessage } from './helpers/dates';
 import { cleanOddRich, cleanOddText, oddCharactersMessage } from './helpers/odd-characters';
 import { formFields, getAt, isRichText, setAt, type FormField } from './helpers/paths';
+import { longAddressIn, shortLinkText } from './helpers/long-links';
 import { contactNote, readContact } from './helpers/people';
-import { toSentenceCase as toHeadingCase } from './helpers/sentence-case';
+import { looksLikeTitleCase, toSentenceCase as toHeadingCase } from './helpers/sentence-case';
 import { isShouting, shoutStart, toSentenceCase } from './helpers/shouting';
 import { smallFixes } from './helpers/small-fixes';
 import { addTag, RESCHEDULED, takeTags } from './helpers/tags';
@@ -94,7 +95,13 @@ export interface CheckMe {
   message: string;
 }
 
-/** A small fix offered, not applied (spec 7.4): "&" to "and", "On going" to "Ongoing", doubled spaces. */
+/**
+ * A small fix offered, not applied (spec 7.4): "&" to "and", "On going" to "Ongoing", doubled spaces.
+ *
+ * `path` leads to a plain text field, to a rich text field (the fix then covers every run of it),
+ * or to the text of one run of a rich text field, as in ['paragraphs', 2, 5, 'text']. The last is
+ * used for a fix that belongs to one link and must leave the same words elsewhere alone.
+ */
 export interface Suggestion {
   path: FieldPath;
   /** One plain sentence, such as 'Change "On going" to "Ongoing".' */
@@ -707,10 +714,58 @@ function headingFields(form: AnnouncementForm): { path: FieldPath; value: string
   return out;
 }
 
+const longLinkMessage = (host: string) =>
+  `Show this long link as "${host}"? The full address stays behind the link.`;
+
+/** The words shown for the link in `url`, when an object holds a link as words plus an address. */
+const LINK_TEXT_KEYS = ['text', 'event'] as const;
+
+/**
+ * Long bare links (helpers/long-links.ts): every link whose words are its own long address, with
+ * the host name to show instead. A link in rich text is one run, and the path leads to that run's
+ * text so the same address elsewhere in the paragraph is left alone. A button, a link item and a
+ * date row hold the words beside `url`; there the address may follow words the tool joined to it
+ * ("Sign up here: https://..."), and only the address is replaced. Read in the order of the form.
+ */
+function longLinks(value: unknown, path: FieldPath, out: Suggestion[]): void {
+  if (isRichText(value)) {
+    value.forEach((run, i) => {
+      if (run.kind !== 'text' || run.href === undefined) return;
+      const to = shortLinkText(run.text, run.href);
+      if (to !== undefined)
+        out.push({
+          path: [...path, i, 'text'],
+          message: longLinkMessage(to),
+          from: run.text.trim(),
+          to,
+        });
+    });
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((v, i) => longLinks(v, [...path, i], out));
+    return;
+  }
+  if (typeof value !== 'object' || value === null) return;
+  const fields = value as Record<string, unknown>;
+  const url = fields.url;
+  for (const [key, v] of Object.entries(fields)) {
+    if (typeof v !== 'string') {
+      longLinks(v, [...path, key], out);
+      continue;
+    }
+    if (typeof url !== 'string' || !LINK_TEXT_KEYS.some((k) => k === key)) continue;
+    const found = longAddressIn(v, url);
+    if (found !== undefined)
+      out.push({ path: [...path, key], message: longLinkMessage(found.to), ...found });
+  }
+}
+
 /**
  * Every suggestion for the form as it is now: the small fixes ("&" to "and", "On going" to
  * "Ongoing", doubled spaces) for each text field, then sentence case for each heading and button
- * (spec 6). Suggestions are offered and never applied by the tool. Call this again after an edit:
+ * (spec 6) that is written in Title Case, then shorter words for each long bare link.
+ * Suggestions are offered and never applied by the tool. Call this again after an edit:
  * a suggestion made before the edit may no longer fit, and applySuggestion then changes nothing.
  * Pure: the form is not changed.
  */
@@ -729,9 +784,11 @@ export function suggestionsFor(form: AnnouncementForm): Suggestion[] {
   for (const { path, value } of headingFields(form)) {
     if (value.trim() === '') continue;
     const to = toHeadingCase(value, packConfig.properNouns);
-    if (to !== value)
+    // Only for Title Case. A lower case word shows the writer's capitals are names (owner rule).
+    if (to !== value && looksLikeTitleCase(value, packConfig.properNouns))
       suggestions.push({ path, message: `Use sentence case: "${to.trim()}".`, from: value, to });
   }
+  longLinks(form, [], suggestions);
   return suggestions.map((s) => ({ ...s, message: sentence(s.message) }));
 }
 
@@ -1125,6 +1182,7 @@ export function switchLayout(form: AnnouncementForm, layout: Layout): Announceme
 
 /**
  * Applies one suggestion: replaces `from` with `to` in the plain text or rich text at `path`.
+ * A path to the text of one run, such as ['paragraphs', 2, 5, 'text'], changes that run only.
  * Returns a new form. When the text no longer holds `from`, the form is returned unchanged.
  */
 export function applySuggestion(form: AnnouncementForm, suggestion: Suggestion): AnnouncementForm {
