@@ -115,3 +115,78 @@ describe('Android wrapper project (src-tauri/gen/android)', () => {
     expect(ignore).toContain('keystore.properties');
   });
 });
+
+describe('Android saving (ADR 0006): one message channel, Downloads only', () => {
+  const kotlinDir = 'src-tauri/gen/android/app/src/main/java/org/pack137/newsbuilder';
+  const activity = read(`${kotlinDir}/MainActivity.kt`);
+  const saver = read(`${kotlinDir}/DownloadSaver.kt`);
+  const rules = read(`${kotlinDir}/SaveRules.kt`);
+  const script = read('src-tauri/src/android-save.js');
+  const lib = read('src-tauri/src/lib.rs');
+
+  it('registers the one message object for the app origin only, and only when supported', () => {
+    const calls = activity.match(/addWebMessageListener\(/g) ?? [];
+    expect(calls).toHaveLength(1);
+    expect(activity).toContain('"pack137Save"');
+    expect(activity).toContain('setOf("http://tauri.localhost")');
+    expect(activity).not.toContain('"*"');
+    expect(activity).toContain('WebViewFeature.WEB_MESSAGE_LISTENER');
+    expect(activity).not.toContain('addJavascriptInterface');
+  });
+
+  it('turns WebView debugging on in debug builds only', () => {
+    expect(activity).toContain(
+      'if (BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true)',
+    );
+    expect(activity.match(/setWebContentsDebuggingEnabled/g) ?? []).toHaveLength(1);
+  });
+
+  it('checks the origin and the main frame, and writes only into Downloads with MediaStore', () => {
+    expect(saver).toContain('!isMainFrame');
+    expect(saver).toContain('SaveRules.isAppOrigin(');
+    expect(saver).toContain('MediaStore.Downloads');
+    expect(saver).toContain('Environment.DIRECTORY_DOWNLOADS');
+    // Nothing that could write anywhere else.
+    for (const other of [
+      'java.io.File',
+      'FileOutputStream',
+      'getExternalStorage',
+      'getExternalFilesDir',
+      'openFileOutput',
+      'DIRECTORY_DOCUMENTS',
+      'DIRECTORY_PICTURES',
+      'Intent',
+    ]) {
+      expect(saver, other).not.toContain(other);
+    }
+  });
+
+  it('keeps the file type list, name length and size cap the Windows wrapper uses', () => {
+    expect(rules).toContain('setOf("json", "jpg", "jpeg")');
+    expect(rules).toContain('count < 120');
+    expect(rules).toContain('const val MAX_BYTES = 8 * 1024 * 1024');
+    expect(script).toContain('var MAX_BYTES = 8 * 1024 * 1024;');
+    expect(lib).toContain('["json", "jpg", "jpeg"]');
+  });
+
+  it('has a script that reads the Blob without the network and adds no global but the channel', () => {
+    expect(script).toContain("'use strict'");
+    expect(script).toContain('readAsDataURL');
+    expect(script).not.toMatch(/\bfetch\b|XMLHttpRequest|sendBeacon|WebSocket|eval\(|Function\(/);
+    expect(script).toContain('window.pack137Save');
+    expect(script.match(/window\.\w+\s*=/g) ?? []).toEqual([]);
+  });
+
+  it('adds the script from Rust on Android only', () => {
+    expect(lib).toContain('#[cfg(target_os = "android")]\nconst ANDROID_SAVE_SCRIPT');
+    expect(lib).toContain(
+      '#[cfg(target_os = "android")]\n            let builder = builder.initialization_script(ANDROID_SAVE_SCRIPT);',
+    );
+    expect(lib.match(/initialization_script/g) ?? []).toHaveLength(1);
+  });
+
+  it('uses no em dash', () => {
+    for (const text of [activity, saver, rules, script])
+      expect(text).not.toContain(String.fromCharCode(0x2014));
+  });
+});

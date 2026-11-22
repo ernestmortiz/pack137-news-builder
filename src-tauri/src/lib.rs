@@ -10,7 +10,8 @@
 //!
 //! The same code builds the Android app (`tauri android build`). There, wry does not call the
 //! download handler or the new window handler (both are documented as unsupported on Android),
-//! so those two guards do nothing; the navigation and permission rules do apply.
+//! so those two guards do nothing; the navigation and permission rules do apply. Saving a file
+//! on Android is done by a small script added below plus Kotlin in `MainActivity` (ADR 0006).
 
 use std::path::{Path, PathBuf};
 
@@ -18,6 +19,11 @@ use tauri::{
     webview::{DownloadEvent, NewWindowResponse, PermissionResponse, WebviewWindowBuilder},
     Manager, Url,
 };
+
+/// Android only. Makes the page's own download links (hidden `<a download>` with a Blob address)
+/// reach `MainActivity`, which saves `.json` and `.jpg` files into Downloads. See the script.
+#[cfg(target_os = "android")]
+const ANDROID_SAVE_SCRIPT: &str = include_str!("android-save.js");
 
 /// The dev server `tauri dev` starts (see `beforeDevCommand` in tauri.conf.json).
 const DEV_PORT: u16 = 5173;
@@ -188,12 +194,14 @@ pub fn run() {
                 .find(|w| w.label == "main")
                 .cloned()
                 .ok_or("tauri.conf.json has no window labelled main")?;
-            WebviewWindowBuilder::from_config(app.handle(), &config)?
+            let builder = WebviewWindowBuilder::from_config(app.handle(), &config)?
                 .on_navigation(allow_navigation)
                 .on_new_window(|_url, _features| NewWindowResponse::Deny)
                 .on_permission_request(|_webview, _kind| PermissionResponse::Deny)
-                .on_download(on_download)
-                .build()?;
+                .on_download(on_download);
+            #[cfg(target_os = "android")]
+            let builder = builder.initialization_script(ANDROID_SAVE_SCRIPT);
+            builder.build()?;
             Ok(())
         })
         .run(tauri::generate_context!())
