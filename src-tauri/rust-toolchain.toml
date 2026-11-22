@@ -1,0 +1,6 @@
+[toolchain]
+# The Rust release the wrapper is built and tested with, so CI does not drift with the
+# runner images. Raise it on purpose, then run cargo test and the smoke test.
+channel = "1.97.0"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
