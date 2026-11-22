@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- Desktop apps (Phase 7): a Windows installer and a Mac disk image, built by the release workflow on Windows and Mac machines. They wrap the same web build in a window. The page inside can reach nothing on the computer, cannot leave the app's own pages, and never uses the internet. Download draft and Shrink a photo save into the Downloads folder. Unsigned; an install guide walks volunteers past the Windows and Mac warnings.
-- Test installers are built on every pull request that changes the desktop app, and a smoke test checks the real app on Linux.
+- Windows desktop app (Phase 7): a Windows installer, built by the release workflow on a Windows machine. It wraps the same web build in a window. The page inside can reach nothing on the computer, cannot leave the app's own pages, and never uses the internet. Download draft and Shrink a photo save into the Downloads folder. Unsigned; an install guide walks volunteers past the Windows warning.
+- No Mac app: current macOS will not run an app that Apple has not notarized, which needs a paid Apple Developer ID. Mac volunteers use the web version in Safari, which works offline with every feature.
+- A test installer is built on every pull request that changes the desktop app and published as a draft pre-release for the owner, and a smoke test checks the real app on Linux. Release files pass between jobs through the Actions cache, so a full artifact storage quota cannot block a release.
 
 ## 1.0.0 (2026-11-22)
 

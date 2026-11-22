@@ -28,22 +28,23 @@ The tool must be cheap to run (target $0 a year), work offline, and be simple en
 - Accounts, a server, a database, analytics or tracking of any kind.
 - iOS build. Not requested.
 
-## 3. Deliverables: four builds from one codebase
+## 3. Deliverables: three builds from one codebase
 
 | Build | Artifact | Who it is for |
 |---|---|---|
 | Web | Static files (`dist/`) for the pack's hosted site | Default. Everyone should use this unless they need offline. |
 | Windows | `.exe` installer | Volunteers on a PC who want an installed app |
-| macOS | `.dmg` | Volunteers on a Mac |
+| macOS | None: Mac volunteers use the Web build in Safari (owner decision 2026-11-22, ADR 0006) | Volunteers on a Mac |
 | Android | `.apk` | Volunteers on an Android phone or tablet. Geared to the weekly Announcement Converter. |
 
 Decisions (2026-11-21):
-- Installers ship unsigned. No paid certificates. Install notes must walk the user past the Windows SmartScreen prompt, the macOS Gatekeeper approval and the Android "install unknown apps" setting.
+- Installers ship unsigned. No paid certificates. Install notes must walk the user past the Windows SmartScreen prompt and the Android "install unknown apps" setting.
+- (2026-11-22) No Mac app. Current macOS refuses to run a downloaded app that Apple has not notarized, which needs a paid Apple Developer ID. Tested on macOS 26.6.2: the app was blocked even after Open Anyway. Mac volunteers use the Web build. See ADR 0006.
 - The Android build is primarily for the Converter, so the Converter must be fully usable at 360px wide. The Monthly Letter Editor must open and work on Android but is not tuned for phones.
 - Web deployment target is undecided. The web build must be a plain folder of static files with relative paths so it can be dropped on any host or subfolder.
 
 Rules:
-- One web codebase. The three installable builds are thin wrappers around the same web app. No feature may exist in one build and not the others.
+- One web codebase. The installable builds (Windows and Android) are thin wrappers around the same web app. No feature may exist in one build and not the others.
 - The web build is the source of truth and ships first. Wrappers come after the web app is accepted (see section 12).
 - Every build shows the same version number in its footer, taken from one place (`package.json`).
 

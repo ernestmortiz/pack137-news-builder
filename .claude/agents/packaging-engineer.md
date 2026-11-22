@@ -1,6 +1,6 @@
 ---
 name: packaging-engineer
-description: Builds the Windows, macOS and Android wrappers and the CI release workflow. Not used before Phase 7.
+description: Builds the Windows and Android wrappers and the CI release workflow. Not used before Phase 7. No Mac app (ADR 0006).
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: sonnet
 ---

@@ -1,6 +1,6 @@
 # Desktop wrapper (Tauri 2)
 
-This folder wraps the web app in the operating system's own web view, for Windows and macOS. It is a thin shell. The web build in `dist/` is the product, and the wrapper hosts it. No feature exists in the wrapper that is not in the web build (spec section 3).
+This folder wraps the web app in the operating system's own web view, for Windows (and, from Phase 8, Android). There is no Mac app: current macOS will not run an app Apple has not notarized, so Mac volunteers use the web build (ADR 0006). It is a thin shell. The web build in `dist/` is the product, and the wrapper hosts it. No feature exists in the wrapper that is not in the web build (spec section 3).
 
 Volunteers read `docs/installing-the-desktop-app.md`. This file is for whoever maintains the wrapper.
 
@@ -8,7 +8,7 @@ Volunteers read `docs/installing-the-desktop-app.md`. This file is for whoever m
 
 - Opens one window (1200 by 860, minimum 360 wide) on the bundled `dist/` files.
 - Sends every download to the person's Downloads folder (the home folder if there is none). Only the kinds of file the app makes are saved: `.json` (drafts) and `.jpg` or `.jpeg` (shrunk photos). Anything else, such as `.exe` or `.command`, is refused. It keeps the file name the page suggested, reduced to plain letters, digits, spaces and `-_.()`, and adds ` (1)`, ` (2)` before the extension when the name is taken, as browsers do. It never writes over a file, a broken link counts as taken, and with no Downloads or home folder the download is refused. This is `on_download` in `src/lib.rs`. Download draft and Shrink a photo both save through a normal browser download, and the UI already says "Look in your Downloads folder" (ADR 0004, Desktop and Android wrappers, point 2).
-- Locks navigation to the app's own origin. `on_navigation` allows only the origin Tauri serves on that platform: `tauri://localhost` on macOS and Linux, `http://tauri.localhost` on Windows. The other forms are refused, because Tauri does not serve them there and they could reach the network or another program. It also allows `about:blank` and `about:srcdoc` (the sandboxed preview frames), and `blob:` addresses that carry the app's own origin (the download links). Everything else is refused. `on_new_window` refuses every new window. The Vite dev server on port 5173 is allowed only in a dev run (`cfg!(dev)`).
+- Locks navigation to the app's own origin. `on_navigation` allows only the origin Tauri serves on that platform: `tauri://localhost` on Linux (the smoke test), `http://tauri.localhost` on Windows. The other forms are refused, because Tauri does not serve them there and they could reach the network or another program. It also allows `about:blank` and `about:srcdoc` (the sandboxed preview frames), and `blob:` addresses that carry the app's own origin (the download links). Everything else is refused. `on_new_window` refuses every new window. The Vite dev server on port 5173 is allowed only in a dev run (`cfg!(dev)`).
 - Refuses every permission request (camera, location, notifications and so on). The page asks for none.
 - Turns off Tauri's own drag and drop handling (`dragDropEnabled: false`), so nothing native listens for dropped files.
 - The Windows installer sets up Microsoft WebView2 only if the PC lacks it (`webviewInstallMode` is the download bootstrapper). Windows 10 and 11 normally have it. That download at install time is the only time anything uses the internet; the app never does.
@@ -20,7 +20,7 @@ Volunteers read `docs/installing-the-desktop-app.md`. This file is for whoever m
 - No capabilities. `src-tauri/capabilities/` does not exist, so no window is granted any command. `withGlobalTauri` is `false`, so `window.__TAURI__` does not exist.
 - The `devtools` Cargo feature is off, so release builds have no inspector.
 - No auto-update, no tray icon, no menus beyond the default.
-- No signing keys, certificates, tokens or updater keys. Nothing of the kind may be committed. The installers are unsigned (spec section 3 and 13). macOS builds are ad-hoc signed (`signingIdentity` is `-`), which is not a certificate and uses no secret.
+- No signing keys, certificates, tokens or updater keys. Nothing of the kind may be committed. The Windows installer is unsigned (spec section 3 and 13).
 
 If a change seems to need any of the "does not" items, stop and ask the project owner first. Each one widens what a pasted page could reach.
 
@@ -56,7 +56,7 @@ The app version is not set here. `tauri.conf.json` has `"version": "../package.j
 Needs Node 22 and the toolchain below.
 
 - `npm run desktop:dev` opens the app on the Vite dev server (port 5173, strict). Changes reload.
-- `npm run desktop:build` makes the installers for the computer you are on. Windows gives an NSIS `.exe`. macOS gives a `.dmg`. For one `.dmg` that runs on both Apple silicon and Intel, run `npx tauri build --target universal-apple-darwin` after `rustup target add aarch64-apple-darwin x86_64-apple-darwin`. CI does this.
+- `npm run desktop:build` on Windows makes the NSIS `.exe`. On Linux, `npx tauri build --debug --no-bundle` makes the app for the smoke test.
 - `cargo test` in this folder runs the unit tests for the download names and the navigation rules.
 - `npm run build` must have run before `cargo build` or `cargo test`, because the compiler embeds `dist/`. `npx tauri build --debug --no-bundle` does both. A plain `cargo build` makes a dev binary that loads the dev server address, so use `tauri build` for anything you want to run.
 
@@ -75,7 +75,7 @@ It needs `webkit2gtk-driver` and `xvfb` from apt, and `cargo install tauri-drive
 
 Known limits:
 
-- It runs the Linux web view (WebKitGTK). Windows (WebView2) and macOS (WKWebView) are not driven by this test. Check those by hand with the installers that `wrappers.yml` builds, before tagging: open the app, press Download draft, and look in Downloads. On macOS, WKWebView downloads need macOS 11.3, which is why `minimumSystemVersion` is `11.3`.
+- It runs the Linux web view (WebKitGTK). Windows (WebView2) is not driven by this test. Check it by hand with the installer that `wrappers.yml` builds, before tagging: open the app, press Download draft, and look in Downloads.
 - On Linux, the navigation lock alone also stops `window.open` and `target="_blank"`. `on_new_window` is a second guard, which has not been shown necessary on Linux. Keep it.
 - On Linux, WebKitGTK's own default already saves to the Downloads folder with numbered names, so the first run cannot tell the download handler from the default. The second run, with no Downloads folder, does tell them apart: without the handler the file lands in the working folder, with it in the home folder. The file name cleanup is covered by the Rust unit tests.
 
@@ -83,7 +83,6 @@ Known limits:
 
 - All: Rust, the release pinned in `rust-toolchain.toml` (rustup installs it on first use, or run `rustup toolchain install` in this folder), and Node 22. CI checks that `Cargo.lock` matches `Cargo.toml` (`cargo fetch --locked`).
 - Windows: Microsoft C++ Build Tools (the "Desktop development with C++" workload) and the WebView2 runtime. Windows 10 and 11 have WebView2. The NSIS installer is `installMode: currentUser`, so end users need no administrator rights. Tauri downloads NSIS itself at build time.
-- macOS: Xcode Command Line Tools. The `.dmg` can only be built on macOS, which is why CI uses a macOS runner.
 - Linux (smoke test only, not a shipped build): `build-essential`, `pkg-config`, `libwebkit2gtk-4.1-dev`, `librsvg2-dev`, `xvfb`, `webkit2gtk-driver`.
 
 ## Icons

@@ -1,8 +1,8 @@
-# 0006: Desktop wrappers with Tauri 2, no bridge to the page
+# 0006: Windows wrapper with Tauri 2, no bridge to the page; no Mac app
 
 Date: 2026-11-22
 
-Choice: the Windows `.exe` and macOS `.dmg` are Tauri 2 wrappers around the same `dist/` the web build ships. The page gets no Tauri API at all: no JavaScript package, no plugins, no commands and no capabilities. Everything the app does, it does with the same web features it uses in a browser.
+Choice: the Windows `.exe` is a Tauri 2 wrapper around the same `dist/` the web build ships. There is no Mac app (see the owner decision below). The page gets no Tauri API at all: no JavaScript package, no plugins, no commands and no capabilities. Everything the app does, it does with the same web features it uses in a browser.
 
 Reason:
 
@@ -30,10 +30,18 @@ Further locks in the wrapper:
 Packaging:
 
 - **Windows:** an NSIS installer that installs for the current user, so no administrator password is needed.
-- **macOS:** a universal `.dmg` for Intel and Apple silicon, ad-hoc signed. Apple silicon refuses unsigned apps outright, so the ad-hoc signature lets volunteers approve the app once in System Settings. There are no certificates (spec 3: unsigned installers).
-- **Requirements:** macOS 11.3 or later, because that is the first version whose webview supports downloads.
-- **Build and checks:** both installers are built by CI on its Windows and macOS machines. The tag's version must match `package.json`, which is also the version the wrapper shows.
+- **Build and checks:** the installer is built by CI on its Windows machine. The tag's version must match `package.json`, which is also the version the wrapper shows.
 
 Android: decided at the start of Phase 8. Tauri stays the first choice because the same no-bridge approach should carry over; Capacitor is the fallback the spec names.
 
 Revisit: if the owner wants a save dialog instead of saving into Downloads, the wrapper would need the dialog plugin on the Rust side only, still with nothing exposed to the page.
+
+## Owner decision, 2026-11-22: no Mac app
+
+A universal, ad-hoc signed `.dmg` was built and tested on the owner's Mac (Apple M5, macOS 26.6.2). The app's signature checked as valid, but macOS refused to run it: the kernel log showed `AppleSystemPolicy: Security policy would not allow process`, and the app sat paused before its first instruction, bouncing in the Dock. That held after "Open Anyway" in Privacy & Security and after removing the quarantine mark. No security software was installed. The same app from the same `.dmg` started normally on a GitHub macOS runner, where it was not marked as downloaded.
+
+Current macOS will only run an app downloaded from the internet if Apple has notarized it, which needs an Apple Developer ID ($99 a year). The workarounds (Terminal commands, turning off Gatekeeper) are too technical or unsafe for volunteers.
+
+Decision: drop the Mac app. Mac volunteers use the web build in Safari, which works offline with every feature. The `.dmg` is removed from both workflows, the app config and the guides.
+
+Revisit if the pack funds an Apple Developer ID; signing and notarizing would then live only in CI secrets. Or, once the web build is hosted, Safari's File, Add to Dock gives Mac volunteers an app-like window with no signing (Phase 9).

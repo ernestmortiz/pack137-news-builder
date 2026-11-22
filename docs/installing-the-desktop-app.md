@@ -1,6 +1,6 @@
 # Installing the desktop app
 
-This guide is for the Pack 137 News Builder on a Windows PC or a Mac. It is also attached to every release, as `INSTALLING-THE-DESKTOP-APP.md`.
+This guide is for the Pack 137 News Builder on a Windows PC. Mac volunteers use the web version; see the Mac section. It is also attached to every release, as `INSTALLING-THE-DESKTOP-APP.md`.
 
 The desktop app is the same tool as the web version, in its own window. It does the same things. Use the web version if you do not need an installed app. See `using-the-web-build.md`.
 
@@ -11,7 +11,7 @@ You do not need to know HTML. You do need to click through one warning the first
 Get the files from the project owner, or from the Releases page of the pack's project on GitHub. Pick the one for your computer.
 
 - Windows PC: the file that ends in `-windows-setup.exe`.
-- Mac: the file that ends in `-macos.dmg`. It works on newer Macs and older Intel Macs. It needs macOS 11.3 or later.
+- Mac: there is no Mac app. Use the web zip instead, the file that ends in `-web.zip`. See the Mac section below.
 
 Each file has a matching `.sha256` file. You can ignore it. It is only there for people who want to check that the download was not changed.
 
@@ -45,31 +45,13 @@ Read this first. Your saved work lives inside the app, on this computer. Uninsta
 
 ## Mac
 
-### Install
+There is no Mac app. Current macOS will not open an app unless Apple has checked it, and that costs the pack a yearly fee. Use the web version instead. It does everything the desktop app does, and it works without the internet once unzipped.
 
-1. Double-click the `-macos.dmg` file. A window opens.
-2. Drag Pack 137 News Builder onto the Applications folder in that window.
-3. Close the window. In Finder, drag the disk image icon to the Trash to eject it.
+1. Get the web zip, the file that ends in `-web.zip`.
+2. Double-click it. A folder appears next to it.
+3. Open the folder and double-click `index.html`. It opens in Safari.
 
-### Open it the first time
-
-The first time, your Mac blocks the app. On current macOS (macOS 15 and later), right-clicking the app and choosing Open does not get past this any more. Use System Settings instead.
-
-1. Open Pack 137 News Builder from the Applications folder. A message says Apple cannot verify that the app is free of malware. This is the expected warning for an app the pack has not paid Apple to check. It does not mean anything was found. Click Done. Do not click Move to Trash.
-2. Open the Apple menu, then System Settings.
-3. Click Privacy & Security in the list on the left.
-4. Scroll down to the Security heading. A line says "Pack 137 News Builder" was blocked to protect your Mac.
-5. Click Open Anyway.
-6. Another message asks again. Click Open Anyway.
-7. Type your Mac password, or use Touch ID, and confirm.
-
-The app opens. From now on it opens with a normal double-click. You only do this once for each version you install.
-
-The words on the screens can change a little between macOS versions. Look for Privacy & Security and a button called Open Anyway. The button only shows for about an hour after the blocked attempt. If you cannot see it, open the app again and go back to step 2.
-
-### Uninstall
-
-Download draft first, as above. Then drag Pack 137 News Builder from Applications to the Trash. Your saved work normally stays on the Mac in a hidden folder until you remove it, but do not count on that.
+See `HOW-TO-USE.md` inside the zip for the rest.
 
 ## Where your work is saved
 
@@ -91,19 +73,19 @@ Shrink a photo for the letter saves its small photo in Downloads in the same way
 
 ## Everything else works as in the web version
 
-- Copy new HTML and Copy letter HTML copy to your clipboard. If the copy button does not work, the app shows the code in a box. Click inside it, press Ctrl+A then Ctrl+C (Command+A then Command+C on a Mac).
+- Copy new HTML and Copy letter HTML copy to your clipboard. If the copy button does not work, the app shows the code in a box. Click inside it, press Ctrl+A then Ctrl+C.
 - Open draft opens a normal file window.
 - Photos do not show in the preview. They show as grey boxes. This is on purpose.
 - The app does not open web pages. Copy the HTML, then paste it into TroopTrack in your web browser.
 
 ## Updating
 
-There is no automatic update. When the pack shares a new version, install it the same way. It installs over the old one and keeps your saved work. On a Mac, drag the new app onto Applications and choose Replace.
+There is no automatic update. When the pack shares a new version, install it the same way. It installs over the old one and keeps your saved work.
 
 The footer of the app shows its version number. It is the same number as the web version.
 
 ## If something looks wrong
 
-- If Windows or the Mac will not let you open the file, check the steps above. The warning is expected. Make sure you click More info on Windows, or Open Anyway in Privacy & Security on a Mac.
+- If Windows will not let you open the file, check the steps above. The warning is expected. Make sure you click More info, then Run anyway.
 - If your work seems to be gone, check that you are in the app and not the web version. If you have a draft file, press Open draft and choose it.
 - If you are still stuck, ask the project owner or the volunteer who gave you the file.
