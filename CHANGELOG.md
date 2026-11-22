@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.0 (2026-11-22)
+
 - Web release hardening (Phase 6): the web build works when unzipped and opened from disk with no internet; a strict page policy (no outgoing connections); spell check by the browser; faster typing in very large fields; a plain-words error notice; an accessibility pass (skip links, keyboard use, focus, live regions, 44px targets, contrast).
 - Photos in the monthly letter: photos are inserted with TroopTrack's editor. The letter marks each one as a photo spot with its description and caption, and a Finish photos step takes the code back from TroopTrack and gives each photo its description and a phone-safe width.
 - Shrink a photo: makes a phone-friendly copy of a photo on the device (at most 1104 px wide, about 300 KB, location and camera details removed).

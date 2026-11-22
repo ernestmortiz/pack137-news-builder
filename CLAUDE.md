@@ -27,4 +27,4 @@ The full brief is `docs/build-spec.md`. Read it before writing code. This file r
 
 ## Status
 
-Phases 0 to 5 are complete and merged. Phase 6 (web release) is built and awaiting the owner's manual email check and sign-off before 1.0.0 is tagged. Next: Phase 7, desktop wrappers.
+Phases 0 to 6 are complete and merged. The owner signed off the web release and 1.0.0 is tagged. Next: Phase 7, desktop wrappers.

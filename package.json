@@ -1,6 +1,6 @@
 {
   "name": "pack137-news-builder",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Turns TroopTrack announcement HTML into on-brand HTML and builds the monthly Pack 137 Stories letter.",
