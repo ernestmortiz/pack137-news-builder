@@ -55,7 +55,7 @@ Read this first. Your saved work lives inside the app, on this computer. Uninsta
 
 The first time, your Mac blocks the app. On current macOS (macOS 15 and later), right-clicking the app and choosing Open does not get past this any more. Use System Settings instead.
 
-1. Open Pack 137 News Builder from the Applications folder. A message says Apple could not verify the app. Click Done. Do not click Move to Trash.
+1. Open Pack 137 News Builder from the Applications folder. A message says Apple cannot verify that the app is free of malware. This is the expected warning for an app the pack has not paid Apple to check. It does not mean anything was found. Click Done. Do not click Move to Trash.
 2. Open the Apple menu, then System Settings.
 3. Click Privacy & Security in the list on the left.
 4. Scroll down to the Security heading. A line says "Pack 137 News Builder" was blocked to protect your Mac.
