@@ -25,6 +25,14 @@ Reason: the Phase 1 security review found no way for a paste to run script or re
 
 7. When `lintOutput` reports a problem with the new HTML, "Copy new HTML" stays available. The problem is shown clearly above the copy button in plain words; copying is never blocked. Decided by the owner on 2026-11-21.
 
+## Settings (Phase 5)
+
+From the Phase 4 security review. Today pack.config.ts values are trusted constants. Once settings are editable and travel in draft files (spec 8.3 and 9), every setting is untrusted input:
+
+1. Email settings (contact, volunteer, feedback) accept only a bare address. A value such as `pack@example.org?bcc=someone@example.org` is refused, since it would put a hidden copy into the feedback, footer and button links.
+2. Every URL setting (logo, standing links, photo form, year at a glance) goes through the same allow-list as pasted and typed links, and the settings screen shows the full value of every email link with its decoded parts (UI item 4).
+3. Draft files are parsed as data, validated against the schema version, and never trusted for paths or keys.
+
 ## To verify in a real browser before release (Phase 6)
 
 With the network panel open, paste `<img src="https://example.org/a.png"><link rel=stylesheet href="https://example.org/x.css"><iframe src="https://example.org/"></iframe>` and confirm the parse makes no requests. The review reasoned this from the HTML spec; it has not been observed on a device.
