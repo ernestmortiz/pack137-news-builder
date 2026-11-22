@@ -38,14 +38,12 @@ describe('output linter', () => {
     expect(problems).toContain('link is not absolute: javascript:alert(1)');
   });
 
-  // The corrected monthly file is not yet lint clean (rgb() colors, #8A90A6, a fr-file class, an
-  // image without max-width). Those are fixture defects reported to the owner; the fixture is not
-  // loosened here. The two new structural rules must not add to them.
-  it('the new button and div nesting rules do not fire on the corrected monthly letter', () => {
+  // Fixed in Phase 4: rgb() colors became token hex, the TroopTrack attachment line (with its
+  // class) was removed because attachments are added in TroopTrack after pasting (spec 8.2), and
+  // the logo gained a max-width. #8A90A6 is now the muted-light token.
+  it('passes the corrected monthly letter with the monthly option', () => {
     const corrected = readFileSync(join(monthlyDir, '2026-11.corrected.html'), 'utf8');
-    const problems = lintOutput(corrected, { monthly: true });
-    expect(problems).not.toContain('div nested inside another div');
-    expect(problems).not.toContain('button shorter than 44px');
+    expect(lintOutput(corrected, { monthly: true })).toEqual([]);
   });
 
   it('rejects colors that are not tokens and em dashes', () => {
