@@ -5,7 +5,7 @@
  */
 import { color } from '../config/tokens';
 import { esc, isEmptyRich, lines, richText } from '../templates/components';
-import { bodyText, row } from '../templates/letter/layout';
+import { bodyText, isPhotoSpot, row } from '../templates/letter/layout';
 import {
   aroundRows,
   closingRows,
@@ -67,4 +67,24 @@ export function renderLetter(
     footerRows(settings),
   );
   return letterShell(summary, rows);
+}
+
+/**
+ * Every photo the letter shows as a spot (no usable address), in order, for the editor's warnings.
+ * Photo blocks are numbered among photo blocks ("Photo 2"); a sidebar photo names its block
+ * ("Sidebar photo in block 5", counting every story block from 1).
+ */
+export function photoSpots(letter: LetterForm): { where: string; alt: string }[] {
+  const out: { where: string; alt: string }[] = [];
+  let photoNo = 0;
+  letter.story.blocks.forEach((block, i) => {
+    if (block.kind === 'photo') {
+      photoNo += 1;
+      if (isPhotoSpot(block.photo))
+        out.push({ where: `Photo ${photoNo}`, alt: block.photo.alt.trim() });
+    } else if (block.kind === 'sidebar' && block.photo !== undefined && isPhotoSpot(block.photo)) {
+      out.push({ where: `Sidebar photo in block ${i + 1}`, alt: block.photo.alt.trim() });
+    }
+  });
+  return out;
 }

@@ -202,6 +202,12 @@ Link list image, above the text, in its own cell so the gap holds in Outlook:
 <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:0 0 12px 0;"><img src="{{src}}" width="80" alt="{{alt}}" style="display:block;width:80px;max-width:100%;height:auto;border:0;"></td></tr></table>
 ```
 
+Photo spot (monthly letter; 2026-11-22). Stands where a photo with no usable address would go, in photo blocks and sidebar boxes, with the caption under it exactly as for a real photo. The owner replaces it with the photo in TroopTrack after pasting. The alt text is escaped; with no alt text it reads "a photo".
+
+```html
+<p style="margin:0;padding:14px;border:2px dashed #151B4D;border-radius:12px;background-color:#FFE9B8;color:#151B4D;font-size:14px;font-weight:700;line-height:1.4;">Insert photo here: {{alt or "a photo"}}</p>
+```
+
 Link inside a paragraph: `color:#151B4D;font-weight:700;text-decoration:underline;`, with `target="_blank" rel="noopener noreferrer"` except on `mailto:`.
 
 Monthly letter, Outlook rules (2026-11-22): bullet lists indent with a margin on the `ul` (`margin:10px 0 0 22px;padding:0`) and each `li` except the last carries only `margin-bottom`; masthead, sidebar and feedback text use `<p>` margins; the white card table carries `bgcolor`; contributor and Coming up badges are one-cell tables, as in the November issue.
@@ -300,7 +306,7 @@ Rules:
 - Read time is total words divided by 230, rounded up, minimum one minute, phrased "About an 8 minute read." It is appended to the summary line and the preview text on every issue.
 - Section headings "Closing and high fives", "Around the pack", "Coming up" and "On the horizon" are fixed text. The feature story title is free text.
 - Dates in sections 9 and 10 use the date helper and the "Sun Dec 6, 8:00 pm" format.
-- Photos: the tool takes an image URL, not an upload, because TroopTrack hosts the image. Workflow shown on screen: upload the photo in TroopTrack, copy its address, paste it here. Alt text is required and must not name a child.
+- Photos: the owner inserts photos with TroopTrack's editor after pasting (2026-11-22). The letter marks each photo as a spot: a dashed gold box reading Insert photo here, with the alt text, and the caption under it. After pasting, replace the box with the photo in TroopTrack and set the photo's alt text and full width there. A photo field that does have a usable web address still renders as an image. Alt text must not name a child.
 - The tool can shrink a photo on the device before it is uploaded to TroopTrack: at most 1104 px wide, JPEG, about 300 KB, with location and camera details removed (owner, 2026-11-22).
 - TroopTrack file attachments (the PDF link under the November issue) are added in TroopTrack after pasting. The tool does not manage them.
 - No calendar-subscribe link in the template.

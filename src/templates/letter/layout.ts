@@ -115,6 +115,24 @@ export function photoImg(photo: PhotoField, max: number, margin = ''): string {
   );
 }
 
+/** True when the photo has no address the renderer can use, so the letter shows a photo spot. */
+export function isPhotoSpot(photo: PhotoField): boolean {
+  return safeWebUrl(photo.src) === null;
+}
+
+/**
+ * The photo spot (build spec 6.1): a dashed gold box where the owner inserts the photo with
+ * TroopTrack's editor after pasting. Shows the alt text, or "a photo" without one.
+ */
+export function photoSpot(photo: PhotoField): string {
+  const what = photo.alt.trim() === '' ? 'a photo' : photo.alt.trim();
+  return (
+    `<p style="margin:0;padding:14px;border:2px dashed ${color.navy};border-radius:${radius.panel}px;` +
+    `background-color:${color.goldPale};color:${color.navy};font-size:14px;font-weight:700;line-height:1.4;">` +
+    `Insert photo here: ${esc(what)}</p>`
+  );
+}
+
 /** The italic muted caption under a photo. */
 export function caption(text: string): string {
   if (text.trim() === '') return '';
