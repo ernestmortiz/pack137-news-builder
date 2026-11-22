@@ -111,16 +111,6 @@ export interface LinkListForm extends CardFields {
 export interface DateListForm extends CardFields {
   layout: 'date-list';
   sections: DateSection[];
-  /**
-   * How dates show (owner decision 2026-11-22): `tile`, a small calendar tile above the event, or
-   * `pill`, a navy date pill above the event. Missing means `tile`.
-   */
-  dateStyle?: 'tile' | 'pill';
-  /**
-   * The day the announcement was made. In tile style, a date that ended before this day shows as a
-   * pill, so the tiles mark what is still coming up. Missing means no date counts as past.
-   */
-  madeOn?: CalendarDate;
 }
 
 export interface HelpWantedForm extends CardFields {

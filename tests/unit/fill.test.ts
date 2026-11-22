@@ -577,10 +577,7 @@ describe('fillForm for a layout other than the suggestion', () => {
 describe('fillForm on an empty paste', () => {
   it.each(LAYOUTS)('%s: gives the blank form and asks for a label and a title', (layout) => {
     const result = fillHtml('', layout);
-    // A Date list also records the day it was made (owner decision 2026-11-22).
-    const blank =
-      layout === 'date-list' ? { ...emptyForm(layout), madeOn: OPTIONS.today } : emptyForm(layout);
-    expect(result.form).toEqual(blank);
+    expect(result.form).toEqual(emptyForm(layout));
     expect(result.checks.map((c) => c.path)).toEqual([['label'], ['title']]);
     expect(result.suggestions).toEqual([]);
   });

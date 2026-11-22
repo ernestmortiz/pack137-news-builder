@@ -128,15 +128,3 @@ describe('Date list from prose without dates', () => {
     expect(formWarnings(form).map((w) => w.code)).not.toContain('title-has-date');
   });
 });
-
-describe('Date list remembers the day it was made (owner decision 2026-11-22: past dates show as pills)', () => {
-  it('a fresh Date list fill records today', () => {
-    const form = fillForm(parse(PASTE), 'date-list', OPTIONS).form as DateListForm;
-    expect(form.madeOn).toEqual(OPTIONS.today);
-    expect(form.dateStyle ?? 'tile').toBe('tile');
-  });
-
-  it("switching to Date list with today's date records it", () => {
-    expect(fromLayout('message').madeOn).toEqual(OPTIONS.today);
-  });
-});
