@@ -7,7 +7,8 @@ const noHexOutsideTokens = {
   message: 'Hex colors live only in src/config/tokens.ts. Import the token instead.',
 };
 const noEmDash = {
-  selector: 'Literal[value=/\\u2014/], TemplateElement[value.raw=/\\u2014/]',
+  selector:
+    'Literal[value=/\\u2014/], Literal[raw=/\\u2014/], TemplateElement[value.raw=/\\u2014/], TemplateElement[value.cooked=/\\u2014/]',
   message: 'No em dashes in copy or output.',
 };
 

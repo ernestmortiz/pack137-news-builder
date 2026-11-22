@@ -128,7 +128,7 @@ describe('mailtoDetails', () => {
   });
   it('adds to= headers and comma lists to the recipients', () => {
     expect(texts('mailto:a@b.org,c@d.org?to=e@f.org')).toContain(
-      'Sends to: a@b.org, c@d.org, e@f.org',
+      'Also sends to: a@b.org, c@d.org, e@f.org',
     );
   });
   it('decodes the subject and body', () => {
@@ -177,5 +177,18 @@ describe('keeping markers on the right row', () => {
     expect(kept).toEqual([a, c, t]);
     expect(c.path).toEqual([...rows, 1, 'date']);
     expect(t.path).toEqual(['title']);
+  });
+});
+
+describe('more than one To address', () => {
+  it('is marked as an alert', () => {
+    const lines = mailtoDetails('mailto:a@x.org,b@y.org') ?? [];
+    expect(lines).toContainEqual({ text: 'Also sends to: a@x.org, b@y.org', alert: true });
+  });
+  it('one address is not an alert', () => {
+    expect(mailtoDetails('mailto:a@x.org')).toContainEqual({
+      text: 'Sends to: a@x.org',
+      alert: false,
+    });
   });
 });

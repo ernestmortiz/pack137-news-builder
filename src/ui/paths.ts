@@ -142,7 +142,11 @@ export function mailtoDetails(url: string): MailLine[] | null {
   }
   const lines: MailLine[] = [{ text: raw, alert: false }];
   if (headers.to.length > 0)
-    lines.push({ text: `Sends to: ${headers.to.join(', ')}`, alert: false });
+    lines.push(
+      headers.to.length > 1
+        ? { text: `Also sends to: ${headers.to.join(', ')}`, alert: true }
+        : { text: `Sends to: ${headers.to.join(', ')}`, alert: false },
+    );
   if (headers.cc.length > 0) {
     lines.push({ text: `Copy (cc): ${headers.cc.join(', ')}`, alert: true });
   }

@@ -3,6 +3,7 @@ import { packConfig } from '../../src/config/pack.config';
 import { emptyLetter, letterWords, readTimeText, type LetterForm } from '../../src/core/letter';
 import { lintOutput } from '../../src/core/lint-output';
 import { renderLetter } from '../../src/core/render-letter';
+import { defaultSettings, type PackSettings } from '../../src/core/settings';
 
 const t = (text: string, extra: { marks?: ('strong' | 'em')[]; href?: string } = {}) => ({
   kind: 'text' as const,
@@ -672,5 +673,94 @@ describe('renderLetter: review fixes', () => {
     const names = query.split('&amp;').map((p) => p.split('=')[0]);
     expect(names).toEqual(['subject', 'body']);
     expect(href).not.toMatch(/[?&;](bcc|cc|to)=/i);
+  });
+});
+
+describe('renderLetter: settings', () => {
+  const custom = (): PackSettings => ({
+    ...defaultSettings(),
+    logoUrl: 'https://logo.example.net/custom-logo.png',
+    standingLinks: [
+      { label: 'Custom Site', url: 'https://custom.example.net/site' },
+      { label: 'Custom Shop', url: 'https://custom.example.net/shop' },
+    ],
+    email: {
+      contact: 'hello@custom.example.net',
+      volunteer: 'v@custom.example.net',
+      feedback: 'fb@custom.example.net',
+    },
+    yearAtAGlanceUrl: 'https://custom.example.net/year',
+  });
+  const withHorizon = (): LetterForm => {
+    const l = base();
+    l.comingUp.button.url = ''; // its default button carries a mailto from the form, not from settings
+    l.horizon.enabled = true;
+    l.horizon.yearLinkText = 'See the year';
+    return l;
+  };
+  const monthlyLint = (html: string) => lintOutput(html, { monthly: true });
+
+  it('is identical with defaultSettings() and with no settings argument', () => {
+    expect(renderLetter(withHorizon(), defaultSettings())).toBe(renderLetter(withHorizon()));
+  });
+
+  it('shows the custom values and none of the defaults', () => {
+    const d = defaultSettings();
+    const html = renderLetter(withHorizon(), custom());
+    expect(html).toContain('https://logo.example.net/custom-logo.png');
+    expect(html).toContain('https://custom.example.net/site');
+    expect(html).toContain('https://custom.example.net/shop');
+    expect(html).toContain('mailto:hello@custom.example.net');
+    expect(html).toContain('mailto:fb@custom.example.net');
+    expect(html).toContain('https://custom.example.net/year');
+    expect(html).not.toContain(d.logoUrl);
+    expect(html).not.toContain(d.yearAtAGlanceUrl);
+    expect(html).not.toContain(d.email.contact);
+    expect(html).not.toContain(d.email.feedback);
+    for (const l of d.standingLinks) expect(html).not.toContain(l.url);
+    expect(monthlyLint(html)).toEqual([]);
+  });
+
+  it('leaves out an email link that is not a bare address', () => {
+    const bad = [
+      'pack@x.org?bcc=evil@x.org',
+      'a@b.org"><img src=x>',
+      'a@b.org&cc=c@d.org',
+      'a@b.org#x',
+      'a@b.org,c@d.org',
+      "a@b.org'x",
+      'a b@c.org',
+      'a@@b.org',
+      'nobody',
+    ];
+    for (const e of bad) {
+      const s = { ...custom(), email: { contact: e, volunteer: e, feedback: e } };
+      const html = renderLetter(withHorizon(), s);
+      expect(html).not.toContain('mailto:');
+      expect(html).not.toContain('evil@x.org');
+      expect(html).not.toContain('<img src=x');
+      expect(html).not.toContain('Questions or feedback');
+      expect(monthlyLint(html)).toEqual([]);
+    }
+  });
+
+  it('keeps a good contact link when only the feedback address is bad', () => {
+    const s = { ...custom(), email: { ...custom().email, feedback: 'pack@x.org?bcc=evil@x.org' } };
+    const html = renderLetter(withHorizon(), s);
+    expect(html).toContain('mailto:hello@custom.example.net');
+    expect(html).not.toContain('evil@x.org');
+    expect(monthlyLint(html)).toEqual([]);
+  });
+
+  it('refuses unsafe URL settings and still lints clean', () => {
+    const s: PackSettings = {
+      ...custom(),
+      logoUrl: 'javascript:alert(1)',
+      yearAtAGlanceUrl: 'javascript:alert(2)',
+      standingLinks: [{ label: 'Bad', url: 'javascript:alert(3)' }],
+    };
+    const html = renderLetter(withHorizon(), s);
+    expect(html).not.toContain('javascript:');
+    expect(monthlyLint(html)).toEqual([]);
   });
 });

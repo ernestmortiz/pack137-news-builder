@@ -552,3 +552,28 @@ input.time {
     max-height: calc(100vh - 88px);
   }
 }
+
+/* settings, drafts and saved-draft choices */
+.field {
+  margin-bottom: 12px;
+}
+.link-row {
+  margin-bottom: 10px;
+}
+.choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 480px;
+}
+.choice-list .btn {
+  text-align: left;
+  height: auto;
+  padding: 10px 16px;
+}
+.save-note {
+  flex: 1 1 100%;
+}
+.confirm {
+  margin-top: 8px;
+}

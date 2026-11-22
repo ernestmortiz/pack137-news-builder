@@ -6,6 +6,7 @@
 import { packConfig } from '../../config/pack.config';
 import { color, fontStack, maxEmailWidth, radius } from '../../config/tokens';
 import { formatMonthYear, type MonthOfYear } from '../../core/dates';
+import { defaultSettings, type PackSettings } from '../../core/settings';
 import { esc, indent, lines, safeWebUrl, escAttr } from '../components';
 import { row } from './layout';
 
@@ -31,8 +32,11 @@ const MSO_FONTS = lines(
 );
 
 /** Masthead: round logo, eyebrow, title and the month. */
-export function mastheadRow(issue: MonthOfYear): string {
-  const logo = safeWebUrl(packConfig.logoUrl);
+export function mastheadRow(
+  issue: MonthOfYear,
+  settings: PackSettings = defaultSettings(),
+): string {
+  const logo = safeWebUrl(settings.logoUrl);
   const logoCell =
     logo === null
       ? ''

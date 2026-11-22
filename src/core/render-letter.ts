@@ -19,6 +19,7 @@ import {
 import { letterShell, mastheadRow } from '../templates/letter/shell';
 import { storyRows } from '../templates/letter/story';
 import { letterWords, readTimeText, type LetterForm } from './letter';
+import { defaultSettings, type PackSettings } from './settings';
 
 /** The summary with the read time appended, used for the summary line and the preview text. */
 function summaryText(letter: LetterForm): string {
@@ -41,10 +42,18 @@ function introRow(letter: LetterForm): string {
   );
 }
 
-export function renderLetter(letter: LetterForm): string {
+/**
+ * `settings` supplies the logo, footer links, pack emails and year-at-a-glance link (spec 9). It
+ * should come from validateSettings or defaultSettings; the renderer still refuses unsafe URLs and
+ * any email that is not a bare address (the link is left out).
+ */
+export function renderLetter(
+  letter: LetterForm,
+  settings: PackSettings = defaultSettings(),
+): string {
   const summary = summaryText(letter);
   const rows = lines(
-    mastheadRow(letter.issue),
+    mastheadRow(letter.issue, settings),
     row('8px 24px 0 24px', esc(summary), bodyText('1.5', color.muted, 14)),
     introRow(letter),
     storyRows(letter.story),
@@ -52,10 +61,10 @@ export function renderLetter(letter: LetterForm): string {
     photoAskRows(letter.photoAsk),
     aroundRows(letter.around),
     comingUpRows(letter.comingUp),
-    horizonRows(letter.horizon),
-    feedbackRows(letter.feedback),
+    horizonRows(letter.horizon, settings),
+    feedbackRows(letter.feedback, settings),
     signOffRows(letter.signOff),
-    footerRows(),
+    footerRows(settings),
   );
   return letterShell(summary, rows);
 }

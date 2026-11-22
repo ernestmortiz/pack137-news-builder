@@ -11,6 +11,7 @@
 import { packConfig } from '../config/pack.config';
 import type { CalendarDate, MonthOfYear, TimeOfDay } from './dates';
 import type { ButtonField, RichText } from './forms';
+import { defaultSettings, type PackSettings } from './settings';
 
 /** A link the user types: shown text and address. Left out of the output when the address is not usable. */
 export interface LinkField {
@@ -137,8 +138,11 @@ export function readTimeText(words: number): string {
   return `About ${an ? 'an' : 'a'} ${minutes} minute read.`;
 }
 
-/** A blank letter for an issue month, with the defaults from spec 8.2 and pack.config.ts. */
-export function emptyLetter(issue: MonthOfYear): LetterForm {
+/** A blank letter for an issue month, with the defaults from spec 8.2 and the pack settings (spec 9). */
+export function emptyLetter(
+  issue: MonthOfYear,
+  settings: PackSettings = defaultSettings(),
+): LetterForm {
   return {
     version: 1,
     issue,
@@ -158,7 +162,7 @@ export function emptyLetter(issue: MonthOfYear): LetterForm {
       enabled: true,
       text: '',
       linkText: 'Send them to us here',
-      url: packConfig.photoFormUrl,
+      url: settings.photoFormUrl,
     },
     around: { enabled: true, intro: '', items: [] },
     comingUp: {
@@ -167,7 +171,7 @@ export function emptyLetter(issue: MonthOfYear): LetterForm {
       howToHelp: [],
       button: {
         text: 'I can help',
-        url: `mailto:${packConfig.email.volunteer}?subject=I%20can%20help`,
+        url: `mailto:${settings.email.volunteer}?subject=I%20can%20help`,
       },
     },
     horizon: { enabled: true, items: [], yearLinkText: 'Open the year at a glance' },

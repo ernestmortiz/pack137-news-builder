@@ -78,7 +78,7 @@ describe('altTextProblems', () => {
     ];
     expect(all.length).toBe(5);
     for (const p of all) {
-      expect(p.message).not.toMatch(/—|–/);
+      expect(p.message).not.toMatch(/\u2014|\u2013/);
       expect(p.message.length).toBeGreaterThan(10);
     }
   });

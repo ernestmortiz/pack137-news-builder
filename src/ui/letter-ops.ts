@@ -12,6 +12,7 @@ import {
 import type { ContributorPart, LetterForm, PhotoField, StoryBlock } from '../core/letter';
 import { altTextProblems } from '../core/alt-text';
 import { LETTER_HEADINGS } from '../core/letter';
+import { safeUrl, safeWebUrl } from '../templates/components';
 
 /** The month after `today`, rolling December into January of the next year. */
 export function nextMonth(today: CalendarDate): MonthOfYear {
@@ -152,7 +153,17 @@ export function letterWarnings(letter: LetterForm): string[] {
     }
   });
   for (const { where, photo } of photos) {
-    if (photo.src.trim() === '') out.push(`${where}: the photo has no address yet.`);
+    const src = photo.src.trim();
+    if (src === '') out.push(`${where}: the photo has no address yet.`);
+    else if (safeWebUrl(src) === null) {
+      out.push(
+        `${where}: the photo's address is not a full web address (starting with https://), so the photo is left out.`,
+      );
+    } else if (/^http:\/\//i.test(src)) {
+      out.push(
+        `${where}: This photo's address is not secure (http). Use the https address from TroopTrack.`,
+      );
+    }
     for (const problem of altTextProblems(photo.alt, photo.caption)) {
       out.push(`${where}: ${problem.message}`);
     }
@@ -160,7 +171,18 @@ export function letterWarnings(letter: LetterForm): string[] {
   const link = (where: string, text: string, url: string): void => {
     if (text.trim() !== '' && url.trim() === '')
       out.push(`${where}: there is link text but no link.`);
+    else if (url.trim() !== '' && safeUrl(url) === null) {
+      out.push(
+        `${where}: the link is not a full web or email address (starting with https:// or mailto:), so the link is left out.`,
+      );
+    }
   };
+  const help = letter.comingUp.button;
+  if (help.url.trim() !== '' && safeUrl(help.url) === null) {
+    out.push(
+      `The ${help.text.trim() === '' ? 'I can help' : help.text.trim()} button's link is not a full web or email address, so the button is left out.`,
+    );
+  }
   letter.comingUp.items.forEach((item, i) =>
     link(`Coming up, event ${i + 1}`, item.link.text, item.link.url),
   );
