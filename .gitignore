@@ -5,3 +5,4 @@ dist/
 src-tauri/target/
 test-results/
 playwright-report/
+tests/wrapper/.work/

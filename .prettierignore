@@ -3,3 +3,7 @@ node_modules
 tests/fixtures
 docs/build-spec.md
 package-lock.json
+src-tauri/target
+src-tauri/gen
+src-tauri/icons
+tests/wrapper/.work
