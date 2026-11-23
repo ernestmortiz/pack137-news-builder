@@ -1144,6 +1144,21 @@ function withoutDate(sentenceText: string, at: number, raw: string): string {
   return capitalize(joined);
 }
 
+/**
+ * The event without the button's words when they end it: "Den Meeting - 6:15pm - Fun On The Run"
+ * with a "Fun On The Run" button becomes "Den Meeting - 6:15pm", since the button goes under the
+ * row as a link (held fix from 1.1.1, owner 2026-11-23). Left whole when nothing else would remain.
+ */
+function withoutTrailingWords(event: string, words: string): string {
+  const tail = squash(words);
+  const text = squash(event);
+  if (tail === '' || !text.toLowerCase().endsWith(tail.toLowerCase())) return event;
+  const rest = text.slice(0, text.length - tail.length);
+  if (!/(^|[\s:;,–-])$/.test(rest)) return event;
+  const trimmed = rest.replace(/[\s:;,–-]+$/, '');
+  return trimmed === '' ? event : trimmed;
+}
+
 /** The first written date in a line (findDate reads short windows, so a huge paste stays quick). */
 function dateInLine(text: string, options: FillOptions) {
   return findDate(text, options.today, options.programYearStartMonth);
@@ -1241,8 +1256,10 @@ function dateListFromProse(
       // A button goes under the event before it. When that note already has the same link, as
       // when Call to action made a button of the paragraph's link, nothing is added twice.
       if (last === undefined) add(buttonToRow(e.button));
-      else if (!linksOf(last.note).some((l) => l.href === e.button.url))
+      else if (!linksOf(last.note).some((l) => l.href === e.button.url)) {
+        last.event = withoutTrailingWords(last.event, e.button.text);
         appendNote(last, buttonToRich(e.button));
+      }
     } else {
       for (const line of splitLines(e.runs)) {
         if (lineText(line) === '') continue;

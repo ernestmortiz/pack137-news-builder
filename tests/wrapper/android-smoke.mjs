@@ -308,6 +308,26 @@ try {
     `const box = labelled('Paste the old HTML here'); if (!box) throw new Error('no paste box'); setValue(box, ${JSON.stringify(input)}); return true;`,
   );
   const firstEvent = expectedForm.sections[0].rows[0].event;
+  // Pasting opens "Edit on the card" first (owner decision, editor step 3). Check the card shows
+  // the first event, then switch to the form, which the rest of this test drives.
+  const card = await waitFor(
+    () =>
+      pageWith(`
+        const onCard = Array.from(document.querySelectorAll('button')).find((b) => visible(b) && b.textContent.trim() === 'Edit on the card');
+        const formButton = Array.from(document.querySelectorAll('button')).find((b) => visible(b) && b.textContent.trim() === 'Edit in the form');
+        const event = Array.from(document.querySelectorAll('input, textarea')).some((i) => visible(i) && i.value === ${JSON.stringify(firstEvent)});
+        if (!onCard || !formButton || !event) return null;
+        const first = onCard.getAttribute('aria-pressed') === 'true';
+        formButton.click();
+        return { first };
+      `),
+    'the card view to show the first event',
+  );
+  check(
+    'c0. pasting opens "Edit on the card" first, showing the first event',
+    card.first === true,
+    `"Edit on the card" pressed: ${card.first}; first event "${firstEvent}" on the card`,
+  );
   const filled = await waitFor(
     () =>
       pageWith(`

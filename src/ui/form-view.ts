@@ -33,6 +33,8 @@ export interface FormView {
   fieldText(path: (string | number)[]): string;
   /** Bring the form up to date with text typed a moment ago. Call before reading the form. */
   flush(): void;
+  /** Move the keyboard to the control for a field. False if nothing for that path is on screen. */
+  focusPath(path: (string | number)[]): boolean;
 }
 
 /* ---------- pieces shared by layouts ---------- */
@@ -133,6 +135,7 @@ function dateField(
     id: `d-${path.join('-')}`,
   });
   markSpelling(startInput, 'date');
+  kit.register(datePath, startInput);
   startInput.value = row.date ? toIsoDate(row.date.start) : '';
   const startText = el('span', { className: 'date-note' });
   const endInput = el('input', {
@@ -565,5 +568,6 @@ export function buildForm(
     fieldControl: kit.fieldControl,
     fieldText: kit.fieldText,
     flush: kit.flush,
+    focusPath: kit.focusPath,
   };
 }

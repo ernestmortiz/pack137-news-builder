@@ -776,3 +776,461 @@ input.time {
 .finish-results {
   margin-top: 12px;
 }
+
+/* edit on the card or in the form: the switch */
+.view-switch {
+  margin: 0 0 12px;
+}
+.view-switch .label {
+  margin: 0 0 6px;
+}
+.view-switch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.view-choice {
+  flex: 1 1 150px;
+}
+.view-choice[aria-pressed='true'],
+.ec-tools .btn[aria-pressed='true'] {
+  background: var(--navy);
+  color: var(--white);
+}
+.btn.quiet {
+  border-color: var(--lavender);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 10px;
+}
+
+/* things to check, above the card */
+.card-view {
+  min-width: 0;
+}
+.ec-notes {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: var(--gold-pale);
+  border-radius: 12px;
+  color: var(--navy);
+}
+.ec-notes-title {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+.ec-notes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.ec-notes-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+}
+.ec-note-text {
+  flex: 1 1 200px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ec-note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ec-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.ec-tools .label {
+  margin: 0;
+}
+
+/* the card: drawn like the email, edited in place */
+.ec {
+  width: 100%;
+  margin: 0 auto;
+  background: var(--white);
+  border: 1px solid var(--lavender);
+  border-radius: 12px;
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.ec-head {
+  background: var(--navy);
+  color: var(--white);
+  border-radius: 11px 11px 0 0;
+  padding: 14px;
+  --ec-pad: 4px 4px;
+}
+.ec-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  min-width: 0;
+}
+.ec-body > .ec-open {
+  align-self: flex-start;
+}
+.ec-empty {
+  margin: 0;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* one editable line of plain text. The hidden copy (::after) gives it the height of its words. */
+.ec-field {
+  display: grid;
+  min-width: 0;
+  max-width: 100%;
+  --ec-pad: 10px 4px;
+}
+.ec-field::after {
+  content: attr(data-value) ' ';
+  grid-area: 1 / 1;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: var(--ec-pad);
+  border: 2px solid transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+.ec-input {
+  grid-area: 1 / 1;
+  display: block;
+  width: 0;
+  min-width: 100%;
+  margin: 0;
+  resize: none;
+  overflow: hidden;
+  padding: var(--ec-pad);
+  border: 2px dashed transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-decoration: inherit;
+  text-align: inherit;
+  overflow-wrap: anywhere;
+}
+.ec-input:hover,
+.ec .rich-box:hover {
+  border-color: currentColor;
+}
+.ec-input:focus-visible,
+.ec .rich-box:focus-visible {
+  border-color: transparent;
+}
+.ec-input::placeholder {
+  color: var(--muted);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  opacity: 1;
+}
+.ec-head .ec-input:focus-visible {
+  outline-color: var(--gold-light);
+}
+.ec-head .ec-input::placeholder {
+  color: var(--lavender);
+}
+
+/* pills: the label, dates, tags and panel names */
+.ec-pill {
+  display: inline-grid;
+  max-width: 100%;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  --ec-pad: 2px 8px;
+}
+.ec-label {
+  background: var(--gold);
+  color: var(--navy);
+  letter-spacing: 1px;
+}
+.ec-label .ec-input::placeholder {
+  color: var(--navy);
+  opacity: 0.8;
+}
+.ec-title {
+  margin-top: 8px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+  --ec-pad: 4px 4px;
+}
+.ec-date {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 3px 10px;
+  background: var(--navy);
+  color: var(--white);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+.ec-date.is-struck {
+  text-decoration: line-through;
+}
+.ec-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ec-tag {
+  background: var(--lavender);
+  color: var(--navy);
+}
+.ec-tag.strong,
+.ec-pill-strong {
+  background: var(--navy);
+  color: var(--gold-light);
+}
+.ec-tag.strong .ec-input::placeholder,
+.ec-pill-strong .ec-input::placeholder {
+  color: var(--lavender);
+}
+.ec-tag.strong .ec-input:focus-visible,
+.ec-pill-strong .ec-input:focus-visible {
+  outline-color: var(--gold-light);
+}
+.ec-section.highlight .ec-tag:not(.strong),
+.ec-section.quiet .ec-tag:not(.strong) {
+  background: var(--white);
+  border: 1px solid var(--navy);
+}
+
+/* rows and sections */
+.ec-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.ec-section.highlight,
+.ec-section.quiet,
+.ec-box {
+  border-radius: 12px;
+  padding: 14px;
+}
+.ec-section.highlight,
+.ec-box {
+  background: var(--gold-pale);
+}
+.ec-section.quiet {
+  background: var(--lavender);
+}
+.ec-section-name,
+.ec-panel-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--navy);
+  --ec-pad: 6px 4px;
+}
+.ec-subtitle,
+.ec-small-note {
+  font-size: 13px;
+}
+.ec-rows {
+  display: flex;
+  flex-direction: column;
+}
+.ec-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+  border-top: 1px solid var(--lavender);
+  min-width: 0;
+}
+.ec-rows > .ec-row:first-child {
+  border-top: 0;
+}
+.ec-section.highlight .ec-row,
+.ec-section.quiet .ec-row {
+  border-top-color: var(--white);
+}
+.ec-row-top,
+.ec-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.ec-row-top {
+  justify-content: space-between;
+}
+.ec-line > .ec-field {
+  flex: 1 1 140px;
+}
+.ec-event {
+  font-size: 16px;
+}
+.ec-event.is-link {
+  color: var(--navy);
+  font-weight: 700;
+  text-decoration: underline;
+}
+.ec-note {
+  font-size: 14px;
+}
+
+/* paragraphs and boxes */
+.ec-box {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ec-box .ec-input::placeholder,
+.ec-box .rich-box[data-placeholder]:empty::before {
+  color: var(--muted);
+}
+.ec-ask-title {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--navy);
+}
+.ec-photo {
+  width: 80px;
+  max-width: 100%;
+  padding: 6px;
+  border: 2px dashed var(--navy);
+  border-radius: 8px;
+  background: var(--gold-pale);
+  color: var(--navy);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* buttons, drawn like the email's */
+.ec-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.ec-btn {
+  display: inline-grid;
+  min-width: 120px;
+  max-width: 100%;
+  border-radius: 8px;
+  background: var(--navy);
+  color: var(--white);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  --ec-pad: 13px 22px;
+}
+.ec-btn.gold {
+  background: var(--gold);
+  color: var(--navy);
+}
+.ec-btn .ec-input::placeholder {
+  color: var(--lavender);
+}
+.ec-btn.gold .ec-input::placeholder {
+  color: var(--navy);
+  opacity: 0.8;
+}
+.ec-btn .ec-input:focus-visible {
+  outline-color: var(--white);
+}
+.ec-btn.gold .ec-input:focus-visible {
+  outline-color: var(--navy);
+}
+
+/* formatted text on the card. The toolbar floats above the box while it has the keyboard. */
+.ec-rich-wrap {
+  min-width: 0;
+}
+.ec-rich-wrap .rich-editor {
+  position: relative;
+}
+.ec .rich-box.control {
+  min-height: 44px;
+  padding: 10px 4px;
+  border: 2px dashed transparent;
+  background: transparent;
+  color: inherit;
+}
+.ec .rich-box[data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+  font-style: italic;
+  pointer-events: none;
+}
+.ec-float {
+  display: none;
+}
+.ec-rich-wrap .rich-editor:focus-within > .ec-float {
+  display: block;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  z-index: 6;
+  padding: 6px;
+  background: var(--white);
+  border: 1px solid var(--navy);
+  border-radius: 8px;
+}
+.ec-float .rich-toolbar,
+.ec-float .rich-status {
+  margin-bottom: 0;
+}
+.ec-open,
+.ec-pill {
+  align-self: flex-start;
+}
+
+/* quiet card: row and button controls and empty optional hints show only where the person is
+   working (focus inside, or the mouse over it on devices with a mouse). Tab never skips them:
+   the row already has focus when Tab reaches them, so they are shown by then. Each section and
+   each list keeps one "Change in the form" that is always shown. */
+.ec-row .ec-open,
+.ec-actions .ec-open {
+  display: none;
+}
+.ec-row:focus-within .ec-open,
+.ec-actions:focus-within .ec-open {
+  display: inline-block;
+}
+.ec-row:not(:focus-within) .ec-note:has(.rich-box:empty),
+.ec-row:not(:focus-within) .ec-small-note:has(.ec-input:placeholder-shown),
+.ec-section:not(:focus-within) .ec-subtitle:has(.ec-input:placeholder-shown) {
+  display: none;
+}
+@media (hover: hover) {
+  .ec-row:hover .ec-open,
+  .ec-actions:hover .ec-open {
+    display: inline-block;
+  }
+  .ec-row:hover .ec-note:has(.rich-box:empty) {
+    display: block;
+  }
+  .ec-row:hover .ec-small-note:has(.ec-input:placeholder-shown),
+  .ec-section:hover .ec-subtitle:has(.ec-input:placeholder-shown) {
+    display: grid;
+  }
+}

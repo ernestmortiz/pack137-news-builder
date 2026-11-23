@@ -219,6 +219,8 @@ test('blocked storage: Show codes still works for the visit', async ({ page, con
     });
   });
   await paste(page, DEN15);
+  // Storage is blocked, so no stored form choice reaches this page: it opens on the card.
+  await weekly(page).getByRole('button', { name: 'Edit in the form' }).click();
   const sw = weekly(page).getByRole('checkbox', { name: 'Show codes' });
   await expect(sw).not.toBeChecked();
   await sw.check();

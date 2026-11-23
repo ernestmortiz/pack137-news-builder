@@ -42,6 +42,12 @@ test('dist/index.html opened from disk works, saves and copies with no remote re
   // The converter fills the form and the preview.
   await page.getByLabel('Paste the old HTML here').fill(input);
   await expect(page.getByRole('heading', { name: 'Edit the announcement' })).toBeVisible();
+  // A file:// page has its own empty storage, so it opens on the card. This test reads the form.
+  await expect(page.getByRole('button', { name: 'Edit on the card' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.getByRole('button', { name: 'Edit in the form' }).click();
   await expect(page.getByRole('radio', { name: /^Date list/ })).toBeChecked();
   await expect(page.getByLabel('Event', { exact: true }).first()).toBeVisible();
   for (const width of [250, 375, 600]) {

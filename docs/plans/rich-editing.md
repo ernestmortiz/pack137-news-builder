@@ -61,7 +61,7 @@ Each step gets its own pull request and the usual owner review.
 
 ## Also in this release
 
-- **Repeated button words after switching to Date list** (found in 1.1.1, owner chose to hold the fix until this work, 2026-11-23):
+- **Repeated button words after switching to Date list** (found in 1.1.1, owner chose to hold the fix until this work, 2026-11-23; done in step 3):
   - **Steps:** paste "1. Den Meeting - Dec 16th 6:15pm - Fun On The Run", with the link on the last words. Leave it on Call to action, then switch to Date list.
   - **Result:** the row reads "Den Meeting - 6:15pm - Fun On The Run" with a second "Fun On The Run" link under it.
   - **Cause:** since 1.1.1 the Call to action paragraph no longer carries the button's link, so the switch adds the button as a note.

@@ -9,7 +9,7 @@
  * 4. Date list: a date written inside a line, not only at its start, becomes the row's date.
  */
 import { describe, expect, it } from 'vitest';
-import { fillForm, type FillOptions } from '../../src/core/fill';
+import { fillForm, switchLayout, type FillOptions } from '../../src/core/fill';
 import type { CallToActionForm, DateListForm, MessageForm } from '../../src/core/forms';
 import { textOf } from '../../src/core/helpers/text';
 import { parse } from '../../src/core/pipeline';
@@ -80,5 +80,25 @@ describe('Date list rows with the date inside the line', () => {
     const row = form.sections[0]?.rows[0];
     expect(row?.date).toEqual({ start: { year: 2026, month: 12, day: 16 } });
     expect(row?.event).toBe('Den Meeting');
+  });
+});
+
+describe('switching Call to action to Date list (held fix from 1.1.1, 2026-11-23)', () => {
+  it('does not repeat the button words at the end of the event', () => {
+    const cta = fillForm(parse(DEN15), 'call-to-action', OPTIONS).form;
+    const form = switchLayout(cta, 'date-list', OPTIONS) as DateListForm;
+    const row = form.sections[0]?.rows[0];
+    expect(row?.date).toEqual({ start: { year: 2026, month: 12, day: 16 } });
+    expect(row?.event).toBe('Den Meeting - 6:15pm');
+    expect(row?.note).toEqual([{ kind: 'text', text: 'Fun On The Run', marks: [], href: URL }]);
+  });
+
+  it('keeps the event whole when the button words are not at its end', () => {
+    const paste = `<p>Den Meeting on Dec 16th at the school.</p><p><a href="${URL}">Sign up</a></p>`;
+    const cta = fillForm(parse(paste), 'call-to-action', OPTIONS).form;
+    const form = switchLayout(cta, 'date-list', OPTIONS) as DateListForm;
+    const row = form.sections[0]?.rows[0];
+    expect(row?.event).toBe('Den Meeting at the school.');
+    expect(textOf(row?.note ?? [])).toBe('Sign up');
   });
 });
