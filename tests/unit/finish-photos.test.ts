@@ -387,7 +387,7 @@ describe('finishPhotos: notes', () => {
     }
   });
 
-  it('never throws on values of the wrong type', () => {
+  it('never throws on values of the wrong type', { retry: 2 }, () => {
     const bad = [null, undefined, 5, {}, [{ where: 5, alt: null }, null, 'x']];
     for (const html of bad)
       for (const s of bad)

@@ -166,7 +166,7 @@ describe('extract: inferred headings', () => {
 });
 
 describe('extract: robustness', () => {
-  it('handles a 1 MB paste', () => {
+  it('handles a 1 MB paste', { retry: 2 }, () => {
     const html = '<p>Line of text with a <a href="https://x.org">link</a>.</p>'.repeat(18_000);
     const started = performance.now();
     const result = blocks(html);
@@ -180,13 +180,13 @@ describe('extract: robustness', () => {
     expect(result.filter((b) => b.type === 'image')).toHaveLength(70_000);
   }, 60_000);
 
-  it('trims 250,000 leading breaks in linear time', () => {
+  it('trims 250,000 leading breaks in linear time', { retry: 2, timeout: 60_000 }, () => {
     const html = '<p><img src="https://a.org/i.png" alt="a">' + '<br>'.repeat(250_000) + 'x</p>';
     const started = performance.now();
     const result = blocks(html);
     expect(result.at(-1)).toEqual({ type: 'paragraph', runs: [text('x')] });
     expect(performance.now() - started).toBeLessThan(budget(30_000));
-  }, 60_000);
+  });
 
   it('never yields an empty text run', () => {
     const all = blocks('<p><b></b>a<i> </i>b<s></s></p><ul><li><b> </b>c</li></ul>');

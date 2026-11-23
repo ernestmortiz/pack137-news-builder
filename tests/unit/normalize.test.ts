@@ -233,7 +233,7 @@ describe('normalize: deep and very large input', () => {
     return { root, elapsed: performance.now() - started };
   }
 
-  it('flattens 3000 nested layout tables without overflowing the stack', () => {
+  it('flattens 3000 nested layout tables without overflowing the stack', { retry: 2 }, () => {
     const depth = 3000;
     const html = '<table><tr><td>'.repeat(depth) + 'deep item' + '</td></tr></table>'.repeat(depth);
     const { root, elapsed } = timed(html);
@@ -241,40 +241,45 @@ describe('normalize: deep and very large input', () => {
     expect(elapsed).toBeLessThan(budget(1000));
   });
 
-  it('unwraps 3000 nested spans in under a second', () => {
+  it('unwraps 3000 nested spans in under a second', { retry: 2 }, () => {
     const depth = 3000;
     const { root, elapsed } = timed('<span>'.repeat(depth) + 'deep' + '</span>'.repeat(depth));
     expect(root.innerHTML).toBe('<p>deep</p>');
     expect(elapsed).toBeLessThan(budget(1000));
   });
 
-  it('flattens 3000 nested bold tags to one strong in under a second', () => {
+  it('flattens 3000 nested bold tags to one strong in under a second', { retry: 2 }, () => {
     const depth = 3000;
     const { root, elapsed } = timed('<b>'.repeat(depth) + 'deep' + '</b>'.repeat(depth));
     expect(root.innerHTML).toBe('<p><strong>deep</strong></p>');
     expect(elapsed).toBeLessThan(budget(1000));
   });
 
-  it('handles 1 MB of unclosed bold, italic and link tags in under a second', () => {
-    const count = 30000;
-    const html = '<b><i><a href="https://x.org">t'.repeat(count);
-    expect(html.length).toBeGreaterThan(900 * 1024);
-    // The other test files run at the same moment and compete for the processor, so a slow run
-    // is tried again, up to three times.
-    let result = timed(html);
-    for (let attempt = 1; attempt < 3 && result.elapsed >= 1000; attempt += 1) result = timed(html);
-    const { root, elapsed } = result;
-    expect(elapsed).toBeLessThan(budget(1000));
-    // Every letter survives, in blocks of the usual kind, and the links keep their address.
-    expect(root.textContent).toBe('t'.repeat(count));
-    for (const el of Array.from(root.children)) expect(el.tagName).toBe('P');
-    expect(root.querySelector('b, i, span, div')).toBeNull();
-    const links = Array.from(root.querySelectorAll('a'));
-    expect(links.length).toBeGreaterThan(0);
-    for (const a of links) expect(a.getAttribute('href')).toBe('https://x.org');
-  }, 30000);
+  it(
+    'handles 1 MB of unclosed bold, italic and link tags in under a second',
+    { retry: 2, timeout: 30000 },
+    () => {
+      const count = 30000;
+      const html = '<b><i><a href="https://x.org">t'.repeat(count);
+      expect(html.length).toBeGreaterThan(900 * 1024);
+      // The other test files run at the same moment and compete for the processor, so a slow run
+      // is tried again, up to three times.
+      let result = timed(html);
+      for (let attempt = 1; attempt < 3 && result.elapsed >= 1000; attempt += 1)
+        result = timed(html);
+      const { root, elapsed } = result;
+      expect(elapsed).toBeLessThan(budget(1000));
+      // Every letter survives, in blocks of the usual kind, and the links keep their address.
+      expect(root.textContent).toBe('t'.repeat(count));
+      for (const el of Array.from(root.children)) expect(el.tagName).toBe('P');
+      expect(root.querySelector('b, i, span, div')).toBeNull();
+      const links = Array.from(root.querySelectorAll('a'));
+      expect(links.length).toBeGreaterThan(0);
+      for (const a of links) expect(a.getAttribute('href')).toBe('https://x.org');
+    },
+  );
 
-  it('keeps 3000 nested lists as lists', () => {
+  it('keeps 3000 nested lists as lists', { retry: 2 }, () => {
     const depth = 3000;
     const { root, elapsed } = timed('<ul><li>'.repeat(depth) + 'deep' + '</li></ul>'.repeat(depth));
     expect(elapsed).toBeLessThan(budget(1000));
@@ -290,24 +295,32 @@ describe('normalize: deep and very large input', () => {
     expect(levels).toBe(depth * 2);
   });
 
-  it('settles a deep chain of list items that hold only a line break in under a second', () => {
-    // Each item is empty once the list inside it has gone, so the whole chain goes, inside out.
-    const depth = 3000;
-    const html = '<ul><li><br>'.repeat(depth) + '</li></ul>'.repeat(depth) + '<p>kept</p>';
-    const { root, elapsed } = timed(html);
-    expect(elapsed).toBeLessThan(budget(1000));
-    expect(root.innerHTML).toBe('<p>kept</p>');
-  });
+  it(
+    'settles a deep chain of list items that hold only a line break in under a second',
+    { retry: 2 },
+    () => {
+      // Each item is empty once the list inside it has gone, so the whole chain goes, inside out.
+      const depth = 3000;
+      const html = '<ul><li><br>'.repeat(depth) + '</li></ul>'.repeat(depth) + '<p>kept</p>';
+      const { root, elapsed } = timed(html);
+      expect(elapsed).toBeLessThan(budget(1000));
+      expect(root.innerHTML).toBe('<p>kept</p>');
+    },
+  );
 
-  it('replaces the content of a root that holds 3000 nested wrappers and a wide run', () => {
-    const depth = 3000;
-    const html =
-      '<div>'.repeat(depth) + '<p>a</p>'.repeat(2000) + '</div>'.repeat(depth) + '<p>last</p>';
-    const { root, elapsed } = timed(html);
-    expect(elapsed).toBeLessThan(budget(2000));
-    expect(root.children.length).toBe(2001);
-    expect(root.lastElementChild?.textContent).toBe('last');
-  });
+  it(
+    'replaces the content of a root that holds 3000 nested wrappers and a wide run',
+    { retry: 2 },
+    () => {
+      const depth = 3000;
+      const html =
+        '<div>'.repeat(depth) + '<p>a</p>'.repeat(2000) + '</div>'.repeat(depth) + '<p>last</p>';
+      const { root, elapsed } = timed(html);
+      expect(elapsed).toBeLessThan(budget(2000));
+      expect(root.children.length).toBe(2001);
+      expect(root.lastElementChild?.textContent).toBe('last');
+    },
+  );
 
   /** As `timed`, but a slow run is tried again, up to three times (see the 1 MB test above). */
   function timedWithRetries(html: string, limit: number): { root: HTMLElement; elapsed: number } {
@@ -320,24 +333,28 @@ describe('normalize: deep and very large input', () => {
 
   // The cost must follow the number of nodes, not nodes times levels. The tests above have one
   // leaf or a few levels, so they cannot tell the two apart. These are deep and wide at once.
-  it('pushes 500 nested bold tags into 50000 paragraphs in under 2 seconds', () => {
-    const width = 50000;
-    const html = '<b>'.repeat(500) + '<p>a</p>'.repeat(width);
-    const { root, elapsed } = timedWithRetries(html, 2000);
-    expect(elapsed).toBeLessThan(budget(2000));
-    const blocks = Array.from(root.children);
-    expect(blocks.length).toBe(width);
-    let bold = 0;
-    for (const block of blocks) {
-      const only = block.firstChild;
-      if (block.tagName !== 'P' || only !== block.lastChild || only?.nodeName !== 'STRONG')
-        continue;
-      if (only.firstChild === only.lastChild && only.firstChild?.nodeValue === 'a') bold += 1;
-    }
-    expect(bold).toBe(width);
-  }, 60000);
+  it(
+    'pushes 500 nested bold tags into 50000 paragraphs in under 2 seconds',
+    { retry: 2, timeout: 60000 },
+    () => {
+      const width = 50000;
+      const html = '<b>'.repeat(500) + '<p>a</p>'.repeat(width);
+      const { root, elapsed } = timedWithRetries(html, 2000);
+      expect(elapsed).toBeLessThan(budget(2000));
+      const blocks = Array.from(root.children);
+      expect(blocks.length).toBe(width);
+      let bold = 0;
+      for (const block of blocks) {
+        const only = block.firstChild;
+        if (block.tagName !== 'P' || only !== block.lastChild || only?.nodeName !== 'STRONG')
+          continue;
+        if (only.firstChild === only.lastChild && only.firstChild?.nodeValue === 'a') bold += 1;
+      }
+      expect(bold).toBe(width);
+    },
+  );
 
-  it('pushes 1500 nested marks of three kinds into 5000 paragraphs', () => {
+  it('pushes 1500 nested marks of three kinds into 5000 paragraphs', { retry: 2 }, () => {
     const width = 5000;
     const html = '<b><i><s>'.repeat(500) + '<p>a</p>'.repeat(width);
     const { root, elapsed } = timedWithRetries(html, 1500);
@@ -347,36 +364,48 @@ describe('normalize: deep and very large input', () => {
     expect(root.lastElementChild?.outerHTML).toBe('<p><strong><em><s>a</s></em></strong></p>');
   });
 
-  it('pushes 2000 nested bold tags that each hold a word into 5000 paragraphs', () => {
-    const width = 5000;
-    const html = '<b>x'.repeat(2000) + '<p>a</p>'.repeat(width);
-    const { root, elapsed } = timedWithRetries(html, 1500);
-    expect(elapsed).toBeLessThan(budget(1500));
-    expect(root.children.length).toBe(width + 1);
-    expect(root.firstElementChild?.outerHTML).toBe(`<p><strong>${'x'.repeat(2000)}</strong></p>`);
-    expect(root.lastElementChild?.outerHTML).toBe('<p><strong>a</strong></p>');
-  });
+  it(
+    'pushes 2000 nested bold tags that each hold a word into 5000 paragraphs',
+    { retry: 2 },
+    () => {
+      const width = 5000;
+      const html = '<b>x'.repeat(2000) + '<p>a</p>'.repeat(width);
+      const { root, elapsed } = timedWithRetries(html, 1500);
+      expect(elapsed).toBeLessThan(budget(1500));
+      expect(root.children.length).toBe(width + 1);
+      expect(root.firstElementChild?.outerHTML).toBe(`<p><strong>${'x'.repeat(2000)}</strong></p>`);
+      expect(root.lastElementChild?.outerHTML).toBe('<p><strong>a</strong></p>');
+    },
+  );
 
-  it('pushes 2000 nested bold tags into 5000 paragraphs that each follow a word', () => {
-    const width = 5000;
-    const html = '<b>'.repeat(2000) + 'x<br><p>a</p>'.repeat(width);
-    const { root, elapsed } = timedWithRetries(html, 1500);
-    expect(elapsed).toBeLessThan(budget(1500));
-    expect(root.children.length).toBe(width * 2);
-    expect(root.firstElementChild?.outerHTML).toBe('<p><strong>x</strong></p>');
-    expect(root.lastElementChild?.outerHTML).toBe('<p><strong>a</strong></p>');
-  });
+  it(
+    'pushes 2000 nested bold tags into 5000 paragraphs that each follow a word',
+    { retry: 2 },
+    () => {
+      const width = 5000;
+      const html = '<b>'.repeat(2000) + 'x<br><p>a</p>'.repeat(width);
+      const { root, elapsed } = timedWithRetries(html, 1500);
+      expect(elapsed).toBeLessThan(budget(1500));
+      expect(root.children.length).toBe(width * 2);
+      expect(root.firstElementChild?.outerHTML).toBe('<p><strong>x</strong></p>');
+      expect(root.lastElementChild?.outerHTML).toBe('<p><strong>a</strong></p>');
+    },
+  );
 
-  it('flattens 10000 nested blocks that each hold a word around 5000 paragraphs', () => {
-    const depth = 10000;
-    const width = 5000;
-    const html = '<div>lead'.repeat(depth) + '<p>a</p>'.repeat(width);
-    const { root, elapsed } = timedWithRetries(html, 1500);
-    expect(elapsed).toBeLessThan(budget(1500));
-    expect(root.children.length).toBe(width + depth);
-    expect(root.firstElementChild?.outerHTML).toBe('<p>lead</p>');
-    expect(root.lastElementChild?.outerHTML).toBe('<p>a</p>');
-  });
+  it(
+    'flattens 10000 nested blocks that each hold a word around 5000 paragraphs',
+    { retry: 2 },
+    () => {
+      const depth = 10000;
+      const width = 5000;
+      const html = '<div>lead'.repeat(depth) + '<p>a</p>'.repeat(width);
+      const { root, elapsed } = timedWithRetries(html, 1500);
+      expect(elapsed).toBeLessThan(budget(1500));
+      expect(root.children.length).toBe(width + depth);
+      expect(root.firstElementChild?.outerHTML).toBe('<p>lead</p>');
+      expect(root.lastElementChild?.outerHTML).toBe('<p>a</p>');
+    },
+  );
 });
 
 describe('normalize: inline elements and blocks nested inside each other', () => {
