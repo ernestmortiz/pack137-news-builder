@@ -96,7 +96,7 @@ If any of these fail, do not tag the release. Tell the project owner which brows
 
 ## Step 2c: Check the desktop apps
 
-Every pull request that changes the desktop app builds test installers. When its "Wrappers" run is green, open the Releases page. A draft called "Test build for pull request #N (not for volunteers)" holds the Windows `.exe`. Only people who can change the project see drafts. Each new run replaces it. Delete the draft once the pull request is merged. If nothing in the desktop app changed since the last release, test the installer from the last release instead.
+Every pull request that changes the desktop app builds test installers. When its "Wrappers" run is green, open the Releases page. A draft called "Test build for pull request #N (not for volunteers)" holds the Windows `.exe`. Only people who can change the project see drafts. Each new run replaces it, and closing or merging the pull request deletes it automatically (the "Clean up test builds" workflow). If nothing in the desktop app changed since the last release, test the installer from the last release instead.
 
 On a Windows PC, install the app by following `docs/installing-the-desktop-app.md`, with the internet turned off after installing, and check:
 
@@ -109,7 +109,7 @@ On a Windows PC, install the app by following `docs/installing-the-desktop-app.m
 
 If any of these fail, do not tag the release. Tell the project owner which computer and step failed.
 
-The Android app is checked automatically, because the pack has no test phone (owner decision 2026-11-22). Open the latest "Wrappers" run for the main branch or the last pull request and check that the job "android-emulator (34, false)" is green: it ran 24 checks on an Android 14 emulator (the card view for the weekly announcement and the monthly letter, paste, copy, saving into Downloads, the photo picker, saved work after a restart, no internet, no permissions, the 360dp screen). The job "android-emulator (29, true)" is expected to fail and does not block a release. If someone in the pack has an Android phone, installing the test `.apk` from the draft and repeating checks 2 to 6 above is still worth doing.
+The Android app is checked automatically, because the pack has no test phone (owner decision 2026-11-22). Open the latest "Wrappers" run for the main branch or the last pull request and check that the job "android-emulator (34, false)" is green: it ran 24 checks on an Android 14 emulator (the card view for the weekly announcement and the monthly letter, paste, copy, saving into Downloads, the photo picker, saved work after a restart, no internet, no permissions, the 360dp screen). The job "android-emulator (29, true)" runs an Android 10 emulator for information only. It shows green with a warning that says the checks did not pass; that is expected, because that emulator's 2019 web view cannot run the app, and it does not block a release. If it shows red, the build itself failed: re-run the job. If someone in the pack has an Android phone, installing the test `.apk` from the draft and repeating checks 2 to 6 above is still worth doing.
 
 ## Step 3: Answer two questions
 
@@ -146,7 +146,7 @@ Write "Kept" if all of these are in the TroopTrack code and Outlook shows the bu
 8. When the run is green, open the Releases page. You should see a release called "Pack 137 News Builder v1.0.0" with these files attached: `pack137-news-builder-v1.0.0-web.zip`, `pack137-news-builder-v1.0.0-windows-setup.exe`, `pack137-news-builder-v1.0.0-android.apk`, a `.sha256` checksum file for each of the three, and `INSTALLING-THE-DESKTOP-APP.md`. A checksum lets anyone check that a copy passed around the pack was not changed.
 9. Download the zip. Test it the way a volunteer will. Unzip it, double-click `index.html`, and check the version shown in the tool matches the release. Try this with the internet turned off.
 10. Send the project owner the link to the release page. Wait for the owner's sign-off before you tell volunteers about it.
-11. On the Releases page, delete any "Test build for pull request #N" drafts that are left over.
+11. On the Releases page, check that no "Test build for pull request #N" drafts are left over. They are deleted when their pull request closes; if one remains, delete it by hand.
 12. The last job of the Release run, "deploy-web", puts the new version on https://pack137-news-builder.pages.dev. Open that address, reload, and check the footer shows the new version. If that job failed, the release is still published: open the Actions tab, choose "Deploy web", press Run workflow, type the tag (for example `v1.2.0`) and run it.
 
 ## What the release makes
@@ -156,13 +156,14 @@ Write "Kept" if all of these are in the TroopTrack code and Outlook shows the bu
 - A Windows installer, `pack137-news-builder-vX.Y.Z-windows-setup.exe`. It is unsigned, so `INSTALLING-THE-DESKTOP-APP.md` is attached as well. It shows volunteers how to get past the Windows warning.
 - No Mac app. Mac volunteers use the web zip in Safari (ADR 0006).
 - An Android app, `pack137-news-builder-vX.Y.Z-android.apk`, signed with the pack's release key. Volunteers allow "Install unknown apps" once; `INSTALLING-THE-DESKTOP-APP.md` shows how.
-- A `.sha256` checksum file for the zip and for each installer.
+- A `.sha256` checksum file for the zip and for each installer. No `.idsig` file is attached.
 - The same web build on https://pack137-news-builder.pages.dev, sent with extra security headers (`scripts/pages-headers.mjs`). The zip and the apps do not change.
 
 ## Good practice
 
 - Never put passwords, keys or tokens in the project files.
 - The Android release key lives only in the `android-release` environment's secrets on GitHub (Settings, Environments), which only release tags (`v*`) can use, and in the owner's backup. Every Android update must be signed with that same key: if it is lost, volunteers must uninstall and reinstall, which removes their saved work. Never replace it without the owner.
+- If the "Build the release APK" step shows a warning and tries again, Maven Central had a temporary download error. It tries up to 3 times; if all fail, re-run the failed jobs later.
 - If the Release run stops at "Sign with the pack's release key" with "no signing key", the environment's secrets `ANDROID_KEYSTORE_B64` and `ANDROID_KEYSTORE_PASSWORD` are missing.
 - The hosted web version is on Cloudflare Pages, project `pack137-news-builder`. Its token lives only in the `cloudflare-pages` environment's secrets on GitHub, `CLOUDFLARE_API_TOKEN` (a Cloudflare token that can only edit Pages) and `CLOUDFLARE_ACCOUNT_ID`. Only release tags (`v*`) and the main branch can use that environment, and only the "Deploy web" workflow reads it.
 - To roll the hosted site back, run "Deploy web" by hand with the older tag.

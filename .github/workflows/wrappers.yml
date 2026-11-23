@@ -8,7 +8,8 @@ name: Wrappers
 # Android build makes fresh on each run: no key, keystore or password exists in the repository
 # or in any secret, and each test APK has a different signature (uninstall the old one first). They are published as a draft pre-release named
 # "test-build-pr-<number>" (or "test-build-manual"), replaced on every run, which only people with
-# write access to the repository can see. Release files do not count against the account's
+# write access to the repository can see. Closing the pull request deletes its draft
+# (cleanup-test-builds.yml). Release files do not count against the account's
 # artifact storage quota. The build jobs hand the files to the publish job through the Actions
 # cache, which is also outside that quota, under a key unique to this run.
 #
@@ -43,10 +44,10 @@ jobs:
     # webkitgtk-webdriver instead; move both together, on purpose.
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -75,10 +76,10 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -110,7 +111,7 @@ jobs:
           name="pack137-news-builder-v${version}-windows-setup.exe"
           cp "${found}" "release-windows/${name}"
           (cd release-windows && sha256sum "${name}" > "${name}.sha256")
-      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: release-windows
           key: test-installer-windows-${{ github.run_id }}
@@ -122,14 +123,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
-      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: 17
@@ -144,6 +145,16 @@ jobs:
       - run: npm run build
       - run: cargo fetch --locked
         working-directory: src-tauri
+      # Gradle downloads, kept between runs so a temporary Maven Central error ("429 Too Many
+      # Requests") does not stop a build that already fetched everything once.
+      - id: gradle-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('src-tauri/gen/android/**/*.gradle*', 'src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
       - name: Point the Tauri CLI at the runner's Android NDK
         run: |
           echo "NDK_HOME=${ANDROID_NDK_HOME}" >> "${GITHUB_ENV}"
@@ -153,7 +164,17 @@ jobs:
       # One ABI: arm64-v8a, which every Android phone made in the last several years uses. Add
       # --target x86_64 for an emulator on a PC (about 5 more minutes). Debug build, signed by
       # Gradle with a throwaway debug key it makes on this runner.
-      - run: npx tauri android build --debug --apk --target aarch64
+      - name: Build the debug APK (retried on a download error)
+        run: |
+          for attempt in 1 2 3; do
+            if npx tauri android build --debug --apk --target aarch64; then exit 0; fi
+            if [ "${attempt}" -lt 3 ]; then
+              echo "::warning::Gradle build failed (attempt ${attempt} of 3), often a temporary download error. Waiting, then trying again."
+              sleep $((attempt * 45))
+            fi
+          done
+          echo "::error::The Gradle build failed 3 times."
+          exit 1
       - name: Check the built page carries the strict policy
         run: grep -q "connect-src 'none'" dist/index.html
       - name: Name the APK
@@ -192,10 +213,26 @@ jobs:
       # JVM unit tests of the file name rules MainActivity uses to save into Downloads. They are
       # the Kotlin copy of the Rust tests in src-tauri/src/lib.rs. They run after the build because
       # the Android project needs the files the build generates.
-      - name: Unit tests of the Android save rules
-        run: ./gradlew :app:testArm64DebugUnitTest
+      - name: Unit tests of the Android save rules (retried on a download error)
+        run: |
+          for attempt in 1 2 3; do
+            if ./gradlew :app:testArm64DebugUnitTest; then exit 0; fi
+            if [ "${attempt}" -lt 3 ]; then
+              echo "::warning::Gradle build failed (attempt ${attempt} of 3), often a temporary download error. Waiting, then trying again."
+              sleep $((attempt * 45))
+            fi
+          done
+          echo "::error::The Gradle build failed 3 times."
+          exit 1
         working-directory: src-tauri/gen/android
-      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      - if: steps.gradle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: release-android
           key: test-installer-android-${{ github.run_id }}
@@ -206,6 +243,9 @@ jobs:
   # API 34 is the gate. API 29 (the oldest supported) is informational: its emulator image comes
   # with a Chromium 74 WebView that cannot be updated here, much older than any phone that still
   # gets updates, so a failure there says what an unupdated WebView does, not that the app is wrong.
+  # The API 29 test step may fail and the entry still reports success, with a warning that says
+  # so (a permanent red mark teaches people to ignore red). The job-level continue-on-error stays
+  # so that a real problem on API 29, such as a failed build, cannot block the publish job.
   android-emulator:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
@@ -230,14 +270,14 @@ jobs:
             /usr/local/share/powershell /usr/local/share/chromium /opt/hostedtoolcache/CodeQL \
             /usr/local/lib/android/sdk/ndk/2[0-6]* || true
           df -h /
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
-      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: 17
@@ -250,9 +290,36 @@ jobs:
       - run: npm run build
       - run: cargo fetch --locked
         working-directory: src-tauri
+      # Gradle downloads, kept between runs so a temporary Maven Central error ("429 Too Many
+      # Requests") does not stop a build that already fetched everything once.
+      - id: gradle-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('src-tauri/gen/android/**/*.gradle*', 'src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
       - name: Point the Tauri CLI at the runner's Android NDK
         run: echo "NDK_HOME=${ANDROID_NDK_HOME}" >> "${GITHUB_ENV}"
-      - run: npx tauri android build --debug --apk --target x86_64
+      - name: Build the x86_64 debug APK (retried on a download error)
+        run: |
+          for attempt in 1 2 3; do
+            if npx tauri android build --debug --apk --target x86_64; then exit 0; fi
+            if [ "${attempt}" -lt 3 ]; then
+              echo "::warning::Gradle build failed (attempt ${attempt} of 3), often a temporary download error. Waiting, then trying again."
+              sleep $((attempt * 45))
+            fi
+          done
+          echo "::error::The Gradle build failed 3 times."
+          exit 1
+      - if: steps.gradle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
       - name: Name the APK
         run: |
           found="$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk')"
@@ -263,7 +330,7 @@ jobs:
           fi
           cp "${found}" emulator-test.apk
       # The APK is copied out, so the build folders are no longer needed: free their space for the
-      # emulator image.
+      # emulator image. The Gradle cache was saved right after the build, before this deletes it.
       - name: Remove build output before starting the emulator
         run: |
           rm -rf src-tauri/target src-tauri/gen/android/app/build src-tauri/gen/android/build ~/.gradle/caches
@@ -277,6 +344,10 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       # v2.38.0. Each line of "script" is a separate command, so the work is in one script file.
       - name: Test the app on an emulator
+        id: emulator
+        # Only the informational Android 10 entry may fail without failing this step. Android 14
+        # is the gate: its failure fails the job.
+        continue-on-error: ${{ matrix.informational }}
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: ${{ matrix.api-level }}
@@ -286,6 +357,19 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           script: bash scripts/android-smoke.sh emulator-test.apk
+      # Android 10 cannot pass (see the comment above the job), so its entry reports success and says
+      # the result as an annotation on the run page instead of a red mark.
+      - name: Report the informational result
+        if: matrix.informational && steps.emulator.outcome != 'skipped'
+        env:
+          OUTCOME: ${{ steps.emulator.outcome }}
+          API_LEVEL: ${{ matrix.api-level }}
+        run: |
+          if [ "${OUTCOME}" = "success" ]; then
+            echo "::warning title=Android ${API_LEVEL} emulator (informational)::The checks passed on this old web view. Not a gate; nothing to do."
+          else
+            echo "::warning title=Android ${API_LEVEL} emulator (informational)::The checks did not pass, as expected: the 2019 web view in this emulator image cannot run the app. Not a gate. See the log of the step Test the app on an emulator."
+          fi
   publish:
     needs: [windows, android, android-emulator]
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
@@ -293,13 +377,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: release-windows
           key: test-installer-windows-${{ github.run_id }}
           enableCrossOsArchive: true
           fail-on-cache-miss: true
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: release-android
           key: test-installer-android-${{ github.run_id }}

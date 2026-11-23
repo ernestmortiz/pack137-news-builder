@@ -54,19 +54,28 @@ npm run e2e       # browser tests (Playwright) against the built app
 
 ## Continuous integration
 
-All workflows are in `.github/workflows/`. Actions are pinned to commit SHAs, tokens are read-only except in the one publish job, and checkouts do not keep credentials.
+All workflows are in `.github/workflows/`. Actions are pinned to commit SHAs (with the version in a comment), tokens are read-only except in the jobs that publish or delete drafts, and checkouts do not keep credentials.
 
 - **`ci.yml`** on every push and pull request: typecheck, lint, unit tests, build and browser tests.
 - **`wrappers.yml`** on pull requests that touch the wrapper, the UI or the build:
   - Linux smoke test of the real app.
   - Windows installer build.
   - Android test APK build (debug-signed, a new throwaway key each run) with checks for no permissions and Android 10 minimum.
-  - Android emulator test on Android 14: the release gate (24 checks). Android 10 runs for information only: that emulator image has a 2019 web view that cannot run the app.
-  - Publish: the installers go into a draft pre-release called "Test build for pull request #N", visible only to people with write access. Delete these drafts after merging.
+  - Android emulator test on Android 14: the release gate (24 checks). Android 10 runs for information only: that emulator image has a 2019 web view that cannot run the app. Its test step is allowed to fail, so the entry shows green with a warning on the run page that says how it went. A failed build on Android 10 would still show red, but cannot block the publish job.
+  - Publish: the installers go into a draft pre-release called "Test build for pull request #N", visible only to people with write access.
+  - The Android jobs cache Gradle's downloads and retry the build up to 3 times (see below).
+- **`cleanup-test-builds.yml`** when a pull request is closed: deletes that pull request's draft test build (`test-build-pr-N`). It deletes drafts only, skips pull requests from forks, and does nothing if there is no draft. Its job is the only one here besides publish that can write to the repository.
 - **`release.yml`** on a version tag: see the release checklist. Its last job calls `deploy-web.yml`.
 - **`deploy-web.yml`** puts a release tag's web build on Cloudflare Pages (https://pack137-news-builder.pages.dev). It runs after each release and by hand from the Actions tab (Run workflow, with a tag) to redeploy or roll back. The build job has no secrets; only the deploy job sees the Cloudflare token, from the `cloudflare-pages` environment. The hosted site sends extra headers from `scripts/pages-headers.mjs`: the page's own policy plus `frame-ancestors`, which a meta tag cannot set. `npm run e2e:pages` runs the browser tests with those headers; CI runs it too.
 
 Files pass between jobs through the Actions cache, not as artifacts, because the account's artifact storage quota filled up during the build.
+
+Android Gradle builds (`android` and `android-emulator` in `wrappers.yml`, `android-build` in `release.yml`) are made resilient to Maven Central's temporary "429 Too Many Requests" errors in two ways:
+
+- `~/.gradle/caches` and `~/.gradle/wrapper` are restored from the Actions cache before the build and saved after it, under a key made from the Gradle build files and `gradle-wrapper.properties`. Changing any of them starts a fresh cache (the old one still serves as a starting point). In the emulator job the cache is saved right after the build, because the job then deletes `~/.gradle/caches` to free disk for the emulator image.
+- The Gradle command is tried up to 3 times, pausing 45 and then 90 seconds, and only when it fails. A real compile error is therefore tried 3 times before the job fails; read the first attempt's log. The Android unit test step in `wrappers.yml` is retried the same way.
+
+The release `android-build` job reads and writes that cache too. Caches saved by pull requests are visible only to that pull request, and a tag run can read only caches made on the default branch, so a pull request cannot put files into a release build. The flip side: a cache only helps a run if one was saved on the same branch or on the default branch, so the cache helps repeat runs of a pull request, and a release only after "Wrappers" has been run by hand on main (Run workflow); the retry is the main protection for a release. If a release ever needs a build from scratch, delete the `gradle-Linux-...` caches in the repository's Actions, Caches page.
 
 ## Releasing
 
@@ -99,6 +108,10 @@ Do not create the release on GitHub's website; the workflow creates it, and stop
 - **Artifact storage quota full**: uploads failed. Hand-offs now use the Actions cache.
 - **Runner disk full**: the emulator image could not install. The emulator job now frees disk space first.
 - **`ubuntu-latest` moved to a new Ubuntu**: a package name changed. The smoke test job is pinned to `ubuntu-24.04`; move it on purpose.
+- **Maven Central "429 Too Many Requests"** (November 2026): the Android emulator job failed with BUILD FAILED because Gradle could not download `kotlin-gradle-plugin`. The error is temporary and not caused by our code. The Android builds now cache Gradle downloads and retry up to 3 times. If it still fails, re-run the failed jobs a little later.
+- **Red mark that was always there**: the Android 10 emulator job fails on every run by design, and a permanent red mark trains people to ignore red. Its test step is now allowed to fail and the job shows green with a warning. Android 14 is still a hard gate.
+- **Test build drafts piled up**: they were deleted by hand. `cleanup-test-builds.yml` now deletes a pull request's draft when it closes.
+- **`.apk.idsig` file on the release page**: `apksigner` also writes a v4 signature file by default. Release signing now passes `--v4-signing-enabled false`. The v2 and v3 signatures that installs need are unchanged.
 - **Photo picker**: once ignored a single Back press on the emulator. The test presses up to three times and logs the count.
 - **First release, Android signing**: the v1.1.0 run failed in `android-sign` with `entry "pack137" does not contain a key`. A `.pfx` exported by Windows names its private key differently from the certificate's label. The step now finds the file's one private key by itself. The run before it failed earlier, on a Linux `cargo test` that needed GTK. Neither run published anything.
 - **Unsigned Mac app**: current macOS blocked it, so the Mac app was dropped (ADR 0006). Revisit only with a paid Apple Developer ID.
@@ -107,8 +120,8 @@ Do not create the release on GitHub's website; the workflow creates it, and stop
 ## Regular upkeep
 
 - **Before each release**: the manual email test in the release checklist (Gmail, Apple Mail, Outlook).
-- **Every few months**: update npm packages, Rust crates and the pinned action SHAs. CI warns that some pinned actions run on an old Node version; update them to newer releases by SHA.
-- **Follow-up still open**: add Gradle's published checksum for the Android build's Gradle wrapper (`distributionSha256Sum`).
+- **Every few months**: update npm packages, Rust crates and the pinned action SHAs. If CI warns that an action runs on an old Node version, move it to a newer release. To find the commit for a tag: `git ls-remote --tags https://github.com/OWNER/REPO` (use the line ending in `^{}` if the tag has one, otherwise the plain line), then check `runs: using:` in the action's `action.yml` at that commit. Put the full SHA in the workflow and the version in the comment. In November 2026 the pins were moved to checkout v7.0.1, setup-node v7.1.0, setup-java v6.3.0, cache v6.1.0 and upload-artifact v7.0.2, all on Node 24 (android-emulator-runner v2.38.0 already was).
+- **Gradle checksum**: `src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties` carries `distributionSha256Sum`, Gradle's published checksum for the exact `distributionUrl` (added for 1.2.0, copied from the `.sha256` file next to that URL). When you change the Gradle version, change both lines together, taking the new value from the new URL's `.sha256` file; never guess it.
 - **If TroopTrack changes its editor**: new paste shapes may need sanitize or normalize changes. Add the new paste as a fixture first.
 
 ## Open decisions (spec section 13)
