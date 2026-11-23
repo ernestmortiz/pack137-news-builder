@@ -1,6 +1,6 @@
 # Plan: edit text like a text editor
 
-Status: proposed for a future release (owner request, 2026-11-23). Not started.
+Status: approved for a future release (owner request and decisions, 2026-11-23). Not started.
 
 The owner asked to edit any line of text the way a text editor works, instead of typing codes such as `**bold**` and `[link text](https://...)`. Two ways were offered and the owner chose both:
 
@@ -46,9 +46,7 @@ A third view, "Edit on the card", sits beside the form. It draws the announcemen
 
 ## Order of work
 
-1. Part A for the Message and Call to action paragraphs only. Owner review.
-2. Part A for every other rich field (Date list notes, Link list text, Help wanted, the monthly letter).
-3. Part B for the weekly announcement, then the monthly letter.
+See "Owner decisions" at the end: Part A first, then the card view, weekly then monthly.
 
 Each step gets its own pull request and the usual owner review.
 
@@ -69,8 +67,15 @@ Each step gets its own pull request and the usual owner review.
   - **Cause:** since 1.1.1 the Call to action paragraph no longer carries the button's link, so the switch adds the button as a note.
   - **Fix:** when the button's words already end the event line, take them off the event, giving "Den Meeting - 6:15pm" with the link under it. Add a test for this paste.
 
-## Questions for the owner before starting
+## Owner decisions (2026-11-23)
 
-1. Should the form or the card view be the first thing you see after pasting?
-2. Is the "Show codes" switch wanted, or should the codes go away entirely?
-3. Is the monthly letter in scope for the first release of this, or the weekly announcement only?
+1. **The card view comes first.** After pasting (and when opening a monthly letter), the card view is what you see. A clearly labelled switch at the top, "Edit on the card / Edit in the form", moves between the card and the form. It remembers your choice on this device, and both views edit the same announcement, so switching loses nothing.
+2. **The "Show codes" switch stays.** Each rich text box can show the typed codes (`**bold**`, `[link text](https://...)`) for anyone who prefers them.
+3. **The weekly announcement and the monthly letter are both in scope** for the first release of this work.
+
+So the order of work becomes:
+
+1. Part A, the editing part, built and tested on its own. Then used for the Message and Call to action paragraphs in the form. Owner review.
+2. Part A for every other rich field, weekly and monthly, with the "Show codes" switch. Owner review.
+3. Part B, the card view, for the weekly announcement, with the view switch. The card view becomes the first view. Owner review.
+4. Part B for the monthly letter. Owner review, then release.
