@@ -299,13 +299,13 @@ test('the Call to action paragraph uses the box too', async ({ page, context }) 
   await expect(frame(page, 375).locator('body')).toContainText('Bring a chair.');
 });
 
-test('other rich fields keep the typed-codes text box for now', async ({ page, context }) => {
+test('other rich fields use the box too', async ({ page, context }) => {
   await watch(context, page);
   await openMessage(page);
   await page.getByRole('radio', { name: /^Link list/ }).check();
-  await expect(page.getByRole('textbox', { name: 'Intro' })).not.toHaveAttribute(
+  await expect(page.getByRole('textbox', { name: 'Intro' })).toHaveAttribute(
     'contenteditable',
     'true',
   );
-  await expect(page.locator('textarea.rich').first()).toBeVisible();
+  await expect(page.locator('textarea.rich')).toHaveCount(0);
 });

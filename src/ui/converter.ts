@@ -25,6 +25,7 @@ import { clear, debounce, el } from './dom';
 import { markSpelling } from './field-kinds';
 import { announce } from './announce';
 import { registerFlush } from './safety';
+import { codesPref, createCodesSwitch } from './codes-switch';
 import { buildForm, type FormView } from './form-view';
 import type { FormContext, TypingEdit } from './form-kit';
 import { createHistory } from './history';
@@ -157,9 +158,15 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
   const formHeading = el('h2', { textContent: 'Edit the announcement' });
   formHeading.tabIndex = -1;
   const formHost = el('div', { className: 'form-host' });
+  // Redraws the fields in the other style. Nothing typed is lost: the form is brought up to date
+  // first, and no undo step is recorded.
+  const codes = createCodesSwitch(() => {
+    view?.flush();
+    drawForm();
+  });
   const left = el('div', { className: 'column' }, [
     el('section', { className: 'card' }, [layoutBox]),
-    el('section', { className: 'card' }, [formHeading, formHost]),
+    el('section', { className: 'card' }, [formHeading, codes.element, formHost]),
   ]);
 
   const warningsBox = el('div', { className: 'warnings' });
@@ -321,7 +328,7 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
     if (!session) return;
     warnings = formWarnings(session.form);
     shownSuggestions = suggestionsFor(session.form);
-    view = buildForm(session.form, ctx);
+    view = buildForm(session.form, ctx, codesPref.get);
     formHost.append(view.element);
   }
 

@@ -101,7 +101,12 @@ function sentenceCase(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-export function createKit(ctx: FormContext) {
+/**
+ * `showCodes` says whether rich fields show typed codes (a textarea) or the formatting box. It is
+ * asked each time a rich field is built, so redrawing the form picks up a changed choice. Without
+ * it the kit shows the typed codes.
+ */
+export function createKit(ctx: FormContext, showCodes: () => boolean = () => true) {
   const claimed = new Set<object>();
   /** Where suggestion buttons go. Refilled from the current form without redrawing any field. */
   const suggestSlots: { path: FieldPath; node: HTMLElement; key: string }[] = [];
@@ -474,10 +479,8 @@ export function createKit(ctx: FormContext) {
     get: () => RichText,
     set: (value: RichText) => void,
     rows = 3,
-    /** Show formatting as it will look, with a toolbar, instead of typed codes. */
-    editor = false,
   ): HTMLElement {
-    if (editor) return richBox(label, path, get, set, rows);
+    if (!showCodes()) return richBox(label, path, get, set, rows);
     const area = el('textarea', { id: uid('f'), className: 'control rich', rows });
     markSpelling(area, 'text');
     area.value = richToText(get());

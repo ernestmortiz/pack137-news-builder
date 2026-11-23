@@ -1,7 +1,9 @@
 /**
- * Device storage (build spec 8.3 and 9). Only three keys are ever used, both namespaced. Every read and
- * write is wrapped, because private windows and blocked storage throw. Values are JSON text and
- * always go back through validateSettings or readDraft when read, so stored text is never trusted.
+ * Device storage (build spec 8.3 and 9). These three keys hold saved work and settings, all
+ * namespaced. Every read and write is wrapped, because private windows and blocked storage throw.
+ * Values are JSON text and always go back through validateSettings or readDraft when read, so stored
+ * text is never trusted. One more key, `pack137:show-codes`, holds only the "Show codes" choice; it
+ * lives in codes-switch.ts so the other-tab guard does not treat it as saved work.
  */
 import { readDraft, type DraftReadResult } from '../core/draft';
 import { validateSettings, type PackSettings, type SettingsResult } from '../core/settings';

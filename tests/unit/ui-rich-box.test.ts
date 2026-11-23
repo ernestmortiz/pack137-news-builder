@@ -22,7 +22,7 @@ function setup(start: RichText = []) {
     removed() {},
     apply() {},
   };
-  const kit = createKit(ctx);
+  const kit = createKit(ctx, () => false);
   let value = start;
   const node = kit.rich(
     'Text of paragraph 1',
@@ -30,7 +30,6 @@ function setup(start: RichText = []) {
     () => value,
     (v) => (value = v),
     3,
-    true,
   );
   document.body.append(node);
   const box = node.querySelector('[role=textbox]') as HTMLElement;

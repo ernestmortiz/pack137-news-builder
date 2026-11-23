@@ -128,10 +128,14 @@ test('filled fields reach the 600px preview and the counter follows the typing',
   const contributor = block(page, 1);
   await contributor.getByLabel('Name on the name tag').fill('Justin Daly');
   await contributor.getByLabel('Role (optional)').fill('Program Director');
-  await contributor.getByLabel('Paragraph text').fill('Thank you all for a great campout.');
+  await contributor
+    .getByRole('textbox', { name: 'Paragraph text' })
+    .fill('Thank you all for a great campout.');
   await contributor.getByRole('button', { name: 'Add a bullet list' }).click();
   await contributor.getByLabel('Bold lead').fill('Camp Crafts');
-  await contributor.getByLabel('Text after the lead').fill('Every Scout made a lanyard.');
+  await contributor
+    .getByRole('textbox', { name: 'Text after the lead' })
+    .fill('Every Scout made a lanyard.');
 
   // A photo spot, with a description.
   await addBlock(page, 'Photo: One picture with a caption');
@@ -149,7 +153,7 @@ test('filled fields reach the 600px preview and the counter follows the typing',
   await coming.getByRole('button', { name: 'Add an event' }).click();
   await coming.getByLabel('Date', { exact: true }).fill('2026-12-06');
   await coming.getByLabel('Time (optional)').fill('20:00');
-  await coming.getByLabel('What is happening').fill('Holiday party');
+  await coming.getByRole('textbox', { name: 'What is happening' }).fill('Holiday party');
 
   const body = frame(page, 600).locator('body');
   await expect(body).toContainText(/A busy month of camp and cars\s+About an? \d+ minute read\./);

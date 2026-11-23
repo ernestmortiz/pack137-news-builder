@@ -92,8 +92,6 @@ export function paragraphs(
   arrayPath: (string | number)[],
   list: RichText[],
   box?: ParagraphBox,
-  /** Show formatting as it will look, with a toolbar, instead of typed codes. */
-  editor = false,
 ): HTMLElement {
   return kit.repeater<RichText>({
     noun,
@@ -112,7 +110,6 @@ export function paragraphs(
           list[index] = v;
         },
         3,
-        editor,
       ),
       ...(box ? [boxRow(kit, box, index)] : []),
     ],
@@ -348,20 +345,12 @@ function layoutFields(kit: Kit, form: AnnouncementForm, ctx: FormContext): HTMLE
       return [
         cardFields(kit, form),
         kit.group('Text', [
-          paragraphs(
-            kit,
-            'paragraph',
-            'Add a paragraph',
-            ['paragraphs'],
-            form.paragraphs,
-            {
-              get: (i) => isBoxed(form, i),
-              set: (i, on) => setBoxed(form, i, on),
-              moved: (from, to) => boxedMoved(form, from, to),
-              removed: (i) => boxedRemoved(form, i),
-            },
-            true,
-          ),
+          paragraphs(kit, 'paragraph', 'Add a paragraph', ['paragraphs'], form.paragraphs, {
+            get: (i) => isBoxed(form, i),
+            set: (i, on) => setBoxed(form, i, on),
+            moved: (from, to) => boxedMoved(form, from, to),
+            removed: (i) => boxedRemoved(form, i),
+          }),
         ]),
         kit.buttonGroup(
           'Button (optional)',
@@ -381,7 +370,6 @@ function layoutFields(kit: Kit, form: AnnouncementForm, ctx: FormContext): HTMLE
             () => form.paragraph,
             (v) => (form.paragraph = v),
             4,
-            true,
           ),
           el('div', { className: 'field' }, [
             kit.checkbox(
@@ -558,8 +546,13 @@ function setImage(
   else form.image = next;
 }
 
-export function buildForm(form: AnnouncementForm, ctx: FormContext): FormView {
-  const kit = createKit(ctx);
+export function buildForm(
+  form: AnnouncementForm,
+  ctx: FormContext,
+  /** True when rich fields should show typed codes instead of the formatting box. */
+  showCodes: () => boolean = () => false,
+): FormView {
+  const kit = createKit(ctx, showCodes);
   const element = el('div', { className: 'form' });
   const fields = layoutFields(kit, form, ctx);
   element.append(...fields);
