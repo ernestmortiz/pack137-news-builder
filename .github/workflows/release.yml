@@ -291,3 +291,7 @@ jobs:
     uses: ./.github/workflows/deploy-web.yml
     with:
       tag: ${{ github.ref_name }}
+    # A called workflow gets no secrets unless they are passed on, even its own environment's
+    # (the v1.1.1 release reached Cloudflare with an empty token). Only the deploy job, in the
+    # cloudflare-pages environment, reads them.
+    secrets: inherit
