@@ -61,6 +61,14 @@ Each step gets its own pull request and the usual owner review.
   - on Android in the emulator test.
 - The existing golden fixtures must not change: the email output is the same.
 
+## Also in this release
+
+- **Repeated button words after switching to Date list** (found in 1.1.1, owner chose to hold the fix until this work, 2026-11-23):
+  - **Steps:** paste "1. Den Meeting - Dec 16th 6:15pm - Fun On The Run", with the link on the last words. Leave it on Call to action, then switch to Date list.
+  - **Result:** the row reads "Den Meeting - 6:15pm - Fun On The Run" with a second "Fun On The Run" link under it.
+  - **Cause:** since 1.1.1 the Call to action paragraph no longer carries the button's link, so the switch adds the button as a note.
+  - **Fix:** when the button's words already end the event line, take them off the event, giving "Den Meeting - 6:15pm" with the link under it. Add a test for this paste.
+
 ## Questions for the owner before starting
 
 1. Should the form or the card view be the first thing you see after pasting?
