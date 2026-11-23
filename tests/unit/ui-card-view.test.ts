@@ -155,4 +155,27 @@ describe('card view', () => {
     expect(form.sections[0]?.rows[0]?.event).toBe('Den');
     expect(view.focusPath(['sections', 0, 'rows', 0, 'event'])).toBe(true);
   });
+
+  it('counts what it lists above the card, and a warning with no one field still gets listed', () => {
+    const form = structuredClone(forms[3]) as AnnouncementForm;
+    const view = buildCardView(
+      form,
+      {
+        ...ctx,
+        checks: () => [{ kind: 'shouting', path: ['title'], message: 'Check the title.' }],
+        warnings: () => [
+          { code: 'image-alt', where: 'Picture', message: 'Add a picture description.' },
+        ],
+      } as FormContext,
+      options,
+    );
+    document.body.append(view.element);
+    const items = [...view.element.querySelectorAll('.ec-notes-list li')];
+    expect(items.map((li) => li.querySelector('.ec-note-text')?.textContent)).toEqual([
+      'Check the title.',
+      'Add a picture description.',
+    ]);
+    expect(view.noteCount?.()).toBe(2);
+    expect(view.element.querySelector('.ec-notes-title')?.textContent).toBe('Things to check (2)');
+  });
 });

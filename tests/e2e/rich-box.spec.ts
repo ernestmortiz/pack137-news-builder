@@ -90,7 +90,7 @@ test('a pasted link shows as a link in the box, with no codes', async ({ page, c
   await expect(box).toHaveAttribute('aria-multiline', 'true');
   await expect(box).toHaveAttribute('contenteditable', 'true');
   await expect(
-    page.getByText('Select words, then press Bold, Italic, Strike or Link.'),
+    page.getByText(/^Select words, then press Bold, Italic, Strike or Link\./),
   ).toBeVisible();
   // Clicking the link does not open it.
   await link.click();
@@ -138,6 +138,107 @@ test('Ctrl+B and Ctrl+I work in the box, and Strike from the toolbar', async ({
   await expect(codeBox(page)).toHaveValue(/<strong/);
   await expect(codeBox(page)).toHaveValue(/<em/);
   await expect(codeBox(page)).toHaveValue(/<s>/);
+});
+
+test('Bold with nothing selected marks the next typed words, and Ctrl+Z undoes them', async ({
+  page,
+  context,
+}) => {
+  const seen = await watch(context, page);
+  const box = await openMessage(page);
+  await box.focus();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type(' ');
+  const bold = toolbar(page).getByRole('button', { name: 'Bold' });
+  await expect(bold).toHaveAttribute('aria-pressed', 'false');
+  // Ctrl+B with a cursor and nothing selected: the button shows it, and no note appears.
+  await page.keyboard.press('Control+b');
+  await expect(bold).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText(/Select some words first/)).toHaveCount(0);
+  await page.keyboard.type('Bring a hat');
+  await expect(box.locator('strong')).toHaveText('Bring a hat');
+  await expect(bold).toHaveAttribute('aria-pressed', 'true');
+  await expect(frame(page, 375).locator('strong')).toHaveText('Bring a hat');
+  await showCode(page);
+  await expect(codeBox(page)).toHaveValue(/<strong[^>]*>Bring a hat<\/strong>/);
+  // The words before it stay plain.
+  await expect(box).toHaveText('Den Meeting on Dec 16th - Fun On The Run Bring a hat');
+  // Undo takes the typed words back, as typing is undone anywhere else in the app.
+  for (let i = 0; i < 'Bring a hat'.length; i++) await page.keyboard.press('Control+z');
+  await expect(box.locator('strong')).toHaveCount(0);
+  await expect(frame(page, 375).locator('strong')).toHaveCount(0);
+  expect(seen.errors).toEqual([]);
+  expect(seen.remote).toEqual([]);
+});
+
+test('pending marks: the toolbar button toggles them, moving the cursor drops them', async ({
+  page,
+  context,
+}) => {
+  await watch(context, page);
+  const box = await openMessage(page);
+  await box.focus();
+  await page.keyboard.press('Control+End');
+  const italic = toolbar(page).getByRole('button', { name: 'Italic' });
+  // Pressed with the mouse: the cursor stays in the box, and the next letters are italic.
+  await italic.click();
+  await expect(italic).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.type('ab');
+  await expect(box.locator('em')).toHaveText('ab');
+  // Pressing again turns it off for the next letters.
+  await italic.click();
+  await expect(italic).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.type('cd');
+  await expect(box.locator('em')).toHaveText('ab');
+  // Press Strike, then move the cursor away and back: it is dropped.
+  const strike = toolbar(page).getByRole('button', { name: 'Strike' });
+  await strike.click();
+  await expect(strike).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('ArrowLeft');
+  await expect(strike).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.type('ef');
+  await expect(box.locator('s')).toHaveCount(0);
+  // Bold, then click elsewhere in the page: dropped too.
+  await page.keyboard.press('Control+b');
+  const bold = toolbar(page).getByRole('button', { name: 'Bold' });
+  await expect(bold).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('heading', { name: 'Edit the announcement' }).click();
+  await box.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type('gh');
+  await expect(box.locator('strong')).toHaveCount(0);
+});
+
+test('Bold with nothing selected inside bold words turns bold off for the next letters', async ({
+  page,
+  context,
+}) => {
+  await watch(context, page);
+  const box = await openMessage(page);
+  await box.focus();
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Shift+End');
+  await page.keyboard.press('Control+b');
+  await page.keyboard.press('End');
+  const bold = toolbar(page).getByRole('button', { name: 'Bold' });
+  await expect(bold).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Control+b');
+  await expect(bold).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.type('!');
+  await expect(box.locator('strong')).toHaveText('Den Meeting on Dec 16th - Fun On The Run');
+  await expect(box).toHaveText('Den Meeting on Dec 16th - Fun On The Run!');
+});
+
+test('Link with nothing selected still says a link needs words', async ({ page, context }) => {
+  await watch(context, page);
+  const box = await openMessage(page);
+  await box.focus();
+  await page.keyboard.press('Control+End');
+  await toolbar(page).getByRole('button', { name: 'Link', exact: true }).click();
+  await expect(
+    page.getByText('Select the words you want to turn into a link first.'),
+  ).toBeVisible();
 });
 
 test('a link added through the panel reaches the code, and a javascript: address is refused', async ({

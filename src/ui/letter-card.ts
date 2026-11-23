@@ -26,7 +26,13 @@ import {
   type StoryBlock,
 } from '../core/letter';
 import { isPhotoSpot } from '../templates/letter/layout';
-import { createNotesPanel, group, openButton as sharedOpenButton, widthTools } from './card-parts';
+import {
+  CHECKS_TITLE,
+  createNotesPanel,
+  group,
+  openButton as sharedOpenButton,
+  widthTools,
+} from './card-parts';
 import { el } from './dom';
 import { createKit, type FormContext, type Kit } from './form-kit';
 import { blockName, sectionName, whenText, type OptionalSection } from './letter-ops';
@@ -40,7 +46,7 @@ export interface LetterCardOptions {
   width: number;
   /** The person picked another width. */
   onWidth(width: number): void;
-  /** The things to look at, worked out from the letter as it is now. */
+  /** The things to check, worked out from the letter as it is now. */
   notes(): LetterNote[];
 }
 
@@ -637,7 +643,7 @@ export function buildLetterCard(
   const card = el('div', { className: 'ec ec-letter' }, [body]);
   const tools = widthTools(card, options.width, options.onWidth);
   const notes = createNotesPanel({
-    title: 'Things to look at',
+    title: CHECKS_TITLE,
     notes: () => options.notes().map((n, i) => ({ key: `n${i}`, ...n })),
     openInForm: options.openInForm,
   });

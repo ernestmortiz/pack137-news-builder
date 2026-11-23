@@ -122,12 +122,12 @@ describe('letter card', () => {
     expect(jumps).toEqual([['comingUp', 'items', 0, 'date']]);
   });
 
-  it('lists the things to look at, each with a button that jumps to its field', () => {
+  it('lists the things to check, each with a button that jumps to its field', () => {
     const letter = empty();
     const view = buildLetterCard(letter, ctx, options(letter));
     document.body.append(view.element);
     const heading = view.element.querySelector('.ec-notes-title');
-    expect(heading?.textContent).toBe(`Things to look at (${letterNotes(letter).length})`);
+    expect(heading?.textContent).toBe(`Things to check (${letterNotes(letter).length})`);
     const show = view.element.querySelector<HTMLButtonElement>(
       'button[aria-label="Show in the form: The summary line is empty."]',
     );

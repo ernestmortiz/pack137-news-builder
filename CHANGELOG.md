@@ -14,6 +14,14 @@ Edit like a text editor (owner request, plan in `docs/plans/rich-editing.md`):
 - Switching Call to action to Date list no longer repeats the button words at the end of the event.
 - The release workflow now passes its secrets to the Cloudflare deploy, so each release updates the website by itself.
 
+- Polish from the owner's review:
+  - One name, "Things to check", on both screens. On the card, the full list sits above the card and shows the first four, with "Show all"; the right-hand panel gives a one-line count.
+  - Tags, labels and name tags on the card are easier to tap on a phone (44 pixel touch areas, same look).
+  - The formatting toolbar sits under the box being edited and never covers text.
+  - Pressing Bold, Italic or Strike with nothing selected turns that style on for the words you type next.
+  - The monthly letter says that saved work stays in this browser or app, and points to Download draft.
+- Behind the scenes: Android builds retry when Maven Central is busy and keep a download cache; the Android 10 emulator check reports as a warning instead of a red mark; test builds of a closed pull request are deleted automatically; GitHub Actions moved to their Node 24 releases; the Gradle download is checked against its published checksum; the release no longer attaches an `.apk.idsig` file; the timing tests retry on a busy machine.
+
 The email output is unchanged.
 
 ## 1.1.1 (2026-11-23)

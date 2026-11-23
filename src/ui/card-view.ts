@@ -18,6 +18,7 @@ import type { AnnouncementForm, ButtonField, DateRow, DateSection, RichText } fr
 import { dateText, safeUrl } from '../templates/components';
 import { el } from './dom';
 import {
+  CHECKS_TITLE,
   createNotesPanel,
   group,
   openButton as sharedOpenButton,
@@ -422,14 +423,17 @@ export function buildCardView(
       list.push({ key: `s${list.length}`, message: fix.message, path: fix.path, fix });
     }
     for (const warning of ctx.warnings()) {
-      const at = warningPath(warning);
-      if (at !== undefined)
-        list.push({ key: `w${list.length}`, message: warning.message, path: at });
+      // A warning with no one field to show still gets listed (it opens the form at the top).
+      list.push({
+        key: `w${list.length}`,
+        message: warning.message,
+        path: warningPath(warning) ?? [],
+      });
     }
     return list;
   }
   const notes = createNotesPanel({
-    title: 'Things to check',
+    title: CHECKS_TITLE,
     notes: currentNotes,
     openInForm: options.openInForm,
     apply: (fix) => ctx.apply(fix),
@@ -446,6 +450,7 @@ export function buildCardView(
       kit.refreshSuggestions();
       notes.refresh();
     },
+    noteCount: () => currentNotes().length,
     setField: kit.setField,
     fieldControl: kit.fieldControl,
     fieldText: kit.fieldText,

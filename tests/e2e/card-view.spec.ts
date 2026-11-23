@@ -97,6 +97,10 @@ test.beforeEach(async ({ context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 });
 
+/** The Undo bar sticks to the top of the window, so it would sit on top of a tall card picture. */
+const unstick = (page: Page) =>
+  page.addStyleTag({ content: '.history-bar { position: static !important; }' });
+
 test.describe('after pasting, the card comes first', () => {
   for (const f of fixtures) {
     test(`${f.name}: card shown, with its text, and no horizontal overflow at 360px`, async ({
@@ -185,18 +189,190 @@ test('Date list: bold in a row note on the card reaches the preview, and undo re
   expect(seen.remote).toEqual([]);
 });
 
-test('the toolbar floats above the box being edited and is hidden otherwise', async ({ page }) => {
+/** True when the two boxes share any area. */
+const overlaps = (a: Box, b: Box) =>
+  a.x < b.x + b.width - 0.5 &&
+  b.x < a.x + a.width - 0.5 &&
+  a.y < b.y + b.height - 0.5 &&
+  b.y < a.y + a.height - 0.5;
+type Box = { x: number; y: number; width: number; height: number };
+
+test('the toolbar sits under the box being edited, covers no text, and Tab and Shift+Tab reach it', async ({
+  page,
+}) => {
   await paste(page, input('1-pack-calendar'));
-  const note = card(page).getByRole('textbox', { name: /^Note/ }).filter({ hasText: /\w/ }).first();
+  const notes = card(page).getByRole('textbox', { name: /^Note/ }).filter({ hasText: /\w/ });
+  // The second note, so there are lines above it to cover.
+  const note = notes.nth(1);
   const toolbar = card(page).getByRole('toolbar').first();
   await expect(toolbar).toBeHidden();
   await note.click();
   const tools = note.locator('xpath=ancestor::div[contains(@class,"rich-editor")]');
   await expect(tools.getByRole('toolbar')).toBeVisible();
   await expect(tools.getByRole('button', { name: 'Bold' })).toBeVisible();
-  // Shift+Tab reaches the toolbar from the box.
-  await page.keyboard.press('Shift+Tab');
+
+  // It is in the page flow directly under the box, not over anything.
+  const noteBox = (await note.boundingBox()) as Box;
+  const barBox = (await tools.getByRole('toolbar').boundingBox()) as Box;
+  expect(barBox.y).toBeGreaterThanOrEqual(noteBox.y + noteBox.height - 0.5);
+  expect(barBox.y - (noteBox.y + noteBox.height)).toBeLessThanOrEqual(12);
+  const position = await tools
+    .locator('.ec-float')
+    .evaluate((node) => getComputedStyle(node).position);
+  expect(position).toBe('static');
+  // No other text box or line of the card shares any area with the toolbar.
+  const bar = (await tools.locator('.ec-float').boundingBox()) as Box;
+  const others = await card(page).evaluate(
+    (root, own) => {
+      const mine = (own as Element | null)?.closest('.rich-editor') ?? null;
+      return [...root.querySelectorAll('textarea, .rich-box, strong, .ec-pill, .ec-btn')]
+        .filter((n) => !mine?.contains(n) && n.getClientRects().length > 0)
+        .map((n) => n.getBoundingClientRect().toJSON() as Box);
+    },
+    await note.elementHandle(),
+  );
+  expect(others.length).toBeGreaterThan(5);
+  expect(others.filter((o) => overlaps(o, bar))).toEqual([]);
+
+  // Tab goes from the box to the toolbar, and Shift+Tab comes back.
+  await page.keyboard.press('Tab');
   await expect(tools.getByRole('button', { name: 'Bold' })).toBeFocused();
+  await expect(tools.getByRole('toolbar')).toBeVisible();
+  await page.keyboard.press('Shift+Tab');
+  await expect(note).toBeFocused();
+  await unstick(page);
+  await card(page).screenshot({ path: 'test-results/screens/card-date-row-toolbar.png' });
+
+  // Leaving it takes the toolbar away again.
+  await page.getByRole('heading', { name: 'Edit the announcement' }).click();
+  await expect(toolbar).toBeHidden();
+});
+
+test('the "Change in the form" button under a box being edited can be pressed on the first try', async ({
+  page,
+}) => {
+  await paste(page, input('1-pack-calendar'));
+  const note = card(page).getByRole('textbox', { name: /^Note/ }).filter({ hasText: /\w/ }).first();
+  const row = note.locator('xpath=ancestor::div[contains(@class,"ec-row")]');
+  await note.click();
+  // The toolbar opens under the note and moves this button down. Pressing it must still work.
+  await row
+    .getByRole('button', { name: /^Change in the form: date, link and tags of row \d+/ })
+    .click();
+  await expect(card(page)).toHaveCount(0);
+});
+
+test('every editable pill has a touch area of 44px or more at 360px, without moving the pills', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 900 });
+  let total = 0;
+  let tags = 0;
+  for (const name of ['1-pack-calendar', '2-help-needed', '5-webelos-dens-10-11']) {
+    await paste(page, input(name));
+    const pills = card(page).locator('.ec-pill:has(.ec-input)');
+    const count = await pills.count();
+    expect(count).toBeGreaterThanOrEqual(2);
+    total += count;
+    tags += await card(page).locator('.ec-tag').count();
+    const report = await pills.evaluateAll((nodes) =>
+      nodes.map((pill) => {
+        pill.scrollIntoView({ block: 'center' });
+        const area = pill.querySelector('.ec-input') as HTMLElement;
+        const pillBox = pill.getBoundingClientRect();
+        const areaBox = area.getBoundingClientRect();
+        const centre = document.elementFromPoint(
+          pillBox.x + pillBox.width / 2,
+          pillBox.y + pillBox.height / 2,
+        );
+        return {
+          label: area.getAttribute('aria-label'),
+          pillHeight: pillBox.height,
+          areaHeight: areaBox.height,
+          areaWidth: areaBox.width,
+          // A tap in the middle of the pill reaches this pill, not a neighbour.
+          own: centre === area,
+        };
+      }),
+    );
+    for (const r of report) {
+      expect(r.areaHeight, r.label ?? '').toBeGreaterThanOrEqual(44);
+      expect(r.areaWidth, r.label ?? '').toBeGreaterThanOrEqual(44);
+      // The pill itself still looks like a pill.
+      expect(r.pillHeight, r.label ?? '').toBeLessThan(32);
+      expect(r.own, r.label ?? '').toBe(true);
+    }
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+  }
+  // The label, section names and tags are all covered by this.
+  expect(total).toBeGreaterThan(5);
+  expect(tags).toBeGreaterThan(0);
+  // Tapping a tag puts the cursor in it.
+  await paste(page, input('1-pack-calendar'));
+  const tag = card(page).getByRole('textbox', { name: 'Tag text' }).first();
+  await tag.scrollIntoViewIfNeeded();
+  const pill = tag.locator('xpath=ancestor::div[contains(@class,"ec-pill")]');
+  const pillBox = (await pill.boundingBox()) as Box;
+  // A few pixels under the pill is outside it but inside its touch area.
+  await page.mouse.click(pillBox.x + pillBox.width / 2, pillBox.y + pillBox.height + 3);
+  await expect(tag).toBeFocused();
+});
+
+test('the right-hand panel says how many things to check on the card, and lists them in full in the form', async ({
+  page,
+}) => {
+  await paste(page, input('3-year-in-review-photos'));
+  const heading = page.getByRole('heading', { name: /^Things to check \(\d+\)$/ });
+  const count = async () =>
+    Number(/\((\d+)\)/.exec((await heading.textContent()) ?? '')?.[1] ?? '0');
+  const out = page.locator('#panel-converter .output .card').first();
+  await expect(out.getByRole('heading', { name: 'Check and copy' })).toBeVisible();
+  const n = await count();
+  expect(n).toBeGreaterThan(0);
+  await expect(out).toContainText(
+    `${n} ${n === 1 ? 'thing' : 'things'} to check, listed above the card.`,
+  );
+  await expect(out.locator('li')).toHaveCount(0);
+  await expect(page.getByText('Things to look at')).toHaveCount(0);
+
+  // In the form the right-hand panel keeps the full list.
+  await inForm(page).click();
+  await page.getByLabel('Button link').first().fill('');
+  await expect(out.locator('li')).toHaveCount(1);
+  await expect(out.getByText('Things to check', { exact: true })).toBeVisible();
+  await expect(out.locator('li')).toContainText('button');
+  await expect(out).not.toContainText('listed above the card');
+
+  // Back on the card the one line returns, now with the warning counted above the card.
+  await onCard(page).click();
+  await expect(out.locator('li')).toHaveCount(0);
+  await expect(out).toContainText('listed above the card.');
+  await expect(page.locator('.ec-notes')).toContainText('button');
+  const after = await count();
+  await expect(out).toContainText(`${after} ${after === 1 ? 'thing' : 'things'} to check`);
+});
+
+test('Bold with nothing selected marks the next typed words on the card, and undo takes it back', async ({
+  page,
+}) => {
+  await paste(page, input('1-pack-calendar'));
+  const note = card(page).getByRole('textbox', { name: /^Note/ }).filter({ hasText: /\w/ }).first();
+  const strong = frame(page, 375).locator('strong');
+  const before = await strong.count();
+  await note.click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' ');
+  const bold = card(page).getByRole('button', { name: 'Bold' }).first();
+  await page.keyboard.press('Control+b');
+  await expect(bold).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.type('new');
+  await expect(note.locator('strong')).toHaveText('new');
+  await expect(strong).toHaveCount(before + 1);
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+z');
+  await expect(note.locator('strong')).toHaveCount(0);
+  await expect(strong).toHaveCount(before);
 });
 
 test('row controls and empty hints show only on the active row; sections keep one', async ({
@@ -235,6 +411,7 @@ test('row controls and empty hints show only on the active row; sections keep on
     if (name.startsWith('Change in the form: date, link and tags of row 1')) break;
   }
   await expect(rowJump(1).first()).toBeFocused();
+  await unstick(page);
   await card(page).screenshot({ path: 'test-results/screens/card-row-active.png' });
 });
 
@@ -412,8 +589,10 @@ test('screenshots of the card for review', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 900 });
     await paste(page, input(f.name));
     await expect(card(page)).toBeVisible();
+    await unstick(page);
     await card(page).screenshot({ path: `test-results/screens/card-${f.name}-360.png` });
     await page.setViewportSize({ width: 1280, height: 900 });
+    await unstick(page);
     await card(page).screenshot({ path: `test-results/screens/card-${f.name}-wide.png` });
   }
 });

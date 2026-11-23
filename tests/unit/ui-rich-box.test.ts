@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RichText } from '../../src/core/forms';
+import { setOffsets } from '../../src/ui/rich-box-dom';
 import {
   COMMIT_DELAY_MS,
+  RICH_BOX_HINT,
   createKit,
   type FormContext,
   type TypingEdit,
@@ -51,7 +53,7 @@ describe('rich text box in the form kit', () => {
     expect(s.box.getAttribute('aria-labelledby')).toBe(label.id);
     expect(s.box.querySelector('strong')?.textContent).toBe('Hi');
     expect(s.node.querySelector('[role=toolbar]')).not.toBeNull();
-    expect(s.node.textContent).toContain('Select words, then press Bold, Italic, Strike or Link.');
+    expect(s.node.textContent).toContain(RICH_BOX_HINT);
     expect(s.node.querySelector('textarea')).toBeNull();
   });
 
@@ -97,5 +99,84 @@ describe('rich text box in the form kit', () => {
   it('shows the mailto details for a link in the box', () => {
     const s = setup([{ kind: 'text', text: 'mail', marks: [], href: 'mailto:den@example.org' }]);
     expect(s.node.querySelector('.mailto')?.textContent).toContain('den@example.org');
+  });
+
+  describe('pending marks (Bold with nothing selected)', () => {
+    const button = (s: ReturnType<typeof setup>, name: string) =>
+      [...s.node.querySelectorAll<HTMLButtonElement>('.rich-btn')].find(
+        (b) => b.textContent === name,
+      ) as HTMLButtonElement;
+    /** Types `word` at the end of the box the way the browser would, then reports the input. */
+    const typeAtEnd = (s: ReturnType<typeof setup>, word: string, from: number) => {
+      const last = s.box.lastChild as Text;
+      last.data += word;
+      setOffsets(s.box, from + word.length, from + word.length);
+      s.box.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+
+    it('toggles the button, then marks the next typed text as one undo step', () => {
+      const s = setup([{ kind: 'text', text: 'Hi ', marks: [] }]);
+      s.box.focus();
+      setOffsets(s.box, 3, 3);
+      const bold = button(s, 'Bold');
+      bold.click();
+      expect(bold.getAttribute('aria-pressed')).toBe('true');
+      expect(s.node.querySelector('.rich-status')?.hasAttribute('hidden')).toBe(true);
+      typeAtEnd(s, 'you', 3);
+      expect(s.edits).toHaveLength(1);
+      expect(s.edits[0]?.after).toBe('Hi **you**');
+      expect(s.box.querySelector('strong')?.textContent).toBe('you');
+      vi.advanceTimersByTime(COMMIT_DELAY_MS);
+      expect(s.get()).toEqual([
+        { kind: 'text', text: 'Hi ', marks: [] },
+        { kind: 'text', text: 'you', marks: ['strong'] },
+      ]);
+    });
+
+    it('pressing it twice cancels, and the next text is plain', () => {
+      const s = setup([{ kind: 'text', text: 'Hi ', marks: [] }]);
+      s.box.focus();
+      setOffsets(s.box, 3, 3);
+      button(s, 'Italic').click();
+      button(s, 'Italic').click();
+      expect(button(s, 'Italic').getAttribute('aria-pressed')).toBe('false');
+      typeAtEnd(s, 'x', 3);
+      expect(s.edits[0]?.after).toBe('Hi x');
+    });
+
+    it('turns bold off for the next text typed inside bold words', () => {
+      const s = setup([{ kind: 'text', text: 'Hi', marks: ['strong'] }]);
+      s.box.focus();
+      setOffsets(s.box, 2, 2);
+      const bold = button(s, 'Bold');
+      expect(bold.getAttribute('aria-pressed')).toBe('true');
+      bold.click();
+      expect(bold.getAttribute('aria-pressed')).toBe('false');
+      const strong = s.box.querySelector('strong')?.firstChild as Text;
+      strong.data += '!';
+      setOffsets(s.box, 3, 3);
+      s.box.dispatchEvent(new Event('input', { bubbles: true }));
+      expect(s.edits[0]?.after).toBe('**Hi**!');
+    });
+
+    it('is dropped when the cursor moves, so the next text is plain', () => {
+      const s = setup([{ kind: 'text', text: 'Hi ', marks: [] }]);
+      s.box.focus();
+      setOffsets(s.box, 3, 3);
+      button(s, 'Bold').click();
+      setOffsets(s.box, 1, 1);
+      document.dispatchEvent(new Event('selectionchange'));
+      expect(button(s, 'Bold').getAttribute('aria-pressed')).toBe('false');
+      typeAtEnd(s, 'x', 3);
+      expect(s.edits[0]?.after).toBe('Hi x');
+    });
+
+    it('Link with nothing selected still says what to do', () => {
+      const s = setup([{ kind: 'text', text: 'Hi ', marks: [] }]);
+      s.box.focus();
+      setOffsets(s.box, 3, 3);
+      button(s, 'Link').click();
+      expect(s.node.querySelector('.rich-status')?.textContent).toContain('Select the words');
+    });
   });
 });

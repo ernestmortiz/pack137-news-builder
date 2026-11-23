@@ -97,6 +97,45 @@ export function toggleMark(runs: RichText, start: number, end: number, mark: Mar
   }));
 }
 
+/** `marks` with `mark` switched on or off. For the marks a collapsed cursor will type with. */
+export function toggledMarks(marks: readonly Mark[], mark: Mark): Mark[] {
+  return marks.includes(mark) ? marks.filter((m) => m !== mark) : [...marks, mark].sort();
+}
+
+/** Gives the text in [start, end) exactly `marks` (an empty list clears them). Links stay. */
+export function setMarks(
+  runs: RichText,
+  start: number,
+  end: number,
+  marks: readonly Mark[],
+): RichText {
+  const [a, b] = clampRange(runs, start, end);
+  const next = [...new Set(marks)].sort();
+  return mapRange(runs, a, b, (run) => ({ ...run, marks: next }));
+}
+
+const plainText = (runs: RichText): string =>
+  runs.map((run) => (run.kind === 'break' ? '\n' : run.text)).join('');
+
+/**
+ * For "pending" marks: `after` is `before` with some characters typed at plain text offset `at`.
+ * Returns `after` with exactly those typed characters given `marks`, or null when the change was
+ * anything else (a deletion, a change somewhere else, nothing at all).
+ */
+export function markInsertion(
+  before: RichText,
+  after: RichText,
+  at: number,
+  marks: readonly Mark[],
+): RichText | null {
+  const was = plainText(before);
+  const now = plainText(after);
+  const n = now.length - was.length;
+  if (n <= 0 || at < 0 || at > was.length) return null;
+  if (now.slice(0, at) !== was.slice(0, at) || now.slice(at + n) !== was.slice(at)) return null;
+  return setMarks(after, at, at + n, marks);
+}
+
 /**
  * The marks that cover the whole range, for the toolbar's pressed buttons. A collapsed cursor
  * takes the marks of the character before it (or after it, at the very start).

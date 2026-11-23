@@ -43,12 +43,25 @@ export interface TypingEdit {
 }
 
 /** How long a rich field waits after the last keystroke before the form takes its text. */
+/** How long a card toolbar stays after the keyboard leaves its box (see cardRich). */
+export const TOOLBAR_HOLD_MS = 250;
+
+// True while a mouse button, finger or pen is down anywhere on the page.
+let pointerIsDown = false;
+if (typeof document !== 'undefined') {
+  document.addEventListener('pointerdown', () => (pointerIsDown = true), true);
+  for (const type of ['pointerup', 'pointercancel', 'dragend']) {
+    document.addEventListener(type, () => (pointerIsDown = false), true);
+  }
+}
+
 export const COMMIT_DELAY_MS = 150;
 
 export const RICH_HINT = 'Type **bold**, _italic_, ~~struck~~ or [link text](https://example.org).';
 
 /** The hint under a rich text box that shows its formatting (no codes to type). */
-export const RICH_BOX_HINT = 'Select words, then press Bold, Italic, Strike or Link.';
+export const RICH_BOX_HINT =
+  'Select words, then press Bold, Italic, Strike or Link. Or press Bold, Italic or Strike first, then type.';
 
 interface RepeaterOptions<T> {
   /** Singular name for buttons and headings, such as "paragraph". */
@@ -580,8 +593,10 @@ export function createKit(ctx: FormContext, showCodes: () => boolean = () => tru
 
   /**
    * A formatting box on the card. Same box, same undo steps as in the form; here it has no visible
-   * label (the card shows what it is), so its name is the form's label. Its toolbar floats above it
-   * while the box or the toolbar has the keyboard (see `.ec-float`).
+   * label (the card shows what it is), so its name is the form's label. Its toolbar shows directly
+   * under it, in the page flow (so it never covers text), while the box or the toolbar has the
+   * keyboard (see `.ec-float`). It comes after the box in the page order too, so Tab from the box
+   * reaches it and Shift+Tab comes back.
    */
   function cardRich(
     label: string,
@@ -601,7 +616,37 @@ export function createKit(ctx: FormContext, showCodes: () => boolean = () => tru
       const node = editor.element.querySelector(part);
       if (node) float.append(node);
     }
-    editor.element.prepend(float);
+    editor.element.append(float);
+    // On a small screen the keyboard can hide what is under the box, so bring the toolbar into view.
+    editor.box.addEventListener('focus', () => {
+      requestAnimationFrame(() => {
+        // Not every test page has scrollIntoView.
+        if (float.isConnected && 'scrollIntoView' in float)
+          float.scrollIntoView({ block: 'nearest' });
+      });
+    });
+    // The toolbar is in the page flow, so taking it away moves everything under it up. If that
+    // happened the moment a finger or mouse went down on a button below (the "Change in the form"
+    // button, say), the press would miss. So it stays a moment after the keyboard leaves, and
+    // until the press is over.
+    let hideTimer: ReturnType<typeof setTimeout> | undefined;
+    editor.element.addEventListener('focusin', () => {
+      clearTimeout(hideTimer);
+      editor.element.classList.add('is-open');
+    });
+    editor.element.addEventListener('focusout', (event) => {
+      const to = event.relatedTarget;
+      if (to instanceof Node && editor.element.contains(to)) return;
+      clearTimeout(hideTimer);
+      let waited = 0;
+      const attempt = (): void => {
+        if (editor.element.contains(editor.element.ownerDocument.activeElement)) return;
+        // Never wait more than a couple of seconds, in case the press ended out of sight.
+        if (pointerIsDown && (waited += 100) < 2000) hideTimer = setTimeout(attempt, 100);
+        else editor.element.classList.remove('is-open');
+      };
+      hideTimer = setTimeout(attempt, TOOLBAR_HOLD_MS);
+    });
     return el('div', { className: `ec-rich-wrap ${options.className ?? ''}`.trim() }, [
       editor.element,
     ]);
