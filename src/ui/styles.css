@@ -1209,28 +1209,274 @@ input.time {
    the row already has focus when Tab reaches them, so they are shown by then. Each section and
    each list keeps one "Change in the form" that is always shown. */
 .ec-row .ec-open,
-.ec-actions .ec-open {
+.ec-actions .ec-open,
+.ec-block .ec-open {
   display: none;
 }
 .ec-row:focus-within .ec-open,
-.ec-actions:focus-within .ec-open {
+.ec-actions:focus-within .ec-open,
+.ec-block:focus-within .ec-open {
   display: inline-block;
 }
 .ec-row:not(:focus-within) .ec-note:has(.rich-box:empty),
 .ec-row:not(:focus-within) .ec-small-note:has(.ec-input:placeholder-shown),
+.ec-row:not(:focus-within) .ec-optional:has(.ec-input:placeholder-shown),
+.ec-block:not(:focus-within) .ec-optional:has(.ec-input:placeholder-shown),
 .ec-section:not(:focus-within) .ec-subtitle:has(.ec-input:placeholder-shown) {
   display: none;
 }
 @media (hover: hover) {
   .ec-row:hover .ec-open,
-  .ec-actions:hover .ec-open {
+  .ec-actions:hover .ec-open,
+  .ec-block:hover .ec-open {
     display: inline-block;
   }
   .ec-row:hover .ec-note:has(.rich-box:empty) {
     display: block;
   }
   .ec-row:hover .ec-small-note:has(.ec-input:placeholder-shown),
+  .ec-row:hover .ec-optional:has(.ec-input:placeholder-shown),
+  .ec-block:hover .ec-optional:has(.ec-input:placeholder-shown),
   .ec-section:hover .ec-subtitle:has(.ec-input:placeholder-shown) {
     display: grid;
   }
+}
+
+/* the monthly letter card: the same card, drawn with the letter's sections */
+.ec-letter {
+  font-size: 16px;
+  line-height: 1.5;
+  background: var(--white);
+}
+.ec-letter .ec-body {
+  gap: 18px;
+}
+.ec-mast {
+  background: var(--navy-masthead);
+  color: var(--white);
+  border-radius: 12px;
+  padding: 14px;
+  gap: 8px;
+}
+.ec-mast-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ec-logo {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--lavender);
+  color: var(--navy);
+  font-size: 11px;
+  font-weight: 700;
+}
+.ec-eyebrow {
+  color: var(--gold-light);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.ec-mast-title {
+  margin-top: 2px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.ec-mast-month {
+  margin-top: 2px;
+  color: var(--lavender);
+  font-size: 13px;
+}
+.ec-summary {
+  color: var(--muted);
+  font-size: 14px;
+}
+.ec-heading {
+  margin: 0;
+  color: var(--navy);
+  font-size: 20px;
+  line-height: 1.3;
+}
+.ec-story-title {
+  color: var(--navy);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.3;
+  --ec-pad: 4px 4px;
+}
+.ec-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.ec-block + .ec-block {
+  margin-top: 6px;
+}
+.ec-badge {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--navy);
+  color: var(--white);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  --ec-pad: 4px 4px;
+}
+.ec-badge .ec-field {
+  --ec-pad: 6px 4px;
+}
+.ec-badge .ec-input::placeholder {
+  color: var(--lavender);
+}
+.ec-badge .ec-input:focus-visible {
+  outline-color: var(--gold-light);
+}
+.ec-dot {
+  padding: 0 2px;
+}
+.ec-bullets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 14px;
+  border-left: 3px solid var(--lavender);
+}
+.ec-bullet {
+  display: flex;
+  flex-direction: column;
+}
+.ec-lead {
+  font-weight: 700;
+}
+.ec-link,
+.ec-link .ec-input {
+  color: var(--navy);
+  font-weight: 700;
+  text-decoration: underline;
+}
+.ec-italic {
+  font-style: italic;
+}
+.ec-source {
+  font-size: 13px;
+  font-style: italic;
+}
+.ec-box-title {
+  color: var(--navy);
+  font-size: 17px;
+  font-weight: 700;
+}
+.ec-photo-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ec-photo-spot {
+  padding: 10px;
+  border: 2px dashed var(--navy);
+  border-radius: 12px;
+  background: var(--gold-pale);
+  color: var(--navy);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.ec-caption {
+  color: var(--muted);
+  font-size: 13px;
+  font-style: italic;
+}
+.ec-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--navy);
+}
+.ec-stat {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+.ec-stat-value {
+  color: var(--gold);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.ec-stat-text {
+  color: var(--lavender);
+  font-size: 13px;
+}
+.ec-stats .ec-input::placeholder {
+  color: var(--lavender);
+}
+.ec-stats .ec-input:focus-visible {
+  outline-color: var(--gold-light);
+}
+.ec-stats .ec-input:hover {
+  border-color: var(--lavender);
+}
+.ec-sidebar {
+  gap: 8px;
+  font-size: 15px;
+}
+.ec-section.grey {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--grey-page);
+}
+.ec-section.navy {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--navy);
+  color: var(--lavender);
+}
+.ec-footer-text {
+  margin: 0;
+  font-size: 14px;
+}
+.ec-off {
+  padding: 10px 14px;
+  border: 2px dashed var(--lavender);
+  border-radius: 12px;
+}
+.ec-help {
+  display: flex;
+  flex-direction: column;
+}
+.ec-wide .ec-btn {
+  flex: 1 1 100%;
+  text-align: center;
+}
+.ec-sign-off {
+  font-weight: 700;
+}
+.ec-when {
+  color: var(--navy);
+}
+.ec-thanks {
+  display: flex;
+  flex-direction: column;
+}
+.ec-signer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  font-weight: 700;
+}
+.ec-signer > .ec-field {
+  flex: 1 1 140px;
 }

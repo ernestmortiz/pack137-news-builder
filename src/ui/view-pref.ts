@@ -1,6 +1,6 @@
 /**
- * Which way the weekly announcement is edited: on a drawing of the card, or in the form. The
- * choice is remembered on this device. It is kept out of DeviceStorage (it is not saved work), and
+ * Which way the weekly announcement and the monthly letter are edited: on a drawing of the card, or
+ * in the form. One choice is shared by both screens and remembered on this device. It is kept out of DeviceStorage (it is not saved work), and
  * every call is wrapped because storage can be blocked (private windows). A blocked store just
  * means "card", kept in memory for the visit.
  */
@@ -14,10 +14,13 @@ export type EditView = 'card' | 'form';
 export interface ViewPref {
   get(): EditView;
   set(view: EditView): void;
+  /** Called after the value is set. Returns a function that stops listening. */
+  subscribe(listener: (view: EditView) => void): () => void;
 }
 
 export function createViewPref(getStore: () => KeyValueStore | undefined = browserStore): ViewPref {
   let value: EditView | undefined;
+  const listeners = new Set<(view: EditView) => void>();
   const read = (): EditView => {
     try {
       return getStore()?.getItem(EDIT_VIEW_KEY) === 'form' ? 'form' : 'card';
@@ -41,6 +44,11 @@ export function createViewPref(getStore: () => KeyValueStore | undefined = brows
       } catch {
         // Blocked or full. The choice still holds until the page is closed.
       }
+      for (const listener of [...listeners]) listener(view);
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
     },
   };
 }

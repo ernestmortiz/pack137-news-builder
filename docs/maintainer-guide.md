@@ -61,7 +61,7 @@ All workflows are in `.github/workflows/`. Actions are pinned to commit SHAs, to
   - Linux smoke test of the real app.
   - Windows installer build.
   - Android test APK build (debug-signed, a new throwaway key each run) with checks for no permissions and Android 10 minimum.
-  - Android emulator test on Android 14: the release gate (23 checks). Android 10 runs for information only: that emulator image has a 2019 web view that cannot run the app.
+  - Android emulator test on Android 14: the release gate (24 checks). Android 10 runs for information only: that emulator image has a 2019 web view that cannot run the app.
   - Publish: the installers go into a draft pre-release called "Test build for pull request #N", visible only to people with write access. Delete these drafts after merging.
 - **`release.yml`** on a version tag: see the release checklist. Its last job calls `deploy-web.yml`.
 - **`deploy-web.yml`** puts a release tag's web build on Cloudflare Pages (https://pack137-news-builder.pages.dev). It runs after each release and by hand from the Actions tab (Run workflow, with a tag) to redeploy or roll back. The build job has no secrets; only the deploy job sees the Cloudflare token, from the `cloudflare-pages` environment. The hosted site sends extra headers from `scripts/pages-headers.mjs`: the page's own policy plus `frame-ancestors`, which a meta tag cannot set. `npm run e2e:pages` runs the browser tests with those headers; CI runs it too.

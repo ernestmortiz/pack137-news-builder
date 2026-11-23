@@ -9,6 +9,7 @@ import {
   type MonthOfYear,
   type TimeOfDay,
 } from '../core/dates';
+import type { FieldPath } from '../core/fill';
 import type { ContributorPart, LetterForm, PhotoField, StoryBlock } from '../core/letter';
 import { altTextProblems } from '../core/alt-text';
 import { photoSpots } from '../core/render-letter';
@@ -133,72 +134,110 @@ export function defaultItemDate(issue: MonthOfYear): CalendarDate {
 
 /* ---------- things to look at ---------- */
 
+/** One reminder, and the field in the form where it can be dealt with. */
+export interface LetterNote {
+  message: string;
+  path: FieldPath;
+}
+
 /**
- * Plain-words reminders that never block copying. Alt text is required (spec 8.2), so a photo
- * with none is always listed.
+ * Plain-words reminders that never block copying, each with the field to look at. Alt text is
+ * required (spec 8.2), so a photo with none is always listed.
  */
-export function letterWarnings(letter: LetterForm): string[] {
-  const out: string[] = [];
-  if (letter.summary.trim() === '') out.push('The summary line is empty.');
+export function letterNotes(letter: LetterForm): LetterNote[] {
+  const out: LetterNote[] = [];
+  const note = (message: string, path: FieldPath): void => void out.push({ message, path });
+  if (letter.summary.trim() === '') note('The summary line is empty.', ['summary']);
   if (!letter.intro.some((run) => run.kind === 'text' && run.text.trim() !== '')) {
-    out.push('The intro paragraph is empty.');
+    note('The intro paragraph is empty.', ['intro']);
   }
-  if (letter.story.title.trim() === '') out.push('The feature story has no title.');
-  if (letter.story.blocks.length === 0) out.push('The feature story has no blocks yet.');
-  if (letter.comingUp.items.length === 0) out.push('Coming up has no events yet.');
+  if (letter.story.title.trim() === '') note('The feature story has no title.', ['story', 'title']);
+  if (letter.story.blocks.length === 0)
+    note('The feature story has no blocks yet.', ['story', 'blocks']);
+  if (letter.comingUp.items.length === 0)
+    note('Coming up has no events yet.', ['comingUp', 'items']);
   // Named the same way as photoSpots: photo blocks are numbered among photo blocks.
   const spots = new Set(photoSpots(letter).map((spot) => spot.where));
-  const photos: { where: string; photo: PhotoField }[] = [];
+  const photos: { where: string; photo: PhotoField; path: FieldPath }[] = [];
   let photoNo = 0;
   letter.story.blocks.forEach((block, i) => {
     if (block.kind === 'photo') {
       photoNo += 1;
-      photos.push({ where: `Photo ${photoNo}`, photo: block.photo });
+      photos.push({
+        where: `Photo ${photoNo}`,
+        photo: block.photo,
+        path: ['story', 'blocks', i, 'photo', 'alt'],
+      });
     } else if (block.kind === 'sidebar' && block.photo) {
-      photos.push({ where: `Sidebar photo in block ${i + 1}`, photo: block.photo });
+      photos.push({
+        where: `Sidebar photo in block ${i + 1}`,
+        photo: block.photo,
+        path: ['story', 'blocks', i, 'photo', 'alt'],
+      });
     }
   });
-  for (const { where, photo } of photos) {
+  for (const { where, photo, path } of photos) {
     const src = photo.src.trim();
     if (spots.has(where)) {
-      out.push(
+      note(
         `${where} is a photo spot. After pasting, replace the Insert photo here box with the photo in TroopTrack, then use Finish photos.`,
+        path,
       );
     } else if (/^http:\/\//i.test(src)) {
-      out.push(
+      note(
         `${where}: This photo's address is not secure (http). Use the https address from TroopTrack.`,
+        path,
       );
     }
     for (const problem of altTextProblems(photo.alt, photo.caption)) {
-      out.push(`${where}: ${problem.message}`);
+      note(`${where}: ${problem.message}`, path);
     }
   }
-  const link = (where: string, text: string, url: string): void => {
+  const link = (where: string, text: string, url: string, path: FieldPath): void => {
     if (text.trim() !== '' && url.trim() === '')
-      out.push(`${where}: there is link text but no link.`);
+      note(`${where}: there is link text but no link.`, path);
     else if (url.trim() !== '' && safeUrl(url) === null) {
-      out.push(
+      note(
         `${where}: the link is not a full web or email address (starting with https:// or mailto:), so the link is left out.`,
+        path,
       );
     }
   };
   const help = letter.comingUp.button;
   if (help.url.trim() !== '' && safeUrl(help.url) === null) {
-    out.push(
+    note(
       `The ${help.text.trim() === '' ? 'I can help' : help.text.trim()} button's link is not a full web or email address, so the button is left out.`,
+      ['comingUp', 'button', 'url'],
     );
   }
   letter.comingUp.items.forEach((item, i) =>
-    link(`Coming up, event ${i + 1}`, item.link.text, item.link.url),
+    link(`Coming up, event ${i + 1}`, item.link.text, item.link.url, [
+      'comingUp',
+      'items',
+      i,
+      'link',
+      'url',
+    ]),
   );
   if (letter.around.enabled) {
     letter.around.items.forEach((item, i) =>
-      link(`Around the pack, item ${i + 1}`, item.link.text, item.link.url),
+      link(`Around the pack, item ${i + 1}`, item.link.text, item.link.url, [
+        'around',
+        'items',
+        i,
+        'link',
+        'url',
+      ]),
     );
   }
   if (letter.photoAsk.enabled)
-    link('Photo and story ask', letter.photoAsk.linkText, letter.photoAsk.url);
+    link('Photo and story ask', letter.photoAsk.linkText, letter.photoAsk.url, ['photoAsk', 'url']);
   return out;
+}
+
+/** The same reminders as plain sentences, for the list beside the preview. */
+export function letterWarnings(letter: LetterForm): string[] {
+  return letterNotes(letter).map((n) => n.message);
 }
 
 /** The title the page and the status line use for an issue, such as "December 2026". */
