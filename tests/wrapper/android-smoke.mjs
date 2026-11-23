@@ -374,10 +374,37 @@ try {
   );
 
   /* ---------- the monthly letter screen ---------- */
+  // c0 chose "Edit in the form", and the letter shares that choice. Choose the card again on the
+  // converter, so the letter opens the way a new user sees it (editor step 4).
+  await clickButton('Edit on the card');
   await clickTab('Monthly letter');
   await waitFor(
     () => pageWith(`return !!buttonNamed('Download draft');`),
     'the Download draft button',
+  );
+  const letterCard = await waitFor(
+    () =>
+      pageWith(`
+        const scope = document.querySelector('#panel-monthly');
+        const onCard = Array.from(scope.querySelectorAll('button')).find((b) => visible(b) && b.textContent.trim() === 'Edit on the card');
+        const formButton = Array.from(scope.querySelectorAll('button')).find((b) => visible(b) && b.textContent.trim() === 'Edit in the form');
+        const greeting = Array.from(scope.querySelectorAll('textarea')).find((t) => visible(t) && t.getAttribute('aria-label') === 'Greeting');
+        if (!onCard || !formButton || !greeting) return null;
+        const first = onCard.getAttribute('aria-pressed') === 'true';
+        const value = greeting.value;
+        formButton.click();
+        return { first, value };
+      `),
+    'the letter card to show the greeting',
+  );
+  check(
+    'c3. the monthly letter opens on "Edit on the card" first, showing the greeting',
+    letterCard.first === true && letterCard.value === 'Hi Pack 137 families,',
+    `"Edit on the card" pressed: ${letterCard.first}; greeting "${letterCard.value}"`,
+  );
+  await waitFor(
+    () => pageWith(`return !!labelled('Summary line', document.querySelector('#panel-monthly'));`),
+    'the letter form (the checks below drive it)',
   );
   const letterFit = await page(
     '({ inner: window.innerWidth, scroll: document.documentElement.scrollWidth })',

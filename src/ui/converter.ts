@@ -175,8 +175,13 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
   const viewSwitch = createViewSwitch(mode, (next) => {
     if (next === mode) return;
     viewPref.set(next);
-    setMode(next);
+    // The listener below redraws. Keep the keyboard on the switch, so the person can switch back.
+    viewSwitch.active().focus();
     announce(next === 'card' ? 'Editing on the card.' : 'Editing in the form.');
+  });
+  // The monthly letter shares this choice. When it changes there, follow it.
+  viewPref.subscribe((next) => {
+    if (next !== mode) setMode(next);
   });
   const left = el('div', { className: 'column' }, [
     el('section', { className: 'card' }, [layoutBox]),
@@ -365,8 +370,6 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
     mode = next;
     viewSwitch.show(next);
     drawForm();
-    // Keep the keyboard on the switch, so the person can switch back at once.
-    viewSwitch.active().focus();
   }
 
   /** "Change in the form" and "Show in the form": open the form with that field in focus. */

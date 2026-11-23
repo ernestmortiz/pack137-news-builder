@@ -826,6 +826,8 @@ export function createKit(ctx: FormContext, showCodes: () => boolean = () => tru
         const li = list.lastElementChild;
         li?.setAttribute('role', 'group');
         li?.setAttribute('aria-labelledby', titleId);
+        // A path inside this entry that has no control of its own lands on the entry's first field.
+        if (li instanceof HTMLElement) containers.set(JSON.stringify([...o.arrayPath, i]), li);
       });
       const adds = [{ label: o.addLabel, create: o.create }, ...(o.extraAdds ?? [])];
       const addButtons = adds.map((a, k) => {

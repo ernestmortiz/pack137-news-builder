@@ -109,7 +109,7 @@ On a Windows PC, install the app by following `docs/installing-the-desktop-app.m
 
 If any of these fail, do not tag the release. Tell the project owner which computer and step failed.
 
-The Android app is checked automatically, because the pack has no test phone (owner decision 2026-11-22). Open the latest "Wrappers" run for the main branch or the last pull request and check that the job "android-emulator (34, false)" is green: it ran 23 checks on an Android 14 emulator (the card view, paste, copy, saving into Downloads, the photo picker, saved work after a restart, no internet, no permissions, the 360dp screen). The job "android-emulator (29, true)" is expected to fail and does not block a release. If someone in the pack has an Android phone, installing the test `.apk` from the draft and repeating checks 2 to 6 above is still worth doing.
+The Android app is checked automatically, because the pack has no test phone (owner decision 2026-11-22). Open the latest "Wrappers" run for the main branch or the last pull request and check that the job "android-emulator (34, false)" is green: it ran 24 checks on an Android 14 emulator (the card view for the weekly announcement and the monthly letter, paste, copy, saving into Downloads, the photo picker, saved work after a restart, no internet, no permissions, the 360dp screen). The job "android-emulator (29, true)" is expected to fail and does not block a release. If someone in the pack has an Android phone, installing the test `.apk` from the draft and repeating checks 2 to 6 above is still worth doing.
 
 ## Step 3: Answer two questions
 

@@ -12,12 +12,18 @@
  * draft and the output behave the same in both. Empty fields show a placeholder (a hint drawn by
  * the browser, never part of the form value, so it is never in the output).
  */
-import type { CheckMe, FieldPath, Suggestion } from '../core/fill';
+import type { CheckMe, FieldPath } from '../core/fill';
 import { warningPath } from './paths';
 import type { AnnouncementForm, ButtonField, DateRow, DateSection, RichText } from '../core/forms';
-import { previewWidths } from '../config/tokens';
 import { dateText, safeUrl } from '../templates/components';
-import { el, clear, uid } from './dom';
+import { el } from './dom';
+import {
+  createNotesPanel,
+  group,
+  openButton as sharedOpenButton,
+  widthTools,
+  type CardNote,
+} from './card-parts';
 import { isBoxed } from './boxed';
 import { createKit, type FormContext, type Kit } from './form-kit';
 import type { FormView } from './form-view';
@@ -31,33 +37,10 @@ export interface CardViewOptions {
   onWidth(width: number): void;
 }
 
-/** One thing to look at, shown above the card. */
-interface Note {
-  key: string;
-  message: string;
-  path: FieldPath;
-  fix?: Suggestion;
-}
-
 /* ---------- small pieces ---------- */
 
 function openButton(options: CardViewOptions, what: string, path: FieldPath): HTMLButtonElement {
-  const button = el('button', {
-    type: 'button',
-    className: 'btn small quiet ec-open',
-    textContent: 'Change in the form',
-  });
-  button.setAttribute('aria-label', `Change in the form: ${what}`);
-  button.addEventListener('click', () => options.openInForm(path));
-  return button;
-}
-
-/** A name for a group of fields, read out by a screen reader like a form group's legend. */
-function group(name: string, className: string, children: (Node | null)[]): HTMLElement {
-  const node = el('div', { className }, children);
-  node.setAttribute('role', 'group');
-  node.setAttribute('aria-label', name);
-  return node;
+  return sharedOpenButton(options.openInForm, what, path);
 }
 
 /* ---------- the pieces of each layout ---------- */
@@ -422,41 +405,13 @@ export function buildCardView(
   ]);
   const body = el('div', { className: 'ec-body' }, buildBody(kit, form, options));
   const card = el('div', { className: 'ec' }, [header, body]);
-  card.style.maxWidth = `${options.width}px`;
 
   /* ---------- card width ---------- */
-  const widthButtons = previewWidths.map((width) => {
-    const button = el('button', {
-      type: 'button',
-      className: 'btn small',
-      textContent: `${width} px`,
-    });
-    button.setAttribute('aria-label', `Card width ${width} pixels`);
-    button.setAttribute('aria-pressed', String(width === options.width));
-    button.addEventListener('click', () => {
-      card.style.maxWidth = `${width}px`;
-      widthButtons.forEach((b) => b.setAttribute('aria-pressed', String(b === button)));
-      options.onWidth(width);
-    });
-    return button;
-  });
-  const widthId = uid('card-width');
-  const tools = el('div', { className: 'ec-tools' }, [
-    el('span', { className: 'label', id: widthId, textContent: 'Card width' }),
-    ...widthButtons,
-  ]);
-  tools.setAttribute('role', 'group');
-  tools.setAttribute('aria-labelledby', widthId);
+  const tools = widthTools(card, options.width, options.onWidth);
 
   /* ---------- things to check ---------- */
-  const notesHeading = el('h3', { className: 'ec-notes-title' });
-  const notesList = el('ul', { className: 'ec-notes-list' });
-  const notes = el('section', { className: 'ec-notes' }, [notesHeading, notesList]);
-  notes.setAttribute('aria-labelledby', (notesHeading.id = uid('notes')));
-  let shownKey = '\u0000';
-
-  function currentNotes(): Note[] {
-    const list: Note[] = [];
+  function currentNotes(): CardNote[] {
+    const list: CardNote[] = [];
     const checks: CheckMe[] = ctx.checks();
     for (const check of checks) {
       // "Add a label" style notes go once the field has words, as in the form.
@@ -473,55 +428,23 @@ export function buildCardView(
     }
     return list;
   }
+  const notes = createNotesPanel({
+    title: 'Things to check',
+    notes: currentNotes,
+    openInForm: options.openInForm,
+    apply: (fix) => ctx.apply(fix),
+  });
 
-  function refreshNotes(): void {
-    const list = currentNotes();
-    const key = list.map((n) => `${n.key}\u0001${n.message}`).join('\u0002');
-    if (key === shownKey) return;
-    shownKey = key;
-    notes.hidden = list.length === 0;
-    notesHeading.textContent = `Things to check (${list.length})`;
-    clear(notesList);
-    for (const note of list) {
-      const show = el('button', {
-        type: 'button',
-        className: 'btn small',
-        textContent: 'Show in the form',
-      });
-      show.setAttribute('aria-label', `Show in the form: ${note.message}`);
-      show.addEventListener('click', () => options.openInForm(note.path));
-      const buttons: HTMLElement[] = [show];
-      const fix = note.fix;
-      if (fix) {
-        const apply = el('button', {
-          type: 'button',
-          className: 'btn small',
-          textContent: 'Make this change',
-        });
-        apply.setAttribute('aria-label', `Make this change: ${note.message}`);
-        apply.addEventListener('click', () => ctx.apply(fix));
-        buttons.unshift(apply);
-      }
-      notesList.append(
-        el('li', {}, [
-          el('span', { className: 'ec-note-text', textContent: note.message }),
-          el('span', { className: 'ec-note-actions' }, buttons),
-        ]),
-      );
-    }
-  }
-  refreshNotes();
-
-  const element = el('div', { className: 'card-view' }, [notes, tools, card]);
+  const element = el('div', { className: 'card-view' }, [notes.element, tools, card]);
   return {
     element,
     refreshWarnings() {
       kit.refreshWarnings();
-      refreshNotes();
+      notes.refresh();
     },
     refreshSuggestions() {
       kit.refreshSuggestions();
-      refreshNotes();
+      notes.refresh();
     },
     setField: kit.setField,
     fieldControl: kit.fieldControl,

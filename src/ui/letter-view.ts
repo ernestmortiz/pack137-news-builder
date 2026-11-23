@@ -53,6 +53,10 @@ export interface LetterView {
   fieldText(path: FieldPath): string;
   /** Bring the letter up to date with text typed a moment ago. Call before reading it. */
   flush(): void;
+  /** Move the keyboard to the control for a field. False if nothing for that path is on screen. */
+  focusPath(path: FieldPath): boolean;
+  /** Redraw the list of things to look at, if this view shows one. */
+  refreshNotes(): void;
 }
 
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
@@ -149,14 +153,18 @@ export function buildLetterForm(
   function dateTimeField(
     item: { date: CalendarDate; time?: TimeOfDay },
     withTime: boolean,
+    path: FieldPath,
   ): HTMLElement {
     const dateInput = el('input', { type: 'date', className: 'control date', id: uid('d') });
     markSpelling(dateInput, 'date');
+    // "Change in the form" on the card lands here.
+    kit.register([...path, 'date'], dateInput);
     dateInput.value = toIsoDate(item.date);
     const shown = el('p', { className: 'date-note' });
     const timeInput = el('input', { type: 'time', className: 'control time', id: uid('t') });
     markSpelling(timeInput, 'time');
     timeInput.step = '60';
+    kit.register([...path, 'time'], timeInput);
     timeInput.value = item.time ? toTimeValue(item.time) : '';
     const noTime = el('button', {
       type: 'button',
@@ -567,6 +575,7 @@ export function buildLetterForm(
       (on) => `turned ${name} ${on ? 'on' : 'off'}`,
       sync,
     );
+    kit.register([key, 'enabled'], sw.input);
     (card.heading.nextElementSibling ?? card.heading).after(sw.wrapper, off);
     sync(letter[key].enabled);
     return card.element;
@@ -727,7 +736,7 @@ export function buildLetterForm(
           link: { text: '', url: '' },
         }),
         body: (item, _i, path) => [
-          dateTimeField(item, true),
+          dateTimeField(item, true, path),
           kit.rich(
             'What is happening',
             [...path, 'text'],
@@ -778,7 +787,7 @@ export function buildLetterForm(
         items: letter.horizon.items,
         create: () => ({ date: defaultItemDate(letter.issue), text: '' }),
         body: (item, _i, path) => [
-          dateTimeField(item, false),
+          dateTimeField(item, false, path),
           kit.text(
             'What is happening',
             [...path, 'text'],
@@ -876,5 +885,7 @@ export function buildLetterForm(
     fieldControl: kit.fieldControl,
     fieldText: kit.fieldText,
     flush: kit.flush,
+    focusPath: kit.focusPath,
+    refreshNotes() {},
   };
 }

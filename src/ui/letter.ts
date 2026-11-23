@@ -38,8 +38,11 @@ import type { OtherTabGuard } from './other-tab';
 import type { DeviceStorage } from './storage';
 import { changeBytes, textAfter, textBefore, toChange, type TypingChange } from './typing';
 import { codesPref, createCodesSwitch } from './codes-switch';
+import { buildLetterCard } from './letter-card';
 import { buildLetterForm, type LetterView } from './letter-view';
-import { letterWarnings, nextMonth } from './letter-ops';
+import { letterNotes, nextMonth } from './letter-ops';
+import { createViewSwitch, viewPref, type EditView } from './view-pref';
+import type { FieldPath } from '../core/fill';
 import { createPreviewFrames } from './preview-frames';
 import { createFinishPhotos } from './finish-photos-view';
 
@@ -70,6 +73,10 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
     emptyLetter(nextMonth(todayFrom(new Date())), settings.get());
   let letter: LetterForm = blankLetter();
   let view: LetterView | null = null;
+  /** Which way the letter is drawn now. Starts as the remembered choice. */
+  let mode: EditView = viewPref.get();
+  /** The card width picked on the card, kept while the page stays open. */
+  let cardWidth = 600;
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
   const newHistory = (): History<Snapshot, TypingPatch> =>
     createHistory<Snapshot, TypingPatch>({ patchBytes: changeBytes });
@@ -167,7 +174,22 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
     view?.flush();
     drawForm();
   });
-  const left = el('div', { className: 'column' }, [formHeading, codes.element, formHost]);
+  // Moves between the card and the form. The choice is remembered, and shared with the weekly
+  // screen. Nothing typed is lost (the letter is brought up to date first) and no undo step is
+  // recorded: both draw the same letter.
+  const viewSwitch = createViewSwitch(mode, (next) => {
+    if (next === mode) return;
+    viewPref.set(next);
+    // The listener below redraws. Keep the keyboard on the switch, so the person can switch back.
+    viewSwitch.active().focus();
+    announce(next === 'card' ? 'Editing on the card.' : 'Editing in the form.');
+  });
+  const left = el('div', { className: 'column' }, [
+    formHeading,
+    viewSwitch.element,
+    codes.element,
+    formHost,
+  ]);
 
   /* ---------- output ---------- */
   const warningsBox = el('div', { className: 'warnings' });
@@ -255,7 +277,11 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
     } catch {
       problems = ['The checker could not read the letter HTML.'];
     }
-    showWarnings(letterWarnings(letter), problems);
+    showWarnings(
+      letterNotes(letter).map((n) => n.message),
+      problems,
+    );
+    view?.refreshNotes();
     codeArea.value = html;
     frames.show(html);
     finishBox.recheck();
@@ -287,8 +313,40 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
 
   function drawForm(): void {
     clear(formHost);
-    view = buildLetterForm(letter, ctx, codesPref.get);
+    // Show codes is about the form's boxes. The card always shows formatting.
+    codes.element.hidden = mode === 'card';
+    view =
+      mode === 'card'
+        ? buildLetterCard(letter, ctx, {
+            openInForm: showInForm,
+            width: cardWidth,
+            onWidth: (width) => (cardWidth = width),
+            notes: () => letterNotes(letter),
+          })
+        : buildLetterForm(letter, ctx, codesPref.get);
     formHost.append(view.element);
+  }
+
+  function setMode(next: EditView, focus: boolean): void {
+    view?.flush();
+    mode = next;
+    viewSwitch.show(next);
+    drawForm();
+    if (focus) viewSwitch.active().focus();
+  }
+  // The weekly screen shares this choice. When it changes there, follow it.
+  viewPref.subscribe((next) => {
+    if (next !== mode) setMode(next, false);
+  });
+
+  /** "Change in the form" and "Show in the form": open the form with that field in focus. */
+  function showInForm(path: FieldPath): void {
+    view?.flush();
+    mode = 'form';
+    viewSwitch.show('form');
+    drawForm();
+    if (!view?.focusPath(path)) formHeading.focus();
+    announce('Showing the form.');
   }
 
   /* ---------- copy ---------- */
@@ -351,6 +409,12 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
       restore(move.state);
     } else {
       const patch = move.patch;
+      if (mode === 'card' && !view?.fieldControl(patch.path)) {
+        // The change was made in a part of the form the card does not show (a link address, say).
+        mode = 'form';
+        viewSwitch.show('form');
+        drawForm();
+      }
       const field = view?.fieldControl(patch.path);
       const now = view?.fieldText(patch.path) ?? '';
       const text = move.direction === 'undo' ? textBefore(now, patch) : textAfter(now, patch);
@@ -454,6 +518,9 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
     }
     letter = next;
     statusLine.textContent = status;
+    // A newly opened letter starts the way the person likes to work.
+    mode = viewPref.get();
+    viewSwitch.show(mode);
     drawForm();
     refreshOutput();
     if (asStep !== null) step(asStep);
