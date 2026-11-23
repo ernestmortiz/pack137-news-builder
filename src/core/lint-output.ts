@@ -239,6 +239,10 @@ export function lintOutput(html: string, options: LintOptions = {}): string[] {
       if (widthAttr) widths.push(Number(widthAttr[1]));
       if (widths.some((w) => w !== 100))
         problems.push('layout table with a percentage width other than 100%');
+      // TroopTrack's editor appends "width: 100%" to any table with a style attribute (owner
+      // report, 2026-11-23), so a shrink-to-fit table must have none, like the button.
+      if (attr(tag, 'style') !== undefined && !widths.includes(100))
+        problems.push('small table with a style attribute (TroopTrack would stretch it)');
     }
     if (tag.name === 'td' && (attr(tag, 'width') ?? '').trim() === '96')
       problems.push('retired two-column date row');

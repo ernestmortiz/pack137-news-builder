@@ -174,13 +174,15 @@ function nbspText(text: string): string {
 
 /**
  * The gold label pill on navy, or the strong pill in a highlight panel. A one-cell table, because
- * Outlook for Windows ignores padding and background on a span.
+ * Outlook for Windows ignores padding and background on a span. The table has no style attribute,
+ * like the button: TroopTrack's editor appends "width: 100%" to any table that has one, which
+ * stretched the label across the card (owner report, 2026-11-23). Tables are separate by default.
  */
 export function badge(text: string, tone: 'gold' | 'navy'): string {
   const bg = tone === 'gold' ? color.gold : color.navy;
   const fg = tone === 'gold' ? color.navy : color.goldLight;
   return (
-    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;">' +
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0">' +
     `<tr><td bgcolor="${bg}" style="background-color:${bg};color:${fg};font-family:${fontStack};` +
     'font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;' +
     `padding:4px 10px;border-radius:${radius.control}px;">${nbspText(text)}</td></tr></table>`
@@ -400,11 +402,13 @@ export function dateBlock(field: DateField | undefined): string | null {
       ? upperNbsp(span.start)
       : `${upperNbsp(span.start)} TO ${upperNbsp(span.end)}`;
   const text = field?.struck === true ? `<s>${words}</s>` : words;
+  // No style attribute on the table (see badge); the 6px gap below is a spacer instead of a margin.
   return (
-    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;margin:0 0 6px 0;">' +
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0">' +
     `<tr><td bgcolor="${color.navy}" style="background-color:${color.navy};border-radius:${radius.control}px;padding:3px 10px;` +
     `font-family:${fontStack};font-size:12px;font-weight:700;letter-spacing:0.5px;color:${color.white};${span.end === undefined ? 'white-space:nowrap;' : ''}">` +
-    `${text}</td></tr></table>`
+    `${text}</td></tr></table>` +
+    '<div style="height:6px;line-height:6px;font-size:1px;mso-line-height-rule:exactly;">&nbsp;</div>'
   );
 }
 

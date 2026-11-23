@@ -236,3 +236,29 @@ describe('lintOutput: owner decisions of 2026-11-21', () => {
     expect(lintOutput('<p style="color:#8A90A6;">x</p>')).toEqual(['color #8A90A6 is not a token']);
   });
 });
+
+describe('lintOutput: TroopTrack stretches small tables (owner report, 2026-11-23)', () => {
+  // TroopTrack's editor appends "width: 100%" to the style of every table that has one, so a
+  // shrink-to-fit table (the label, the date pill) must carry no style attribute.
+  it('rejects a table that is not full width but has a style attribute', () => {
+    expect(
+      lintOutput(
+        '<table role="presentation" cellpadding="0" style="border-collapse:separate;"><tr><td>x</td></tr></table>',
+      ),
+    ).toEqual(['small table with a style attribute (TroopTrack would stretch it)']);
+  });
+
+  it('accepts a small table with no style attribute, like the button', () => {
+    expect(
+      lintOutput('<table role="presentation" cellpadding="0"><tr><td>x</td></tr></table>'),
+    ).toEqual([]);
+  });
+
+  it('accepts a full-width table with a style attribute', () => {
+    expect(
+      lintOutput(
+        '<table role="presentation" width="100%" style="border-collapse:separate;"><tr><td>x</td></tr></table>',
+      ),
+    ).toEqual([]);
+  });
+});
