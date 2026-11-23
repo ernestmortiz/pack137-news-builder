@@ -127,18 +127,10 @@ function buildBody(
             className: row.date?.struck === true ? 'ec-pill ec-date is-struck' : 'ec-pill ec-date',
             textContent: when,
           }),
-          openButton(options, what, [...rowPath, 'date']),
-        ]),
-        eventField,
-      );
-    } else {
-      parts.push(
-        el('div', { className: 'ec-line' }, [
-          eventField,
-          openButton(options, what, [...rowPath, 'url']),
         ]),
       );
     }
+    parts.push(eventField);
     if (row.tags.length > 0) {
       parts.push(
         group(
@@ -170,6 +162,8 @@ function buildBody(
         'ec-note',
       ),
     );
+    // The jump comes last, so Tab from the row's fields reaches it.
+    parts.push(openButton(options, what, [...rowPath, when !== null ? 'date' : 'url']));
     return group(`Row ${n}`, 'ec-row', parts);
   };
 
@@ -305,17 +299,14 @@ function buildBody(
               form.items.map((item, i) => {
                 const path: FieldPath = ['items', i];
                 return group(`Link ${i + 1}`, 'ec-row', [
-                  el('div', { className: 'ec-line' }, [
-                    text(
-                      'Link text',
-                      [...path, 'text'],
-                      () => item.text,
-                      (v) => (item.text = v),
-                      'Add the link words',
-                      safeUrl(item.url) !== null ? 'ec-event is-link' : 'ec-event',
-                    ),
-                    openButton(options, `address of link ${i + 1}`, [...path, 'url']),
-                  ]),
+                  text(
+                    'Link text',
+                    [...path, 'text'],
+                    () => item.text,
+                    (v) => (item.text = v),
+                    'Add the link words',
+                    safeUrl(item.url) !== null ? 'ec-event is-link' : 'ec-event',
+                  ),
                   text(
                     'Source or contact note (optional)',
                     [...path, 'note'],
@@ -324,6 +315,7 @@ function buildBody(
                     'Add a source or contact note (optional)',
                     'ec-small-note',
                   ),
+                  openButton(options, `address of link ${i + 1}`, [...path, 'url']),
                 ]);
               }),
             )

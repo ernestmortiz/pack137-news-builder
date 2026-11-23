@@ -199,15 +199,56 @@ test('the toolbar floats above the box being edited and is hidden otherwise', as
   await expect(tools.getByRole('button', { name: 'Bold' })).toBeFocused();
 });
 
+test('row controls and empty hints show only on the active row; sections keep one', async ({
+  page,
+}) => {
+  // Hover would also reveal them, so keep the mouse away from the card.
+  await paste(page, input('1-pack-calendar'));
+  await page.mouse.move(0, 0);
+  const rowJump = (n: number) =>
+    card(page).getByRole('button', {
+      name: new RegExp(`^Change in the form: date, link and tags of row ${n}$`),
+    });
+  const section = card(page).getByRole('button', {
+    name: /^Change in the form: add, move or restyle the rows of section 1$/,
+  });
+  await expect(section).toBeVisible();
+  await expect(rowJump(1).first()).toBeHidden();
+  await expect(
+    card(page).getByRole('textbox', { name: /^Note/ }).filter({ hasText: /^$/ }).first(),
+  ).toBeHidden();
+
+  const firstRow = card(page).getByRole('group', { name: 'Row 1' }).first();
+  const secondRow = card(page).getByRole('group', { name: 'Row 2' }).first();
+  const event = firstRow.getByRole('textbox', { name: 'Event', exact: true });
+  await event.click();
+  await expect(rowJump(1).first()).toBeVisible();
+  await expect(secondRow.getByRole('button', { name: /Change in the form/ })).toBeHidden();
+
+  // Tab from the event reaches the row's button (past tags and a note, if the row has them).
+  await event.focus();
+  for (let i = 0; i < 8; i++) {
+    await page.keyboard.press('Tab');
+    const name = await page.evaluate(
+      () => document.activeElement?.getAttribute('aria-label') ?? '',
+    );
+    if (name.startsWith('Change in the form: date, link and tags of row 1')) break;
+  }
+  await expect(rowJump(1).first()).toBeFocused();
+  await card(page).screenshot({ path: 'test-results/screens/card-row-active.png' });
+});
+
 test('"Change in the form" on a date opens the form with that date field in focus', async ({
   page,
   context,
 }) => {
   const seen = await watch(context, page);
   await paste(page, input('1-pack-calendar'));
-  const jump = card(page)
-    .getByRole('button', { name: /^Change in the form: date, link and tags of row 1$/ })
-    .first();
+  const firstRow = card(page).getByRole('group', { name: 'Row 1' }).first();
+  await firstRow.getByRole('textbox', { name: 'Event', exact: true }).click();
+  const jump = firstRow.getByRole('button', {
+    name: /^Change in the form: date, link and tags of row 1$/,
+  });
   await jump.click();
   await expect(card(page)).toHaveCount(0);
   const date = page.locator('input[type=date]:focus');

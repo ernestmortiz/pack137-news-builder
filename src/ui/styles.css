@@ -1203,3 +1203,34 @@ input.time {
 .ec-pill {
   align-self: flex-start;
 }
+
+/* quiet card: row and button controls and empty optional hints show only where the person is
+   working (focus inside, or the mouse over it on devices with a mouse). Tab never skips them:
+   the row already has focus when Tab reaches them, so they are shown by then. Each section and
+   each list keeps one "Change in the form" that is always shown. */
+.ec-row .ec-open,
+.ec-actions .ec-open {
+  display: none;
+}
+.ec-row:focus-within .ec-open,
+.ec-actions:focus-within .ec-open {
+  display: inline-block;
+}
+.ec-row:not(:focus-within) .ec-note:has(.rich-box:empty),
+.ec-row:not(:focus-within) .ec-small-note:has(.ec-input:placeholder-shown),
+.ec-section:not(:focus-within) .ec-subtitle:has(.ec-input:placeholder-shown) {
+  display: none;
+}
+@media (hover: hover) {
+  .ec-row:hover .ec-open,
+  .ec-actions:hover .ec-open {
+    display: inline-block;
+  }
+  .ec-row:hover .ec-note:has(.rich-box:empty) {
+    display: block;
+  }
+  .ec-row:hover .ec-small-note:has(.ec-input:placeholder-shown),
+  .ec-section:hover .ec-subtitle:has(.ec-input:placeholder-shown) {
+    display: grid;
+  }
+}
