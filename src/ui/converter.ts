@@ -26,6 +26,7 @@ import { markSpelling } from './field-kinds';
 import { announce } from './announce';
 import { registerFlush } from './safety';
 import { codesPref, createCodesSwitch } from './codes-switch';
+import { buildCardView } from './card-view';
 import { buildForm, type FormView } from './form-view';
 import type { FormContext, TypingEdit } from './form-kit';
 import { createHistory } from './history';
@@ -33,6 +34,7 @@ import { changeBytes, textAfter, textBefore, toChange, type TypingChange } from 
 import { buildGuide } from './guide';
 import { capIssues, remapAfterRemove, remapAfterSwap } from './paths';
 import { createPreviewFrames } from './preview-frames';
+import { createViewSwitch, type EditView, viewPref } from './view-pref';
 
 /** Largest paste accepted, in bytes (ADR 0004 UI 5). */
 export const MAX_PASTE_BYTES = 2 * 1024 * 1024;
@@ -74,6 +76,10 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
   const sessions = new Map<Layout, Session>();
   let warnings: FormWarning[] = [];
   let view: FormView | null = null;
+  /** Which way the announcement is drawn now. Starts as the remembered choice. */
+  let mode: EditView = viewPref.get();
+  /** The card width picked on the card, kept while the page stays open. */
+  let cardWidth = 600;
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
   /** The text of the paste box as of the last time the form was filled from it. */
   let committedPaste = '';
@@ -164,9 +170,22 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
     view?.flush();
     drawForm();
   });
+  // Moves between the card and the form. The choice is remembered. Nothing typed is lost (the form
+  // is brought up to date first) and no undo step is recorded: both draw the same form object.
+  const viewSwitch = createViewSwitch(mode, (next) => {
+    if (next === mode) return;
+    viewPref.set(next);
+    setMode(next);
+    announce(next === 'card' ? 'Editing on the card.' : 'Editing in the form.');
+  });
   const left = el('div', { className: 'column' }, [
     el('section', { className: 'card' }, [layoutBox]),
-    el('section', { className: 'card' }, [formHeading, codes.element, formHost]),
+    el('section', { className: 'card' }, [
+      formHeading,
+      viewSwitch.element,
+      codes.element,
+      formHost,
+    ]),
   ]);
 
   const warningsBox = el('div', { className: 'warnings' });
@@ -328,8 +347,36 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
     if (!session) return;
     warnings = formWarnings(session.form);
     shownSuggestions = suggestionsFor(session.form);
-    view = buildForm(session.form, ctx, codesPref.get);
+    // Show codes is about the form's boxes. The card always shows formatting.
+    codes.element.hidden = mode === 'card';
+    view =
+      mode === 'card'
+        ? buildCardView(session.form, ctx, {
+            openInForm: showInForm,
+            width: cardWidth,
+            onWidth: (width) => (cardWidth = width),
+          })
+        : buildForm(session.form, ctx, codesPref.get);
     formHost.append(view.element);
+  }
+
+  function setMode(next: EditView): void {
+    view?.flush();
+    mode = next;
+    viewSwitch.show(next);
+    drawForm();
+    // Keep the keyboard on the switch, so the person can switch back at once.
+    viewSwitch.active().focus();
+  }
+
+  /** "Change in the form" and "Show in the form": open the form with that field in focus. */
+  function showInForm(path: FieldPath): void {
+    view?.flush();
+    mode = 'form';
+    viewSwitch.show('form');
+    drawForm();
+    if (!view?.focusPath(path)) formHeading.focus();
+    announce('Showing the form.');
   }
 
   function drawLayoutPicker(): void {
@@ -621,6 +668,12 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
       restore(move.state);
     } else {
       const patch = move.patch;
+      if (mode === 'card' && !view?.fieldControl(patch.path)) {
+        // The change was made in a part of the form the card does not show (a link address, say).
+        mode = 'form';
+        viewSwitch.show('form');
+        drawForm();
+      }
       const field = view?.fieldControl(patch.path);
       const now = view?.fieldText(patch.path) ?? '';
       const text = move.direction === 'undo' ? textBefore(now, patch) : textAfter(now, patch);

@@ -9,6 +9,19 @@ const executablePath = existsSync(localChromium) ? localChromium : undefined;
 // vite preview, so the whole suite also proves those headers leave the app working.
 const pagesHeaders = process.env.PAGES_HEADERS === '1';
 
+// Pasting now lands on "Edit on the card". Every spec except tests/e2e/card-view.spec.ts was written
+// for the form, so each browser starts with "Edit in the form" remembered (the stored choice the
+// switch itself writes). card-view.spec.ts starts from an empty device to test the real default.
+const formViewDevice = {
+  cookies: [],
+  origins: [
+    {
+      origin: 'http://localhost:4173',
+      localStorage: [{ name: 'pack137:edit-view', value: 'form' }],
+    },
+  ],
+};
+
 export default defineConfig({
   testDir: 'tests/e2e',
   outputDir: 'test-results',
@@ -18,6 +31,7 @@ export default defineConfig({
   reporter: process.env.CI ? 'line' : 'list',
   use: {
     baseURL: 'http://localhost:4173',
+    storageState: formViewDevice,
     trace: 'off',
   },
   projects: [

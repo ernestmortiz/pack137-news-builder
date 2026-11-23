@@ -7,7 +7,7 @@ import type { CheckMe, FieldPath, Suggestion } from '../core/fill';
 import type { FormWarning } from '../core/form-warnings';
 import type { ButtonField, RichText } from '../core/forms';
 import { richToText, textToRich } from '../core/rich-text';
-import { createRichBox } from './rich-box';
+import { createRichBox, type RichBox } from './rich-box';
 import { clear, debounce, el, uid } from './dom';
 import { type FieldKind, markSpelling } from './field-kinds';
 import { itemsFor, mailtoDetails, type MailLine, moveItem, samePath, warningPath } from './paths';
@@ -131,6 +131,10 @@ export function createKit(ctx: FormContext, showCodes: () => boolean = () => tru
       if (!item.control.isConnected) pending.delete(item);
     }
   }
+  /** Other controls (menus, dates) by path, so a "Change in the form" button can focus one. */
+  const controls = new Map<string, HTMLElement>();
+  /** Lists by path. Focusing one goes to its first control, or its add button when it is empty. */
+  const containers = new Map<string, HTMLElement>();
   /** Text fields on screen, so undo can change one without redrawing the form. */
   const fields = new Map<
     string,
@@ -230,6 +234,35 @@ export function createKit(ctx: FormContext, showCodes: () => boolean = () => tru
   function fieldControl(path: FieldPath): HTMLElement | null {
     const field = fields.get(JSON.stringify(path));
     return field && field.control.isConnected ? field.control : null;
+  }
+
+  /** Lets `focusPath` find a control that is not a text field (a menu, a date). */
+  function register(path: FieldPath, control: HTMLElement): void {
+    controls.set(JSON.stringify(path), control);
+  }
+
+  const FOCUS_TARGET =
+    'input:not([type=hidden]):not([type=file]), textarea, select, [contenteditable=true]';
+
+  /**
+   * Moves the keyboard to the control for `path`. A path with nothing of its own (the year inside a
+   * date, say) falls back to the nearest part that has a control. False if nothing is on screen.
+   */
+  function focusPath(path: FieldPath): boolean {
+    for (let n = path.length; n > 0; n--) {
+      const key = JSON.stringify(path.slice(0, n));
+      let target: HTMLElement | null | undefined = fields.get(key)?.control ?? controls.get(key);
+      const list = containers.get(key);
+      if (!target && list) {
+        target = list.querySelector<HTMLElement>(FOCUS_TARGET) ?? list.querySelector('.add-button');
+      }
+      if (target?.isConnected) {
+        target.focus();
+        target.scrollIntoView?.({ block: 'center' });
+        return true;
+      }
+    }
+    return false;
   }
 
   /* ---------- markers beside a field ---------- */
@@ -425,13 +458,13 @@ export function createKit(ctx: FormContext, showCodes: () => boolean = () => tru
    * (`richToText`), so undo, redo and the draft work as they do for the plain text version. The
    * form catches up after a short pause, on leaving the box, and before anything reads the form.
    */
-  function richBox(
+  function makeRich(
     label: string,
     path: FieldPath,
     get: () => RichText,
     set: (value: RichText) => void,
     rows: number,
-  ): HTMLElement {
+  ): { editor: RichBox; mail: HTMLElement } {
     const mail = el('div', { className: 'mailto' });
     const showMail = mailFiller(mail);
     const commit = (runs: RichText): void => {
@@ -470,7 +503,108 @@ export function createKit(ctx: FormContext, showCodes: () => boolean = () => tru
       },
       select: (selection) => editor.select(selection),
     });
+    return { editor, mail };
+  }
+
+  function richBox(
+    label: string,
+    path: FieldPath,
+    get: () => RichText,
+    set: (value: RichText) => void,
+    rows: number,
+  ): HTMLElement {
+    const { editor, mail } = makeRich(label, path, get, set, rows);
     return wrap(label, editor.element, path, RICH_BOX_HINT, [mail], editor.box);
+  }
+
+  /* ---------- fields drawn on the card ---------- */
+
+  /**
+   * Text that sits on the drawn card and looks like card text. It is a one-line-high text area that
+   * grows with its words (the wrapper repeats the text in a hidden copy, see `.ec-field`), so a long
+   * title wraps instead of scrolling. Enter does nothing and a pasted line break becomes a space,
+   * as in a plain text input. Typing, undo and redo go through the same code as the form's fields.
+   */
+  function cardText(
+    label: string,
+    path: FieldPath,
+    get: () => string,
+    set: (value: string) => void,
+    options: { placeholder: string; className?: string },
+  ): HTMLElement {
+    const area = el('textarea', { className: 'ec-input', rows: 1 });
+    area.value = get();
+    area.placeholder = options.placeholder;
+    area.setAttribute('aria-label', label);
+    markSpelling(area, 'text');
+    const wrapper = el('div', { className: `ec-field ${options.className ?? ''}`.trim() });
+    // The hidden copy that sizes the box. An empty field is sized by its placeholder.
+    const size = (): void => {
+      wrapper.dataset.value = area.value === '' ? options.placeholder : area.value;
+    };
+    size();
+    trackTyping(area, path, label, set);
+    const key = JSON.stringify(path);
+    const tracked = fields.get(key);
+    if (tracked) {
+      fields.set(key, {
+        ...tracked,
+        apply(value) {
+          tracked.apply(value);
+          size();
+        },
+      });
+    }
+    area.addEventListener('input', size);
+    area.addEventListener('beforeinput', (event) => {
+      const input = event as InputEvent;
+      if (input.inputType === 'insertLineBreak' || input.inputType === 'insertParagraph') {
+        event.preventDefault();
+        return;
+      }
+      if (input.inputType !== 'insertFromPaste' && input.inputType !== 'insertFromDrop') return;
+      const words = input.dataTransfer?.getData('text/plain') || input.data || '';
+      if (!/[\r\n]/.test(words)) return;
+      event.preventDefault();
+      area.setRangeText(
+        words.replace(/\s*[\r\n]+\s*/g, ' '),
+        area.selectionStart,
+        area.selectionEnd,
+        'end',
+      );
+      area.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    wrapper.append(area);
+    return wrapper;
+  }
+
+  /**
+   * A formatting box on the card. Same box, same undo steps as in the form; here it has no visible
+   * label (the card shows what it is), so its name is the form's label. Its toolbar floats above it
+   * while the box or the toolbar has the keyboard (see `.ec-float`).
+   */
+  function cardRich(
+    label: string,
+    path: FieldPath,
+    get: () => RichText,
+    set: (value: RichText) => void,
+    options: { placeholder: string; className?: string },
+  ): HTMLElement {
+    const { editor } = makeRich(label, path, get, set, 1);
+    editor.box.setAttribute('aria-label', label);
+    editor.box.style.minHeight = '';
+    editor.box.dataset.placeholder = options.placeholder;
+    editor.box.setAttribute('aria-placeholder', options.placeholder);
+    editor.box.classList.add('ec-rich');
+    const float = el('div', { className: 'ec-float' });
+    for (const part of ['.rich-toolbar', '.rich-status', '.rich-link-panel']) {
+      const node = editor.element.querySelector(part);
+      if (node) float.append(node);
+    }
+    editor.element.prepend(float);
+    return el('div', { className: `ec-rich-wrap ${options.className ?? ''}`.trim() }, [
+      editor.element,
+    ]);
   }
 
   function rich(
@@ -514,6 +648,7 @@ export function createKit(ctx: FormContext, showCodes: () => boolean = () => tru
       control.append(el('option', { value: o.value, textContent: o.label }));
     }
     control.value = get();
+    register(path, control);
     control.addEventListener('change', () => {
       ctx.begin();
       const value = control.value as V;
@@ -594,6 +729,7 @@ export function createKit(ctx: FormContext, showCodes: () => boolean = () => tru
   function repeater<T>(o: RepeaterOptions<T>): HTMLElement {
     const root = el('div', { className: o.compact ? 'repeater compact' : 'repeater' });
     const noun = o.noun;
+    containers.set(JSON.stringify(o.arrayPath), root);
 
     function firstControl(scope: ParentNode): HTMLElement | null {
       return scope.querySelector<HTMLElement>(
@@ -728,6 +864,10 @@ export function createKit(ctx: FormContext, showCodes: () => boolean = () => tru
   return {
     text,
     rich,
+    cardText,
+    cardRich,
+    register,
+    focusPath,
     select,
     checkbox,
     group,
