@@ -207,10 +207,21 @@ jobs:
           tools="$(ls -d "${ANDROID_HOME}"/build-tools/* | sort -V | tail -1)"
           ks="${RUNNER_TEMP}/pack137-release.p12"
           printf '%s' "${ANDROID_KEYSTORE_B64}" | base64 --decode > "${ks}"
+          # A .pfx exported by Windows names its private key after a key container, not the
+          # certificate's label, so the v1.1.0 run failed asking for "pack137". Use the file's one
+          # private key, whatever it is called.
+          alias="$(keytool -list -v -storetype PKCS12 -keystore "${ks}" -storepass:env ANDROID_KEYSTORE_PASSWORD 2>/dev/null \
+            | awk '/^Alias name: /{a=substr($0,13)} /^Entry type: PrivateKeyEntry/{print a}' || true)"
+          count="$(printf '%s\n' "${alias}" | grep -c . || true)"
+          if [ "${count}" != "1" ]; then
+            echo "The key file should hold exactly one private key and opened to ${count}. Check the password secret."
+            rm -f "${ks}"
+            exit 1
+          fi
           mkdir -p release-android
           name="pack137-news-builder-${GITHUB_REF_NAME}-android.apk"
           "${tools}/zipalign" -p -f 4 release-android-unsigned/unsigned.apk "${RUNNER_TEMP}/aligned.apk"
-          "${tools}/apksigner" sign --ks "${ks}" --ks-type PKCS12 --ks-key-alias pack137 \
+          "${tools}/apksigner" sign --ks "${ks}" --ks-type PKCS12 --ks-key-alias "${alias}" \
             --ks-pass env:ANDROID_KEYSTORE_PASSWORD --out "release-android/${name}" "${RUNNER_TEMP}/aligned.apk"
           rm -f "${ks}" "${RUNNER_TEMP}/aligned.apk"
           echo "APK_PATH=release-android/${name}" >> "${GITHUB_ENV}"

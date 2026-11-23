@@ -99,6 +99,7 @@ Do not create the release on GitHub's website; the workflow creates it, and stop
 - **Runner disk full**: the emulator image could not install. The emulator job now frees disk space first.
 - **`ubuntu-latest` moved to a new Ubuntu**: a package name changed. The smoke test job is pinned to `ubuntu-24.04`; move it on purpose.
 - **Photo picker**: once ignored a single Back press on the emulator. The test presses up to three times and logs the count.
+- **First release, Android signing**: the v1.1.0 run failed in `android-sign` with `entry "pack137" does not contain a key`. A `.pfx` exported by Windows names its private key differently from the certificate's label. The step now finds the file's one private key by itself. The run before it failed earlier, on a Linux `cargo test` that needed GTK. Neither run published anything.
 - **Unsigned Mac app**: current macOS blocked it, so the Mac app was dropped (ADR 0006). Revisit only with a paid Apple Developer ID.
 - **Year guessing**: a date without a year is read as the next time it comes round, so an old paste shows next year's weekday. That is intended (ADR 0003).
 
