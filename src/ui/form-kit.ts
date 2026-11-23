@@ -7,6 +7,7 @@ import type { CheckMe, FieldPath, Suggestion } from '../core/fill';
 import type { FormWarning } from '../core/form-warnings';
 import type { ButtonField, RichText } from '../core/forms';
 import { richToText, textToRich } from '../core/rich-text';
+import { createRichBox } from './rich-box';
 import { clear, debounce, el, uid } from './dom';
 import { type FieldKind, markSpelling } from './field-kinds';
 import { itemsFor, mailtoDetails, type MailLine, moveItem, samePath, warningPath } from './paths';
@@ -45,6 +46,9 @@ export interface TypingEdit {
 export const COMMIT_DELAY_MS = 150;
 
 export const RICH_HINT = 'Type **bold**, _italic_, ~~struck~~ or [link text](https://example.org).';
+
+/** The hint under a rich text box that shows its formatting (no codes to type). */
+export const RICH_BOX_HINT = 'Select words, then press Bold, Italic, Strike or Link.';
 
 interface RepeaterOptions<T> {
   /** Singular name for buttons and headings, such as "paragraph". */
@@ -110,7 +114,7 @@ export function createKit(ctx: FormContext) {
   function refreshMissing(): void {
     for (const note of missingNotes) {
       const field = fields.get(JSON.stringify(note.path));
-      if (field !== undefined) note.node.hidden = field.control.value.trim() !== '';
+      if (field !== undefined) note.node.hidden = field.text().trim() !== '';
     }
   }
   /** Rich fields whose latest typing has not reached the form yet. */
@@ -125,7 +129,14 @@ export function createKit(ctx: FormContext) {
   /** Text fields on screen, so undo can change one without redrawing the form. */
   const fields = new Map<
     string,
-    { control: HTMLInputElement | HTMLTextAreaElement; apply(value: string): void }
+    {
+      control: HTMLElement;
+      /** The field's text as the history sees it (the typed codes for a rich field). */
+      text(): string;
+      apply(value: string): void;
+      /** Place the caret. Missing for a plain input, which uses setSelectionRange. */
+      select?(selection: [number, number]): void;
+    }
   >();
 
   /**
@@ -175,6 +186,7 @@ export function createKit(ctx: FormContext) {
     });
     fields.set(JSON.stringify(path), {
       control,
+      text: () => control.value,
       apply(value) {
         control.value = value;
         known = value;
@@ -189,12 +201,25 @@ export function createKit(ctx: FormContext) {
     const field = fields.get(JSON.stringify(path));
     if (!field || !field.control.isConnected) return false;
     field.apply(value);
+    if (field.select) {
+      field.select(selection);
+      return true;
+    }
     try {
-      field.control.setSelectionRange(selection[0], selection[1]);
+      (field.control as HTMLInputElement | HTMLTextAreaElement).setSelectionRange(
+        selection[0],
+        selection[1],
+      );
     } catch {
       // Some input types have no caret. The value is already in.
     }
     return true;
+  }
+
+  /** The text of the field at `path` as the history sees it, or '' if it is not on screen. */
+  function fieldText(path: FieldPath): string {
+    const field = fields.get(JSON.stringify(path));
+    return field && field.control.isConnected ? field.text() : '';
   }
 
   function fieldControl(path: FieldPath): HTMLElement | null {
@@ -240,7 +265,7 @@ export function createKit(ctx: FormContext) {
       if (check.kind === 'missing') {
         missingNotes.push({ path, node: note });
         const field = fields.get(JSON.stringify(path));
-        if (field !== undefined) note.hidden = field.control.value.trim() !== '';
+        if (field !== undefined) note.hidden = field.text().trim() !== '';
       }
       box.append(note);
     }
@@ -307,20 +332,30 @@ export function createKit(ctx: FormContext) {
     path: FieldPath,
     hint: string | undefined,
     extras: HTMLElement[] = [],
+    /** The real control when `control` is a wrapper around it (a rich text box with a toolbar). */
+    inner?: HTMLElement,
   ): HTMLElement {
     const markersId = uid('markers');
     const described = [markersId];
-    const parts: HTMLElement[] = [
-      el('label', { htmlFor: control.id, className: 'label', textContent: label }),
-      control,
-    ];
+    const labelNode = el('label', {
+      htmlFor: (inner ?? control).id,
+      className: 'label',
+      textContent: label,
+    });
+    if (inner) {
+      // A div cannot be reached through `for`, so the label names it by id and focuses it on click.
+      labelNode.id = uid('label');
+      inner.setAttribute('aria-labelledby', labelNode.id);
+      labelNode.addEventListener('click', () => inner.focus());
+    }
+    const parts: HTMLElement[] = [labelNode, control];
     if (hint !== undefined) {
       const hintId = uid('hint');
       described.unshift(hintId);
       parts.push(el('p', { className: 'hint', id: hintId, textContent: hint }));
     }
     parts.push(...extras, markerList(path, markersId));
-    control.setAttribute('aria-describedby', described.join(' '));
+    (inner ?? control).setAttribute('aria-describedby', described.join(' '));
     return el('div', { className: 'field' }, parts);
   }
 
@@ -366,18 +401,9 @@ export function createKit(ctx: FormContext) {
     return wrap(label, input, path, options.hint, extras);
   }
 
-  function rich(
-    label: string,
-    path: FieldPath,
-    get: () => RichText,
-    set: (value: RichText) => void,
-    rows = 3,
-  ): HTMLElement {
-    const area = el('textarea', { id: uid('f'), className: 'control rich', rows });
-    markSpelling(area, 'text');
-    area.value = richToText(get());
-    const mail = el('div', { className: 'mailto' });
-    const showMail = (runs: RichText): void => {
+  /** Fills the mailto details under a rich field from the links in its text. */
+  function mailFiller(mail: HTMLElement): (runs: RichText) => void {
+    return (runs) => {
       const seen = new Map<string, MailLine[]>();
       for (const run of runs) {
         if (run.kind === 'text' && run.href !== undefined) {
@@ -387,6 +413,76 @@ export function createKit(ctx: FormContext) {
       }
       fillMail(mail, [...seen.values()]);
     };
+  }
+
+  /**
+   * A rich text box that shows its formatting. Every edit is recorded for undo as the typed codes
+   * (`richToText`), so undo, redo and the draft work as they do for the plain text version. The
+   * form catches up after a short pause, on leaving the box, and before anything reads the form.
+   */
+  function richBox(
+    label: string,
+    path: FieldPath,
+    get: () => RichText,
+    set: (value: RichText) => void,
+    rows: number,
+  ): HTMLElement {
+    const mail = el('div', { className: 'mailto' });
+    const showMail = mailFiller(mail);
+    const commit = (runs: RichText): void => {
+      set(runs);
+      showMail(runs);
+    };
+    showMail(get());
+    const editor = createRichBox({
+      runs: get(),
+      rows,
+      name: shortLabel(label),
+      onEdit(edit) {
+        later.run();
+        ctx.typed({
+          path,
+          label: `${edit.what} in ${shortLabel(label)}`,
+          before: richToText(edit.before),
+          after: richToText(edit.after),
+          selBefore: edit.selBefore,
+          selAfter: edit.selAfter,
+        });
+      },
+      onHistory: (kind) => ctx.history(kind),
+      onBlur: () => later.flush(),
+    });
+    const later = debounce(() => commit(editor.runs()), COMMIT_DELAY_MS);
+    pending.add({ control: editor.box, flush: later.flush });
+    fields.set(JSON.stringify(path), {
+      control: editor.box,
+      text: () => richToText(editor.runs()),
+      apply(value) {
+        const runs = textToRich(value);
+        editor.set(runs);
+        later.cancel();
+        commit(runs);
+      },
+      select: (selection) => editor.select(selection),
+    });
+    return wrap(label, editor.element, path, RICH_BOX_HINT, [mail], editor.box);
+  }
+
+  function rich(
+    label: string,
+    path: FieldPath,
+    get: () => RichText,
+    set: (value: RichText) => void,
+    rows = 3,
+    /** Show formatting as it will look, with a toolbar, instead of typed codes. */
+    editor = false,
+  ): HTMLElement {
+    if (editor) return richBox(label, path, get, set, rows);
+    const area = el('textarea', { id: uid('f'), className: 'control rich', rows });
+    markSpelling(area, 'text');
+    area.value = richToText(get());
+    const mail = el('div', { className: 'mailto' });
+    const showMail = mailFiller(mail);
     showMail(get());
     trackTyping(
       area,
@@ -642,6 +738,7 @@ export function createKit(ctx: FormContext) {
     refreshSuggestions,
     setField,
     fieldControl,
+    fieldText,
     flush,
   };
 }

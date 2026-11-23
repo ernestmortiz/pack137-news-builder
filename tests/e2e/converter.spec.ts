@@ -309,11 +309,11 @@ test('Button color and Yellow box: set, undo twice, and boxes follow their parag
   await page.getByRole('button', { name: 'Move down: paragraph 1' }).click();
   await expect(box(1)).not.toBeChecked();
   await expect(box(2)).toBeChecked();
-  await expect(item(2).getByRole('textbox')).toHaveValue(/pack meeting/);
+  await expect(item(2).getByRole('textbox')).toContainText(/pack meeting/);
   // Undo puts text and tick back together.
   await undo.click();
   await expect(box(1)).toBeChecked();
-  await expect(item(1).getByRole('textbox')).toHaveValue(/pack meeting/);
+  await expect(item(1).getByRole('textbox')).toContainText(/pack meeting/);
   await expect(box(2)).not.toBeChecked();
 
   expect(seen.errors).toEqual([]);
