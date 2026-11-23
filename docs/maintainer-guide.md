@@ -63,7 +63,8 @@ All workflows are in `.github/workflows/`. Actions are pinned to commit SHAs, to
   - Android test APK build (debug-signed, a new throwaway key each run) with checks for no permissions and Android 10 minimum.
   - Android emulator test on Android 14: the release gate (22 checks). Android 10 runs for information only: that emulator image has a 2019 web view that cannot run the app.
   - Publish: the installers go into a draft pre-release called "Test build for pull request #N", visible only to people with write access. Delete these drafts after merging.
-- **`release.yml`** on a version tag: see the release checklist.
+- **`release.yml`** on a version tag: see the release checklist. Its last job calls `deploy-web.yml`.
+- **`deploy-web.yml`** puts a release tag's web build on Cloudflare Pages (https://pack137-news-builder.pages.dev). It runs after each release and by hand from the Actions tab (Run workflow, with a tag) to redeploy or roll back. The build job has no secrets; only the deploy job sees the Cloudflare token, from the `cloudflare-pages` environment. The hosted site sends extra headers from `scripts/pages-headers.mjs`: the page's own policy plus `frame-ancestors`, which a meta tag cannot set. `npm run e2e:pages` runs the browser tests with those headers; CI runs it too.
 
 Files pass between jobs through the Actions cache, not as artifacts, because the account's artifact storage quota filled up during the build.
 
@@ -112,7 +113,7 @@ Do not create the release on GitHub's website; the workflow creates it, and stop
 
 ## Open decisions (spec section 13)
 
-- Where the web version is hosted (until then, the zip is the release).
+- Where the web version is hosted: decided, Cloudflare Pages (`pack137-news-builder.pages.dev`). A custom domain is still open. If one is added on Cloudflare, keep Email Address Obfuscation and Rocket Loader off: both inject scripts the page's policy blocks.
 - How volunteers get the installers (release page link, or a shared drive).
 - Who else will use and maintain the tool.
 

@@ -147,6 +147,7 @@ Write "Kept" if all of these are in the TroopTrack code and Outlook shows the bu
 9. Download the zip. Test it the way a volunteer will. Unzip it, double-click `index.html`, and check the version shown in the tool matches the release. Try this with the internet turned off.
 10. Send the project owner the link to the release page. Wait for the owner's sign-off before you tell volunteers about it.
 11. On the Releases page, delete any "Test build for pull request #N" drafts that are left over.
+12. The last job of the Release run, "deploy-web", puts the new version on https://pack137-news-builder.pages.dev. Open that address, reload, and check the footer shows the new version. If that job failed, the release is still published: open the Actions tab, choose "Deploy web", press Run workflow, type the tag (for example `v1.2.0`) and run it.
 
 ## What the release makes
 
@@ -156,11 +157,13 @@ Write "Kept" if all of these are in the TroopTrack code and Outlook shows the bu
 - No Mac app. Mac volunteers use the web zip in Safari (ADR 0006).
 - An Android app, `pack137-news-builder-vX.Y.Z-android.apk`, signed with the pack's release key. Volunteers allow "Install unknown apps" once; `INSTALLING-THE-DESKTOP-APP.md` shows how.
 - A `.sha256` checksum file for the zip and for each installer.
+- The same web build on https://pack137-news-builder.pages.dev, sent with extra security headers (`scripts/pages-headers.mjs`). The zip and the apps do not change.
 
 ## Good practice
 
 - Never put passwords, keys or tokens in the project files.
 - The Android release key lives only in the `android-release` environment's secrets on GitHub (Settings, Environments), which only release tags (`v*`) can use, and in the owner's backup. Every Android update must be signed with that same key: if it is lost, volunteers must uninstall and reinstall, which removes their saved work. Never replace it without the owner.
 - If the Release run stops at "Sign with the pack's release key" with "no signing key", the environment's secrets `ANDROID_KEYSTORE_B64` and `ANDROID_KEYSTORE_PASSWORD` are missing.
-- Where the web build will be hosted is not decided yet. Until the owner decides, the zip is the release.
+- The hosted web version is on Cloudflare Pages, project `pack137-news-builder`. Its token lives only in the `cloudflare-pages` environment's secrets on GitHub, `CLOUDFLARE_API_TOKEN` (a Cloudflare token that can only edit Pages) and `CLOUDFLARE_ACCOUNT_ID`. Only release tags (`v*`) and the main branch can use that environment, and only the "Deploy web" workflow reads it.
+- To roll the hosted site back, run "Deploy web" by hand with the older tag.
 - After a release, check that the Status section of `README.md` is still right.
