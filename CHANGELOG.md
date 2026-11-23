@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 1.2.0 (2026-11-23)
+
+Edit like a text editor (owner request, plan in `docs/plans/rich-editing.md`):
+
+- Every text box with formatting shows bold, italic, struck text and links as they will look, with Bold, Italic, Strike, Link and Remove link buttons and Ctrl or Cmd + B, I and K. No more typing `**codes**`. Pasting into a box keeps only those marks and safe links.
+- A "Show codes" switch brings back the typed codes for anyone who prefers them. The choice is remembered on the device.
+- "Edit on the card": after pasting, and when a monthly letter opens, the tool shows the announcement or letter drawn as the email. Click any words to change them. Dates, link addresses, colors and adding or moving rows stay in the form, one click away with "Change in the form". The card and form views edit the same thing, and the choice is remembered for both screens.
+- "Things to check" above the card lists the check-me notes and suggestions, each with a button that goes to it.
+- The "Add a short label" and "Add a title" notes go away once those fields have text.
+- Switching Call to action to Date list no longer repeats the button words at the end of the event.
+- The release workflow now passes its secrets to the Cloudflare deploy, so each release updates the website by itself.
+
+The email output is unchanged.
+
 ## 1.1.1 (2026-11-23)
 
 Fixes from the owner's Den 15 announcement, as saved in TroopTrack:

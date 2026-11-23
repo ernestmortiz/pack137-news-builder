@@ -1,6 +1,6 @@
 # Plan: edit text like a text editor
 
-Status: approved for a future release (owner request and decisions, 2026-11-23). Not started.
+Status: done, released in 1.2.0 (owner request and decisions, 2026-11-23). Steps 1 to 4 merged in PRs #14 to #17.
 
 The owner asked to edit any line of text the way a text editor works, instead of typing codes such as `**bold**` and `[link text](https://...)`. Two ways were offered and the owner chose both:
 

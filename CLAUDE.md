@@ -27,4 +27,4 @@ The full brief is `docs/build-spec.md`. Read it before writing code. This file r
 
 ## Status
 
-Phases 0 to 8 are built. Version 1.1.0 is the first published release (web zip, Windows installer, signed Android app); the owner pushes the v1.1.0 tag after PR #7 merges. The Mac app was dropped (ADR 0006). The Android release key is in the owner's `android-release` GitHub environment and backup only. Phase 9 (handover: user guide, maintainer guide, release checklist) is in review. All spec phases are then done.
+All spec phases (0 to 9) are done. Releases: 1.1.0 and 1.1.1 published; 1.2.0 adds the rich editing plan (`docs/plans/rich-editing.md`, steps 1 to 4: formatting box, Show codes, weekly and monthly card views). The hosted web version is on Cloudflare Pages and each release deploys it (`deploy-web.yml`, `cloudflare-pages` environment). The repository is public. The Mac app was dropped (ADR 0006). The Android release key is in the owner's `android-release` GitHub environment and backup only.
