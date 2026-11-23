@@ -201,6 +201,64 @@ textarea.code {
 .control:focus-visible {
   border-color: var(--navy);
 }
+
+/* rich text box: looks like a text field, shows formatting as it will look */
+.rich-editor {
+  display: block;
+  max-width: 100%;
+}
+.rich-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 6px;
+}
+.rich-btn {
+  padding: 0 12px;
+}
+.rich-btn[aria-pressed='true'] {
+  background: var(--navy);
+  color: var(--white);
+}
+.rich-btn.strong {
+  font-weight: 900;
+}
+.rich-btn.em {
+  font-style: italic;
+}
+.rich-btn.strike {
+  text-decoration: line-through;
+}
+.rich-status {
+  margin: 0 0 6px;
+}
+.rich-link-panel {
+  margin: 0 0 8px;
+  padding: 10px;
+  background: var(--lavender);
+  border-radius: 8px;
+}
+.rich-link-panel .add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.rich-box {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-height: 88px;
+  cursor: text;
+}
+.rich-box a {
+  color: var(--navy);
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: text;
+}
+.rich-box s {
+  text-decoration: line-through;
+}
 .btn {
   min-height: 44px;
   min-width: 44px;

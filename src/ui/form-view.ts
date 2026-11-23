@@ -29,6 +29,8 @@ export interface FormView {
   setField(path: (string | number)[], value: string, selection: [number, number]): boolean;
   /** The control for a field on screen, if any. */
   fieldControl(path: (string | number)[]): HTMLElement | null;
+  /** The text of a field on screen as the history sees it ('' if it is not there). */
+  fieldText(path: (string | number)[]): string;
   /** Bring the form up to date with text typed a moment ago. Call before reading the form. */
   flush(): void;
 }
@@ -90,6 +92,8 @@ export function paragraphs(
   arrayPath: (string | number)[],
   list: RichText[],
   box?: ParagraphBox,
+  /** Show formatting as it will look, with a toolbar, instead of typed codes. */
+  editor = false,
 ): HTMLElement {
   return kit.repeater<RichText>({
     noun,
@@ -107,6 +111,8 @@ export function paragraphs(
         (v) => {
           list[index] = v;
         },
+        3,
+        editor,
       ),
       ...(box ? [boxRow(kit, box, index)] : []),
     ],
@@ -342,12 +348,20 @@ function layoutFields(kit: Kit, form: AnnouncementForm, ctx: FormContext): HTMLE
       return [
         cardFields(kit, form),
         kit.group('Text', [
-          paragraphs(kit, 'paragraph', 'Add a paragraph', ['paragraphs'], form.paragraphs, {
-            get: (i) => isBoxed(form, i),
-            set: (i, on) => setBoxed(form, i, on),
-            moved: (from, to) => boxedMoved(form, from, to),
-            removed: (i) => boxedRemoved(form, i),
-          }),
+          paragraphs(
+            kit,
+            'paragraph',
+            'Add a paragraph',
+            ['paragraphs'],
+            form.paragraphs,
+            {
+              get: (i) => isBoxed(form, i),
+              set: (i, on) => setBoxed(form, i, on),
+              moved: (from, to) => boxedMoved(form, from, to),
+              removed: (i) => boxedRemoved(form, i),
+            },
+            true,
+          ),
         ]),
         kit.buttonGroup(
           'Button (optional)',
@@ -367,6 +381,7 @@ function layoutFields(kit: Kit, form: AnnouncementForm, ctx: FormContext): HTMLE
             () => form.paragraph,
             (v) => (form.paragraph = v),
             4,
+            true,
           ),
           el('div', { className: 'field' }, [
             kit.checkbox(
@@ -555,6 +570,7 @@ export function buildForm(form: AnnouncementForm, ctx: FormContext): FormView {
     refreshSuggestions: kit.refreshSuggestions,
     setField: kit.setField,
     fieldControl: kit.fieldControl,
+    fieldText: kit.fieldText,
     flush: kit.flush,
   };
 }

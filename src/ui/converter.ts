@@ -615,10 +615,7 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
     } else {
       const patch = move.patch;
       const field = view?.fieldControl(patch.path);
-      const now =
-        field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement
-          ? field.value
-          : '';
+      const now = view?.fieldText(patch.path) ?? '';
       const text = move.direction === 'undo' ? textBefore(now, patch) : textAfter(now, patch);
       const sel = move.direction === 'undo' ? patch.selBefore : patch.selAfter;
       if (field && view?.setField(patch.path, text, sel)) {
