@@ -319,3 +319,23 @@ test('Button color and Yellow box: set, undo twice, and boxes follow their parag
   expect(seen.errors).toEqual([]);
   expect(seen.remote).toEqual([]);
 });
+
+test('the "add a label" and "add a title" notes go once the field has text (owner, 2026-11-23)', async ({
+  page,
+}) => {
+  await paste(
+    page,
+    '<p>1. Den Meeting - Dec 16th 6:15pm - <a href="https://pack137.trooptrack.com/plan/events/1847519">Fun On The Run</a></p>',
+  );
+  const labelNote = page.getByText('Add a short label for the top of the card.');
+  const titleNote = page.getByText('Add a title for this announcement.');
+  await expect(labelNote).toBeVisible();
+  await expect(titleNote).toBeVisible();
+  await page.getByLabel('Label (the small tag at the top)').fill('Announcements');
+  await page.getByLabel('Title', { exact: true }).fill('Den 15 - Lions');
+  await expect(labelNote).toBeHidden();
+  await expect(titleNote).toBeHidden();
+  // Clearing the field brings the note back.
+  await page.getByLabel('Title', { exact: true }).fill('');
+  await expect(titleNote).toBeVisible();
+});

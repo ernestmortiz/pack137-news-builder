@@ -194,10 +194,10 @@ describe('fillForm on the weekly fixtures', () => {
       expect(form.label).toBe('');
       expect(form.title).toBe('');
       expect(result.checks).toContainEqual(
-        expect.objectContaining({ kind: 'unsure', path: ['label'] }),
+        expect.objectContaining({ kind: 'missing', path: ['label'] }),
       );
       expect(result.checks).toContainEqual(
-        expect.objectContaining({ kind: 'unsure', path: ['title'] }),
+        expect.objectContaining({ kind: 'missing', path: ['title'] }),
       );
     });
 
