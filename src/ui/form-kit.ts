@@ -105,6 +105,14 @@ export function createKit(ctx: FormContext) {
   let leftoverBox: HTMLElement | null = null;
   let leftoverChecks = 0;
   const warnTargets: { path: FieldPath; node: HTMLElement }[] = [];
+  /** "Add a label" style notes, hidden while their field has text (CheckKind 'missing'). */
+  const missingNotes: { path: FieldPath; node: HTMLElement }[] = [];
+  function refreshMissing(): void {
+    for (const note of missingNotes) {
+      const field = fields.get(JSON.stringify(note.path));
+      if (field !== undefined) note.node.hidden = field.control.value.trim() !== '';
+    }
+  }
   /** Rich fields whose latest typing has not reached the form yet. */
   const pending = new Set<{ control: HTMLElement; flush(): void }>();
   /** Brings the form up to date with everything typed. Cheap when nothing is waiting. */
@@ -218,18 +226,23 @@ export function createKit(ctx: FormContext) {
     for (const target of warnTargets) {
       if (target.node.isConnected) fillWarnings(target.path, target.node);
     }
+    refreshMissing();
   }
 
   function markerList(path: FieldPath, id: string): HTMLElement {
     const box = el('div', { className: 'markers', id });
     for (const check of itemsFor(ctx.checks(), path)) {
       claimed.add(check);
-      box.append(
-        el('p', { className: 'note check' }, [
-          el('strong', { textContent: 'Check me: ' }),
-          check.message,
-        ]),
-      );
+      const note = el('p', { className: 'note check' }, [
+        el('strong', { textContent: 'Check me: ' }),
+        check.message,
+      ]);
+      if (check.kind === 'missing') {
+        missingNotes.push({ path, node: note });
+        const field = fields.get(JSON.stringify(path));
+        if (field !== undefined) note.hidden = field.control.value.trim() !== '';
+      }
+      box.append(note);
     }
     const slot = el('div', { className: 'suggest-slot' });
     suggestSlots.push({ path, node: slot, key: '' });

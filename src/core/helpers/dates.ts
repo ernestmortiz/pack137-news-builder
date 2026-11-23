@@ -4,6 +4,7 @@
  * match the date.
  */
 import {
+  findDate,
   formatDate,
   formatRange,
   isValidDate,
@@ -100,6 +101,51 @@ export function readLeadingDate(runs: Inline[], options: DateOptions): RowDate |
   if (head?.kind === 'text' && head.href === undefined) {
     head.text = head.text.replace(/^[\s:;,–-]+/, '');
   }
+  return {
+    date,
+    yearAssumed: match.yearAssumed,
+    rest: trimRich(rest),
+    weekdayMismatches: weekdayMismatches(match.raw, date),
+  };
+}
+
+/**
+ * A date written inside a row's line rather than at its start, as in
+ * "Den Meeting - Dec 16th 6:15pm - Fun On The Run" (owner report, 2026-11-23). The date comes out
+ * of the line and the words around it close up: "Den Meeting - 6:15pm - Fun On The Run". A link
+ * keeps its place, since the line is cut as rich text.
+ */
+export function readInlineDate(runs: Inline[], options: DateOptions): RowDate | null {
+  const text = textOf(runs);
+  const match = findDate(text, options.today, options.programYearStartMonth);
+  if (match === null) return null;
+  // "on Dec 16" loses the "on" with the date.
+  const lead = /\b(?:on|this|next)\s+$/i.exec(text.slice(0, match.index));
+  const start = lead === null ? match.index : lead.index;
+  const end = match.index + match.raw.length;
+
+  const date: DateField = { start: match.start };
+  if (match.end !== undefined) date.end = match.end;
+  if (isStruck(runs, match.index, end)) date.struck = true;
+
+  const before = trimRich(sliceRich(runs, 0, start));
+  const after = trimRich(sliceRich(runs, end));
+  const tail = before[before.length - 1];
+  // A separator left dangling at either side ("Meeting - " + " - Fun") is kept once, not twice.
+  if (tail?.kind === 'text' && tail.href === undefined) {
+    const head = after[0];
+    if (head?.kind === 'text' && head.href === undefined && /^[–-]/.test(head.text.trimStart()))
+      tail.text = tail.text.replace(/\s*[–-]\s*$/, '');
+  }
+  const rest =
+    before.length === 0
+      ? after
+      : after.length === 0
+        ? before
+        : [...before, { kind: 'text' as const, text: ' ', marks: [] }, ...after];
+  const first = rest[0];
+  if (first?.kind === 'text' && first.href === undefined)
+    first.text = first.text.replace(/^[\s:;,–-]+/, '');
   return {
     date,
     yearAssumed: match.yearAssumed,

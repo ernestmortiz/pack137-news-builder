@@ -127,11 +127,13 @@ Revised on 2026-11-22 so every pattern holds up in Outlook for Windows (owner de
 
 Card shell (every announcement). Spaces in the label are written as `&nbsp;` so it cannot break.
 
+Small tables (revised 2026-11-23, owner report). TroopTrack's editor appends `width: 100%` to the style of every table that has a `style` attribute, which stretched the card label across the header in a saved message. So a table that should shrink to fit its content (the card label, the date pill, the button, panel names) carries no `style` attribute at all; its look lives on the `td`. Tables are separate by default, so nothing is lost. Spacing below a small table is a spacer `div`, not a margin. Full-width tables keep `width="100%"` and may carry a style. The output linter rejects a small table with a style attribute.
+
 ```html
 <table role="presentation" width="100%" align="center" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="max-width:600px;margin:0 auto;border-collapse:separate;background-color:#FFFFFF;border:1px solid #E3E6F5;border-radius:12px;font-family:Inter,Arial,Helvetica,sans-serif;word-break:break-word;">
   <tr>
     <td bgcolor="#151B4D" style="background-color:#151B4D;border-radius:12px 12px 0 0;padding:14px;font-family:Inter,Arial,Helvetica,sans-serif;">
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;"><tr><td bgcolor="#F7A823" style="background-color:#F7A823;color:#151B4D;font-family:Inter,Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;padding:4px 10px;border-radius:8px;">{{label}}</td></tr></table>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#F7A823" style="background-color:#F7A823;color:#151B4D;font-family:Inter,Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;padding:4px 10px;border-radius:8px;">{{label}}</td></tr></table>
       <p style="margin:8px 0 0 0;color:#FFFFFF;font-size:20px;font-weight:700;line-height:1.3;">{{title}}</p>
     </td>
   </tr>
@@ -157,12 +159,12 @@ Primary button (secondary button swaps to `#E3E6F5` in both `bgcolor` and `backg
 
 Date row (revised 2026-11-22, owner decision). Single column, date stacked above the event, so it holds up at 250px wide. First row has no top border; later rows add `border-top:1px solid #E3E6F5` after the padding, or `#FFFFFF` inside a colored panel. The two-column date row (96px date cell) is retired and must not be emitted.
 
-The date is a navy date pill above the event: a one-cell table, navy `#151B4D` cell with `bgcolor`, white 12px bold capitals with 0.5px letter-spacing, 8px corners, padding `3px 10px`, and `&nbsp;` between the words of each date so a date never breaks. A range reads "SAT FEB 27 TO SUN FEB 28" and may wrap only around " TO ", so a range cell carries no `white-space:nowrap`. A struck (rescheduled) date wraps the text in `<s>`. The pill stays navy on highlight and quiet panels. Link rows have no date and no pill. A calendar tile (month, day number and weekday in a small square) was tried on 2026-11-22 and dropped by the owner: it took too much space.
+The date is a navy date pill above the event: a one-cell table with no style attribute, followed by a 6px spacer, navy `#151B4D` cell with `bgcolor`, white 12px bold capitals with 0.5px letter-spacing, 8px corners, padding `3px 10px`, and `&nbsp;` between the words of each date so a date never breaks. A range reads "SAT FEB 27 TO SUN FEB 28" and may wrap only around " TO ", so a range cell carries no `white-space:nowrap`. A struck (rescheduled) date wraps the text in `<s>`. The pill stays navy on highlight and quiet panels. Link rows have no date and no pill. A calendar tile (month, day number and weekday in a small square) was tried on 2026-11-22 and dropped by the owner: it took too much space.
 
 Pill:
 
 ```html
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;margin:0 0 6px 0;"><tr><td bgcolor="#151B4D" style="background-color:#151B4D;border-radius:8px;padding:3px 10px;font-family:Inter,Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.5px;color:#FFFFFF;white-space:nowrap;">{{SUN&nbsp;FEB&nbsp;1}}</td></tr></table>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#151B4D" style="background-color:#151B4D;border-radius:8px;padding:3px 10px;font-family:Inter,Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.5px;color:#FFFFFF;white-space:nowrap;">{{SUN&nbsp;FEB&nbsp;1}}</td></tr></table><div style="height:6px;line-height:6px;font-size:1px;mso-line-height-rule:exactly;">&nbsp;</div>
 ```
 
 Row:
@@ -273,6 +275,11 @@ Each helper fills a form field and marks it "check me" when unsure. None blocks 
 - **Small fixes offered, not applied.** `&` to "and", "On going" to "Ongoing", doubled spaces. Shown as one-tap suggestions.
 - **Sentence case offered only for Title Case** (2026-11-22). The suggestion appears only when every ordinary word of 4 or more letters is capitalized ("Take Action Now"). A title that is already sentence case with names ("The First Presbyterian Church is having Scout Sunday") gets no suggestion.
 - **Date list from prose** (2026-11-22). When the volunteer switches to Date list, dates written inside sentences are read ("Scout Sunday on February 8th"). Each becomes a row: the date, the sentence without the date as the event name (never a link), and the rest of the paragraph as the note, links kept. A date in the title also becomes a row; the title stays as written and is flagged ("Shorten the title?"). A paragraph without a date becomes the note of the row before it. A button goes under the event before it, unless that note already has its link. Rows are sorted by date when all have one. A row with no date and no link is flagged. A dateless line of more than 12 words keeps its first sentence as the event name. Only the date words move; no text is dropped.
+- **Owner fixes of 2026-11-23** (Den 15 paste "1. Den Meeting - Dec 16th 6:15pm - Fun On The Run"):
+  - A Date list row reads a date anywhere in its line, not only at the start. The date words come out of the event name and the words around them close up ("Den Meeting - 6:15pm - Fun On The Run"); the link keeps its place.
+  - Call to action: when the button carries the paragraph's only link, the paragraph keeps the words without the link, so the email does not link the same page twice.
+  - A lone "1." (or "1)") in front of the only numbered line of the paste is dropped. With a "2." anywhere it is a real list and stays.
+  - The "Add a short label" and "Add a title" notes hide while the field has text and come back if it is cleared.
 - **Long links** (2026-11-22). A link whose visible text is its own web address and longer than 30 characters gets a one-tap suggestion to show the site's name instead (`signupgenius.com`), with the full address kept behind the link. Never applied automatically, never for `mailto:`. The site name tells screen reader users and parents where the link goes, unlike "Click here".
 - **Warnings.** Link with no destination. Image with no alt text. Link to a TroopTrack `/manage/` page (parents may not be able to open it). A mention of a service such as SignUpGenius with no link.
 

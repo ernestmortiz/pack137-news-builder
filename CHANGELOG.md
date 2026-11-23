@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 1.1.1 (2026-11-23)
+
+Fixes from the owner's Den 15 announcement, as saved in TroopTrack:
+
+- The gold card label and the Date list date pill stay small in TroopTrack. Its editor added `width: 100%` to every table with a style attribute, which stretched the label across the card in the saved message and the email. Those tables now carry no style attribute, like the button, and the output check rejects one that does.
+- Date list rows find a date anywhere in the line, so "Den Meeting - Dec 16th 6:15pm - Fun On The Run" shows a WED DEC 16 pill above "Den Meeting - 6:15pm - Fun On The Run".
+- Call to action no longer links the same page twice: when the button carries the paragraph's only link, the words stay in the paragraph without the link.
+- A lone "1." in front of a single item is dropped.
+- The "Add a short label" and "Add a title" notes disappear once those fields have text.
+- The hosted web version is on Cloudflare Pages, with extra security headers, and each release now deploys there.
+
 ## 1.1.0 (2026-11-22)
 
 The first published release. It includes the 1.0.0 web release below, which was signed off but not published on its own.

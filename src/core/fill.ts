@@ -24,7 +24,12 @@ import type {
   MessageForm,
   RichText,
 } from './forms';
-import { dateLabel, readLeadingDate, weekdayMismatchMessage } from './helpers/dates';
+import {
+  dateLabel,
+  readInlineDate,
+  readLeadingDate,
+  weekdayMismatchMessage,
+} from './helpers/dates';
 import { cleanOddRich, cleanOddText, oddCharactersMessage } from './helpers/odd-characters';
 import { formFields, getAt, isRichText, setAt, type FormField } from './helpers/paths';
 import { longAddressIn, shortLinkText } from './helpers/long-links';
@@ -85,6 +90,11 @@ export type CheckKind =
   | 'odd-characters'
   /** A pasted link had no destination, or an image had no alt text (from the parse issues). */
   | 'pasted-problem'
+  /**
+   * A field the card needs is empty (label, title). The form hides the note as soon as the field
+   * has text and shows it again if the text is cleared (owner report, 2026-11-23).
+   */
+  | 'missing'
   /** Any other guess the user should look at. */
   | 'unsure';
 
@@ -161,6 +171,25 @@ function listUnits(list: ListBlock): Unit[] {
   ]);
 }
 
+const LEADING_NUMBER = /^\s*(\d+)[.)]\s+/;
+
+/**
+ * "1. Den Meeting ..." with no "2." anywhere is not a list, so the "1." is dropped (owner report,
+ * 2026-11-23). It is only dropped from the start of a line that begins a paragraph or item.
+ */
+function dropLoneNumber(units: Unit[]): Unit[] {
+  const numbered = units.flatMap((u) =>
+    splitLines(u.runs)
+      .map((line) => LEADING_NUMBER.exec(textOf(line)))
+      .filter((m) => m !== null),
+  );
+  if (numbered.length !== 1 || numbered[0]?.[1] !== '1') return units;
+  return units.map((u) => {
+    const m = LEADING_NUMBER.exec(textOf(u.runs));
+    return m === null ? u : { kind: u.kind, runs: trimRich(sliceRich(u.runs, m[0].length)) };
+  });
+}
+
 /** Every line of text in the model, in order. Lines with no visible text are left out. */
 function unitsOf(blocks: Block[]): Unit[] {
   const units = blocks.flatMap((b): Unit[] => {
@@ -169,9 +198,11 @@ function unitsOf(blocks: Block[]): Unit[] {
     if (b.type === 'list') return listUnits(b);
     return [];
   });
-  return units
-    .map((u) => ({ kind: u.kind, runs: trimRich(u.runs) }))
-    .filter((u) => squash(textOf(u.runs)) !== '');
+  return dropLoneNumber(
+    units
+      .map((u) => ({ kind: u.kind, runs: trimRich(u.runs) }))
+      .filter((u) => squash(textOf(u.runs)) !== ''),
+  );
 }
 
 const lineText = (runs: Inline[]) => squash(textOf(runs));
@@ -256,7 +287,7 @@ function buildRow(runs: Inline[], options: FillOptions): BuiltRow {
   const notes: Note[] = [];
   /** Odd characters taken off the event name here. The caller reports them with the row. */
   const odd: string[] = [];
-  const dated = readLeadingDate(runs, options);
+  const dated = readLeadingDate(runs, options) ?? readInlineDate(runs, options);
   const rest = dated === null ? trimRich(runs) : dated.rest;
   const text = textOf(rest);
   const link = linksOf(rest)[0];
@@ -552,13 +583,19 @@ function fillCallToAction(units: Unit[], options: FillOptions): CallToActionForm
   // With no line that is only a link, the first link is the button and stays in the sentence.
   const button = taken.button ??
     rest.map((u) => linkButton(u.runs)).find((b) => b !== undefined) ?? { text: '', url: '' };
-  return {
-    layout: 'call-to-action',
-    label: '',
-    title,
-    paragraph: joinLines(taken.rest.map(unitRuns)),
-    button,
-  };
+  let paragraph = joinLines(taken.rest.map(unitRuns));
+  // The button already carries the paragraph's only link, so the words stay but the link goes:
+  // the email would otherwise link the same page twice (owner report, 2026-11-23).
+  const hrefs = new Set(linksOf(paragraph).map((l) => l.href));
+  if (hrefs.size === 1 && hrefs.has(button.url)) {
+    paragraph = paragraph.map((run) => {
+      if (run.kind !== 'text' || run.href === undefined) return run;
+      const words = { ...run };
+      delete words.href;
+      return words;
+    });
+  }
+  return { layout: 'call-to-action', label: '', title, paragraph, button };
 }
 
 /* ---------- Help wanted ---------- */
@@ -912,11 +949,15 @@ export function fillForm(parsed: ParseResult, layout: Layout, options: FillOptio
   if (form.label.trim() === '')
     checks.push({
       path: ['label'],
-      kind: 'unsure',
+      kind: 'missing',
       message: 'Add a short label for the top of the card.',
     });
   if (form.title.trim() === '')
-    checks.push({ path: ['title'], kind: 'unsure', message: 'Add a title for this announcement.' });
+    checks.push({
+      path: ['title'],
+      kind: 'missing',
+      message: 'Add a title for this announcement.',
+    });
   // One at a time: a spread of a very long list overflows the call stack.
   for (const check of built) checks.push(check);
   for (const check of oddChecks) checks.push(check);
