@@ -13,6 +13,7 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "e2e": "playwright test",
+    "e2e:pages": "PAGES_HEADERS=1 playwright test",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build"

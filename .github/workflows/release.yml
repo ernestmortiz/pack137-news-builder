@@ -8,8 +8,10 @@ name: Release
 #
 # Least privilege: the build jobs install and run third-party code (npm packages, Playwright,
 # Rust crates) with a read-only token that is not kept on disk. Only the publish job can write,
-# and it runs nothing but the GitHub CLI on the finished files. No signing keys, certificates or
-# tokens are used anywhere. Nothing is cached between runs except the npm download cache that
+# and it runs nothing but the GitHub CLI on the finished files. The only secrets are the Android
+# signing key (android-sign job, android-release environment) and the Cloudflare token (deploy-web.yml,
+# cloudflare-pages environment), each seen by one job that runs only the tool it needs. Nothing is
+# cached between runs except the npm download cache that
 # setup-node keeps. Actions are pinned to commit SHAs. Files pass from the build jobs to the
 # publish job through the Actions cache under keys unique to this run, not as artifacts: the
 # cache is outside the account's artifact storage quota, so a full quota cannot stop a release.
@@ -280,3 +282,12 @@ jobs:
             --repo "${GITHUB_REPOSITORY}" \
             --title "Pack 137 News Builder ${GITHUB_REF_NAME}" \
             --notes "Web build: unzip and open index.html, or put the folder on any web host. See HOW-TO-USE.md inside the zip. Windows installer: the .exe file. Android: the .apk file. On a Mac, use the web build in Safari. The Windows installer is not signed, so Windows shows a warning the first time; on Android, allow installs from your browser or Files app. INSTALLING-THE-DESKTOP-APP.md shows what to click. Each .sha256 file lets you check that its download was not changed. See CHANGELOG.md for what changed."
+  # Once the release is published, put its web build on the pack's Cloudflare Pages site. A failure
+  # here leaves the release published; fix it and run "Deploy web" by hand for the same tag.
+  deploy-web:
+    needs: publish
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy-web.yml
+    with:
+      tag: ${{ github.ref_name }}
