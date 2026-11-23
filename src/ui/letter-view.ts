@@ -49,6 +49,8 @@ export interface LetterView {
   setField(path: FieldPath, value: string, selection: [number, number]): boolean;
   /** The control for a field on screen, if any. */
   fieldControl(path: FieldPath): HTMLElement | null;
+  /** The text of a field on screen as the history sees it ('' if it is not there). */
+  fieldText(path: FieldPath): string;
   /** Bring the letter up to date with text typed a moment ago. Call before reading it. */
   flush(): void;
 }
@@ -134,8 +136,13 @@ function fixedHeading(text: string): HTMLElement {
 
 /* ---------- the form ---------- */
 
-export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterView {
-  const kit = createKit(ctx);
+export function buildLetterForm(
+  letter: LetterForm,
+  ctx: FormContext,
+  /** True when rich fields should show typed codes instead of the formatting box. */
+  showCodes: () => boolean = () => false,
+): LetterView {
+  const kit = createKit(ctx, showCodes);
   const element = el('div', { className: 'form letter-form' });
 
   /** A date, with a time when `withTime` is true, and the finished wording shown beneath. */
@@ -581,7 +588,9 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
       kit.group('Thank-you list', [
         el('p', {
           className: 'hint',
-          textContent: 'One line per thank-you. Put the names in **bold**.',
+          textContent: showCodes()
+            ? 'One line per thank-you. Put the names in **bold**.'
+            : 'One line per thank-you. Select the names and press Bold.',
         }),
         paragraphs(
           kit,
@@ -861,5 +870,11 @@ export function buildLetterForm(letter: LetterForm, ctx: FormContext): LetterVie
     signOff.element,
     footer,
   );
-  return { element, setField: kit.setField, fieldControl: kit.fieldControl, flush: kit.flush };
+  return {
+    element,
+    setField: kit.setField,
+    fieldControl: kit.fieldControl,
+    fieldText: kit.fieldText,
+    flush: kit.flush,
+  };
 }

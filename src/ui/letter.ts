@@ -37,6 +37,7 @@ import {
 import type { OtherTabGuard } from './other-tab';
 import type { DeviceStorage } from './storage';
 import { changeBytes, textAfter, textBefore, toChange, type TypingChange } from './typing';
+import { codesPref, createCodesSwitch } from './codes-switch';
 import { buildLetterForm, type LetterView } from './letter-view';
 import { letterWarnings, nextMonth } from './letter-ops';
 import { createPreviewFrames } from './preview-frames';
@@ -160,7 +161,13 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
   formHeading.tabIndex = -1;
   formHeading.dataset.skip = '';
   const formHost = el('div', { className: 'form-host' });
-  const left = el('div', { className: 'column' }, [formHeading, formHost]);
+  // Redraws the fields in the other style. Nothing typed is lost: the letter is brought up to date
+  // first, and no undo step is recorded.
+  const codes = createCodesSwitch(() => {
+    view?.flush();
+    drawForm();
+  });
+  const left = el('div', { className: 'column' }, [formHeading, codes.element, formHost]);
 
   /* ---------- output ---------- */
   const warningsBox = el('div', { className: 'warnings' });
@@ -280,7 +287,7 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
 
   function drawForm(): void {
     clear(formHost);
-    view = buildLetterForm(letter, ctx);
+    view = buildLetterForm(letter, ctx, codesPref.get);
     formHost.append(view.element);
   }
 
@@ -345,10 +352,7 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
     } else {
       const patch = move.patch;
       const field = view?.fieldControl(patch.path);
-      const now =
-        field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement
-          ? field.value
-          : '';
+      const now = view?.fieldText(patch.path) ?? '';
       const text = move.direction === 'undo' ? textBefore(now, patch) : textAfter(now, patch);
       const sel = move.direction === 'undo' ? patch.selBefore : patch.selAfter;
       if (field && view?.setField(patch.path, text, sel)) {
