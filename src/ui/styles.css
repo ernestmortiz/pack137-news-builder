@@ -956,12 +956,53 @@ input.time {
 /* pills: the label, dates, tags and panel names */
 .ec-pill {
   display: inline-grid;
+  min-width: 44px;
   max-width: 100%;
   border-radius: 8px;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   --ec-pad: 2px 8px;
+}
+/*
+ * Touch size. A pill is about 25px tall. The text area inside it is taller than the pill (extra
+ * padding with a matching negative margin, so the pill itself does not change) and is 44px tall,
+ * so a finger can hit it. The ring that shows where you are is drawn round the pill, not round
+ * the 44px area. The pill rows below keep a gap so the areas do not sit on each other.
+ */
+.ec-pill .ec-input,
+.ec-badge .ec-input {
+  --ec-hit: 10px;
+  margin: calc(-1 * var(--ec-hit)) 0;
+  padding: calc(2px + var(--ec-hit)) 8px;
+}
+.ec-badge .ec-input {
+  --ec-hit: 5px;
+  padding: calc(6px + var(--ec-hit)) 4px;
+}
+.ec-pill .ec-input:hover,
+.ec-badge .ec-input:hover {
+  border-color: transparent;
+}
+.ec-pill:hover,
+.ec-badge .ec-field:hover {
+  outline: 2px dashed currentColor;
+  outline-offset: -2px;
+}
+.ec-pill .ec-input:focus-visible,
+.ec-badge .ec-input:focus-visible {
+  outline: none;
+}
+.ec-pill:has(.ec-input:focus-visible),
+.ec-badge .ec-field:has(.ec-input:focus-visible) {
+  outline: 3px solid var(--navy);
+  outline-offset: 2px;
+}
+.ec-head .ec-pill:has(.ec-input:focus-visible),
+.ec-tag.strong:has(.ec-input:focus-visible),
+.ec-pill-strong:has(.ec-input:focus-visible),
+.ec-badge .ec-field:has(.ec-input:focus-visible) {
+  outline-color: var(--gold-light);
 }
 .ec-label {
   background: var(--gold);
@@ -994,7 +1035,8 @@ input.time {
 .ec-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 20px 6px;
+  margin: 4px 0;
 }
 .ec-tag {
   background: var(--lavender);
@@ -1160,12 +1202,10 @@ input.time {
   outline-color: var(--navy);
 }
 
-/* formatted text on the card. The toolbar floats above the box while it has the keyboard. */
+/* formatted text on the card. The toolbar sits in the page flow directly under the box while the
+   box or the toolbar has the keyboard. It pushes what is below it down and never covers text. */
 .ec-rich-wrap {
   min-width: 0;
-}
-.ec-rich-wrap .rich-editor {
-  position: relative;
 }
 .ec .rich-box.control {
   min-height: 44px;
@@ -1183,13 +1223,10 @@ input.time {
 .ec-float {
   display: none;
 }
-.ec-rich-wrap .rich-editor:focus-within > .ec-float {
+.ec-rich-wrap .rich-editor:focus-within > .ec-float,
+.ec-rich-wrap .rich-editor.is-open > .ec-float {
   display: block;
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 100%;
-  z-index: 6;
+  margin: 4px 0 0;
   padding: 6px;
   background: var(--white);
   border: 1px solid var(--navy);
@@ -1479,4 +1516,8 @@ input.time {
 }
 .ec-signer > .ec-field {
   flex: 1 1 140px;
+}
+
+.ec-notes-more {
+  margin-top: 8px;
 }

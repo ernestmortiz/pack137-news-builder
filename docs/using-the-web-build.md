@@ -40,7 +40,8 @@ Keep the folder. Do not delete it while you are using the tool.
 
 - Your work is saved in your web browser, on this computer only.
 - The tool never sends what you paste or type to the internet, to the pack or to another computer.
-- On the monthly letter screen, the words "Saved on this device" show that your work has been saved.
+- On the monthly letter screen, the words "Saved on this device" show that your work has been saved. A note beside them says it is saved in this browser or app only, and that you can use Download draft to carry on somewhere else.
+- The hosted website and an unzipped copy of the tool each keep their own saved work, and neither sees the other's.
 - Your saved work does not move to another computer. A different browser on the same computer does not see it either.
 - In Chrome, every file you open from a folder on this computer shares the same saved work. So a second copy of the tool, opened from another folder in Chrome, can show the same saved work.
 - Because of that, any other web page file you open from your computer in the same browser could read your saved letter or change your saved settings. Only open web page files you trust in that browser. If the tool ever says your settings were changed outside it, open Settings and check them, or press Restore Pack 137 defaults.
@@ -94,7 +95,7 @@ In the monthly letter, you do not paste a photo address. The tool leaves a spot 
 
 Finish photos adds each photo's description and makes the photos fit phone screens. It uses the descriptions you typed in the letter, in the same order as the spots.
 
-The tool lists every photo spot in the "Things to look at" box, so you can check that none is left. A spot does not stop you copying.
+The tool lists every photo spot in the "Things to check" list, so you can check that none is left. A spot does not stop you copying.
 
 An older saved draft may still hold a photo address. The tool shows that address as plain text, with a button called Use a photo spot instead. Pressing it removes the address and turns the photo into a spot. Undo brings it back.
 

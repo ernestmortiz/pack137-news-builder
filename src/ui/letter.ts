@@ -16,6 +16,7 @@ import { lintOutput } from '../core/lint-output';
 import { emptyLetter, letterWords, readTimeText, type LetterForm } from '../core/letter';
 import { renderLetter } from '../core/render-letter';
 import { browserClipboardEnv, copyText } from './clipboard';
+import { fillChecksBox } from './card-parts';
 import { clear, debounce, el } from './dom';
 import { markSpelling } from './field-kinds';
 import { registerFlush } from './safety';
@@ -63,6 +64,10 @@ export interface LetterDeps {
   notify?: (notice: RepairNotice) => void;
 }
 
+/** Shown beside the save status on the monthly screen. */
+export const SAVE_HINT =
+  'Saved in this browser or app only. The website and an unzipped copy of the tool keep separate saved work. To carry on somewhere else, use Download draft.';
+
 /** How long after the last change the draft is saved on the device. */
 const AUTOSAVE_MS = 1000;
 
@@ -109,8 +114,7 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
     statusLine,
     el('p', {
       className: 'hint',
-      textContent:
-        'Fill in each section below. Your work is saved on this device as you go. Use Download draft to keep a copy or to move it to another device.',
+      textContent: 'Fill in each section below. Your work is saved as you go.',
     }),
     el('p', { className: 'hint', textContent: SPELLING_NOTE }),
   ]);
@@ -151,6 +155,10 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
   historyBar.setAttribute('role', 'group');
   historyBar.setAttribute('aria-label', 'Undo, redo and read time');
   historyBar.tabIndex = -1;
+
+  // Always shown with the save status. The web page, an unzipped copy, and the Windows and Android
+  // apps each keep their own saved work, so say so in words that are true for all of them.
+  const saveHint = el('p', { className: 'hint save-hint', textContent: SAVE_HINT });
 
   function updateHistoryBar(): void {
     undoButton.disabled = !history.canUndo();
@@ -238,26 +246,25 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
   ]);
 
   const workspace = el('div', { className: 'workspace' }, [left, right]);
-  root.append(draftNote, choicePanel, historyBar, fileNote, workspace);
+  root.append(draftNote, choicePanel, historyBar, saveHint, fileNote, workspace);
 
+  // What the right-hand list last showed, so it can be redrawn when the view changes.
+  let shownList: { list: string[]; problems: string[] } = { list: [], problems: [] };
+  function drawChecksBox(): void {
+    // On the card the full list is above the card, so this panel only says how many.
+    fillChecksBox(warningsBox, {
+      ...shownList,
+      count: mode === 'card' ? letterNotes(letter).length : undefined,
+    });
+  }
   function showWarnings(list: string[], lintProblems: string[]): void {
-    clear(warningsBox);
-    if (list.length === 0 && lintProblems.length === 0) {
-      warningsBox.append(
-        el('p', { className: 'ok', textContent: 'Nothing to fix. This is ready to copy.' }),
-      );
-      return;
-    }
-    const ul = el('ul', { className: 'warn-list' });
-    for (const text of list) ul.append(el('li', { textContent: text }));
-    for (const text of lintProblems) {
-      ul.append(
-        el('li', {
-          textContent: `Problem with the letter HTML. Tell whoever looks after this tool: ${text}`,
-        }),
-      );
-    }
-    warningsBox.append(el('p', { className: 'label', textContent: 'Things to look at' }), ul);
+    shownList = {
+      list,
+      problems: lintProblems.map(
+        (text) => `Problem with the letter HTML. Tell whoever looks after this tool: ${text}`,
+      ),
+    };
+    drawChecksBox();
   }
 
   function refreshOutput(): void {
@@ -325,6 +332,7 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
           })
         : buildLetterForm(letter, ctx, codesPref.get);
     formHost.append(view.element);
+    drawChecksBox();
   }
 
   function setMode(next: EditView, focus: boolean): void {
@@ -504,6 +512,7 @@ export function mountLetter(root: HTMLElement, deps: LetterDeps): void {
   function showEditor(on: boolean): void {
     workspace.hidden = !on;
     historyBar.hidden = !on;
+    saveHint.hidden = !on;
     draftNote.hidden = !on;
     choicePanel.hidden = on;
   }

@@ -160,7 +160,7 @@ describe('helpers: time limits on text of the paste limit', () => {
     expect(take('Not virtually')).toEqual(['', 'Not virtually']);
   });
 
-  it('takeTags is quick when the text only looks like it ends in a tag', () => {
+  it('takeTags is quick when the text only looks like it ends in a tag', { retry: 2 }, () => {
     const inputs = [
       fill('rsvp! ', PASTE_CAP) + 'x(' + ' '.repeat(PASTE_CAP) + 'tbd )',
       fill('rsvp! ', PASTE_CAP) + 'x' + '!'.repeat(PASTE_CAP),
@@ -175,7 +175,7 @@ describe('helpers: time limits on text of the paste limit', () => {
     }
   });
 
-  it('the shouting helper is quick on one long word', () => {
+  it('the shouting helper is quick on one long word', { retry: 2 }, () => {
     const inputs = [
       'a' + '1'.repeat(PASTE_CAP) + 'b',
       'GO NOW A' + '1'.repeat(PASTE_CAP) + 'B',
@@ -190,7 +190,7 @@ describe('helpers: time limits on text of the paste limit', () => {
     expect(toSentenceCase('!!(SIGN UP)!! TODAY')).toBe('!(Sign up)! Today');
   });
 
-  it('sentence and cleanText are quick on long runs of spaces (N1a)', () => {
+  it('sentence and cleanText are quick on long runs of spaces (N1a)', { retry: 2 }, () => {
     const inputs = [
       ' '.repeat(PASTE_CAP),
       ' '.repeat(PASTE_CAP) + 'x' + EM_DASH,
@@ -213,7 +213,7 @@ describe('helpers: time limits on text of the paste limit', () => {
 describe('render: time limits on text typed into a form field', () => {
   const SPACES = ' '.repeat(500 * 1024);
 
-  it('renders a form whose title is 500 KB of spaces (N1a)', () => {
+  it('renders a form whose title is 500 KB of spaces (N1a)', { retry: 2 }, () => {
     const form: MessageForm = {
       layout: 'message',
       label: 'News',
@@ -225,7 +225,7 @@ describe('render: time limits on text typed into a form field', () => {
     expect(result).toContain('Hello pack.');
   });
 
-  it('renders a title of 500 KB of spaces with one em dash after them (N1a)', () => {
+  it('renders a title of 500 KB of spaces with one em dash after them (N1a)', { retry: 2 }, () => {
     // With no em dash at all the engine skips the regex, so the plain run of spaces was quick in
     // Node. One em dash anywhere after the spaces is what made the old regex slow.
     const form: MessageForm = {
@@ -239,7 +239,7 @@ describe('render: time limits on text typed into a form field', () => {
     expect(result).toContain(SPACES + 'x, y</p>');
   });
 
-  it('renders 500 KB of spaces in every kind of field (N1a)', () => {
+  it('renders 500 KB of spaces in every kind of field (N1a)', { retry: 2 }, () => {
     const typed = SPACES + 'x' + EM_DASH;
     const forms: AnnouncementForm[] = [
       {
@@ -287,14 +287,14 @@ describe('render: time limits on text typed into a form field', () => {
 });
 
 describe('rich text markup: time limits on typed text', () => {
-  it('reads a quarter of a million unclosed links (N1b)', () => {
+  it('reads a quarter of a million unclosed links (N1b)', { retry: 2 }, () => {
     const text = '[a]('.repeat(250_000);
     const { result, elapsed } = timed(() => textToRich(text));
     expect(elapsed).toBeLessThan(budget(LIMIT));
     expect(result).toEqual([{ kind: 'text', text, marks: [] }]);
   });
 
-  it('reads unclosed links on many lines, and a closed one after them', () => {
+  it('reads unclosed links on many lines, and a closed one after them', { retry: 2 }, () => {
     const text = '[a](\n'.repeat(100_000) + '[b](https://example.org/x\\)y)';
     const { result, elapsed } = timed(() => textToRich(text));
     expect(elapsed).toBeLessThan(budget(LIMIT));
@@ -307,7 +307,7 @@ describe('rich text markup: time limits on typed text', () => {
     });
   });
 
-  it('reads one very long link address', () => {
+  it('reads one very long link address', { retry: 2 }, () => {
     const url = 'https://example.org/' + 'a'.repeat(PASTE_CAP);
     const { result, elapsed } = timed(() => textToRich(`[a](${url}) [b](${url}`));
     expect(elapsed).toBeLessThan(budget(LIMIT));

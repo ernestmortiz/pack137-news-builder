@@ -27,6 +27,7 @@ import { announce } from './announce';
 import { registerFlush } from './safety';
 import { codesPref, createCodesSwitch } from './codes-switch';
 import { buildCardView } from './card-view';
+import { fillChecksBox } from './card-parts';
 import { buildForm, type FormView } from './form-view';
 import type { FormContext, TypingEdit } from './form-kit';
 import { createHistory } from './history';
@@ -259,24 +260,19 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
   root.append(buildGuide(), pasteSection, historyBar, results);
 
   /* ---------- output ---------- */
+  // What the right-hand list last showed, so it can be redrawn when the view changes.
+  let shownList: { list: string[]; problems: string[] } = { list: [], problems: [] };
   function showWarnings(list: string[], lintProblems: string[]): void {
-    clear(warningsBox);
-    if (list.length === 0 && lintProblems.length === 0) {
-      warningsBox.append(
-        el('p', { className: 'ok', textContent: 'Nothing to fix. This is ready to copy.' }),
-      );
-      return;
-    }
-    const ul = el('ul', { className: 'warn-list' });
-    for (const text of list) ul.append(el('li', { textContent: text }));
-    for (const text of lintProblems) {
-      ul.append(
-        el('li', {
-          textContent: `Problem with the new HTML. Tell whoever looks after this tool: ${text}`,
-        }),
-      );
-    }
-    warningsBox.append(el('p', { className: 'label', textContent: 'Things to look at' }), ul);
+    const problems = lintProblems.map(
+      (text) => `Problem with the new HTML. Tell whoever looks after this tool: ${text}`,
+    );
+    shownList = { list, problems };
+    // On the card the full list is above the card, so this panel only says how many.
+    fillChecksBox(warningsBox, {
+      list,
+      problems,
+      count: mode === 'card' ? view?.noteCount?.() : undefined,
+    });
   }
 
   function refreshOutput(): void {
@@ -363,6 +359,11 @@ export function mountConverter(root: HTMLElement, settings: SettingsStore): void
           })
         : buildForm(session.form, ctx, codesPref.get);
     formHost.append(view.element);
+    fillChecksBox(warningsBox, {
+      list: shownList.list,
+      problems: shownList.problems,
+      count: mode === 'card' ? view.noteCount?.() : undefined,
+    });
   }
 
   function setMode(next: EditView): void {

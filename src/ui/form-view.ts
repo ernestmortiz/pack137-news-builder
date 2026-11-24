@@ -23,6 +23,11 @@ export interface FormView {
   element: HTMLElement;
   /** Redraw the warning text beside fields after a change. */
   refreshWarnings(): void;
+  /**
+   * The card view only: how many things to check it lists above the card. The right-hand panel
+   * says the number and does not repeat the list.
+   */
+  noteCount?(): number;
   /** Redraw the suggestion buttons from the form as it is now. Fields are not touched. */
   refreshSuggestions(): void;
   /** Put text in a field on screen without redrawing. False if the field is not there. */

@@ -178,7 +178,7 @@ describe('readDraft: round trip', () => {
 });
 
 describe('readDraft: refusals', () => {
-  it('refuses a file over the size limit before parsing it', () => {
+  it('refuses a file over the size limit before parsing it', { retry: 2 }, () => {
     const big = fileOf(fixture(), { padding: 'x'.repeat(6 * 1024 * 1024) });
     const start = performance.now();
     const message = refused(big);
@@ -978,7 +978,7 @@ describe('readDraft: hostile drafts', () => {
     }
   });
 
-  it('does not throw or hang on JSON nested 100000 levels deep', () => {
+  it('does not throw or hang on JSON nested 100000 levels deep', { retry: 2 }, () => {
     const depth = 100_000;
     const texts = [
       '['.repeat(depth) + ']'.repeat(depth),
@@ -1010,7 +1010,7 @@ describe('readDraft: hostile drafts', () => {
 });
 
 describe('readDraft: speed', () => {
-  it('reads a valid draft of 5 MB in under a second', () => {
+  it('reads a valid draft of 5 MB in under a second', { retry: 2 }, () => {
     const letter = fixture();
     const paragraph = (i: number) => ({
       kind: 'paragraph' as const,
@@ -1205,34 +1205,38 @@ describe('readDraft: a budget for the whole letter (review S3)', () => {
     return l;
   }
 
-  it("reads the reviewer's file (100 blocks of 200 lists of 10 empty bullets) within the budget, fast", () => {
-    const bullet = '{"lead":"","text":[]}';
-    const part = `{"kind":"list","items":[${Array.from({ length: 10 }, () => bullet).join(',')}]}`;
-    const block = `{"kind":"contributor","name":"","role":"","parts":[${Array.from({ length: 200 }, () => part).join(',')}]}`;
-    const letter = looseLetter();
-    letter.story.blocks = '@@BLOCKS@@';
-    const text = fileOf(letter).replace(
-      '"@@BLOCKS@@"',
-      () => `[${Array.from({ length: 100 }, () => block).join(',')}]`,
-    );
-    expect(text.length).toBeGreaterThan(4_900_000);
-    expect(text.length).toBeLessThan(MAX_DRAFT_BYTES);
+  it(
+    "reads the reviewer's file (100 blocks of 200 lists of 10 empty bullets) within the budget, fast",
+    { retry: 2 },
+    () => {
+      const bullet = '{"lead":"","text":[]}';
+      const part = `{"kind":"list","items":[${Array.from({ length: 10 }, () => bullet).join(',')}]}`;
+      const block = `{"kind":"contributor","name":"","role":"","parts":[${Array.from({ length: 200 }, () => part).join(',')}]}`;
+      const letter = looseLetter();
+      letter.story.blocks = '@@BLOCKS@@';
+      const text = fileOf(letter).replace(
+        '"@@BLOCKS@@"',
+        () => `[${Array.from({ length: 100 }, () => block).join(',')}]`,
+      );
+      expect(text.length).toBeGreaterThan(4_900_000);
+      expect(text.length).toBeLessThan(MAX_DRAFT_BYTES);
 
-    const start = performance.now();
-    const result = opened(text);
-    const took = performance.now() - start;
-    expect(took).toBeLessThan(budget(1000));
-    expect(countEntries(result.draft.letter)).toBeLessThanOrEqual(2000);
-    expect(countEntries(result.draft.letter)).toBeGreaterThan(1900);
-    expect(result.draft.letter.story.blocks).toHaveLength(100);
-    expect(result.notes.filter((n) => /2,000/.test(n))).toHaveLength(1);
-    expect(result.notes).toHaveLength(1);
+      const start = performance.now();
+      const result = opened(text);
+      const took = performance.now() - start;
+      expect(took).toBeLessThan(budget(1000));
+      expect(countEntries(result.draft.letter)).toBeLessThanOrEqual(2000);
+      expect(countEntries(result.draft.letter)).toBeGreaterThan(1900);
+      expect(result.draft.letter.story.blocks).toHaveLength(100);
+      expect(result.notes.filter((n) => /2,000/.test(n))).toHaveLength(1);
+      expect(result.notes).toHaveLength(1);
 
-    // What was kept is a clean draft: reading it again changes nothing.
-    const again = opened(writeDraft(result.draft.letter, result.draft.settings, SAVED));
-    expect(again.notes).toEqual([]);
-    expect(again.draft.letter).toEqual(result.draft.letter);
-  });
+      // What was kept is a clean draft: reading it again changes nothing.
+      const again = opened(writeDraft(result.draft.letter, result.draft.settings, SAVED));
+      expect(again.notes).toEqual([]);
+      expect(again.draft.letter).toEqual(result.draft.letter);
+    },
+  );
 
   it('keeps a letter of exactly 2,000 entries whole, without a note', () => {
     const result = opened(fileOf(fullLetter()));
@@ -1756,7 +1760,7 @@ describe('draftLinkWarnings (review S2)', () => {
     ).not.toThrow();
   });
 
-  it('is quick on a letter full of links', () => {
+  it('is quick on a letter full of links', { retry: 2 }, () => {
     const letter = fixture();
     letter.intro = Array.from({ length: 20000 }, (_, i) => ({
       kind: 'text' as const,

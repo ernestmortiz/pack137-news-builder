@@ -1,0 +1,40 @@
+name: Clean up test builds
+# When a pull request is closed (merged or not), delete its draft test build, the pre-release
+# that wrappers.yml (job publish) names "test-build-pr-<number>". Only a draft is ever deleted: a
+# published release with that tag is left alone. Nothing happens if there is no draft. Pull requests
+# from forks never had a test build, so they are skipped, as in wrappers.yml.
+#
+# This workflow checks out and runs no repository code: it only calls the GitHub CLI.
+on:
+  pull_request:
+    types: [closed]
+permissions: {}
+# The same group as wrappers.yml, so a test build still running for this pull request is cancelled
+# instead of creating a new draft just after this one deletes the old.
+concurrency:
+  group: wrappers-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  delete-draft:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Delete the draft test build for this pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          tag="test-build-pr-${PR_NUMBER}"
+          # A draft cannot be found by its tag, so list the releases and pick the drafts with this tag.
+          ids="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq ".[] | select(.draft == true and .tag_name == \"${tag}\") | .id")"
+          if [ -z "${ids}" ]; then
+            echo "No draft named ${tag}. Nothing to delete."
+            exit 0
+          fi
+          for id in ${ids}; do
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/releases/${id}"
+            echo "Deleted draft ${tag} (release ${id})."
+          done

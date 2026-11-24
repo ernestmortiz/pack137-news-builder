@@ -10,12 +10,14 @@ import type { RichText } from '../core/forms';
 import type { Mark } from '../core/model';
 import {
   linkAt,
+  markInsertion,
   marksIn,
   plainLength,
   removeLink,
   replaceRange,
   setLink,
   toggleMark,
+  toggledMarks,
 } from '../core/rich-edit';
 import { normalizeRich, richToText } from '../core/rich-text';
 import { safeUrl } from '../templates/components';
@@ -78,6 +80,15 @@ const same = (a: RichText, b: RichText): boolean => richToText(a) === richToText
 export function createRichBox(options: RichBoxOptions): RichBox {
   let current = normalizeRich(options.runs);
   let lastSel: [number, number] = [0, 0];
+  /**
+   * Pending marks: Bold, Italic or Strike pressed with a cursor and nothing selected. They are the
+   * marks for the next typed text at that cursor (`pendingAt`). Any move of the cursor, a click
+   * elsewhere or an edit by other means clears them.
+   */
+  let pending: Mark[] | null = null;
+  let pendingAt = 0;
+  let composing = false;
+  let composeBefore: RichText = [];
 
   const box = el('div', { className: 'control rich-box' });
   box.id = uid('f');
@@ -130,7 +141,7 @@ export function createRichBox(options: RichBoxOptions): RichBox {
 
   function updatePressed(): void {
     const [a, b] = lastSel;
-    const on = marksIn(current, a, b);
+    const on = pending !== null && a === b && a === pendingAt ? pending : marksIn(current, a, b);
     for (const [mark, button] of markButtons) {
       button.setAttribute('aria-pressed', String(on.includes(mark)));
     }
@@ -145,6 +156,7 @@ export function createRichBox(options: RichBoxOptions): RichBox {
   ): void {
     const before = current;
     next = normalizeRich(next);
+    pending = null;
     if (same(before, next)) return;
     current = next;
     writeRuns(box, current);
@@ -172,11 +184,16 @@ export function createRichBox(options: RichBoxOptions): RichBox {
 
   function applyMark(mark: Mark, word: string): void {
     const [a, b] = selection();
+    say('');
     if (a === b) {
-      say(`Select some words first, then press ${word}.`);
+      // Nothing selected: the mark is for the next words typed here, as in any text editor.
+      const base = pending !== null && pendingAt === a ? pending : marksIn(current, a, a);
+      pending = toggledMarks(base, mark);
+      pendingAt = a;
+      updatePressed();
       return;
     }
-    say('');
+    pending = null;
     change(toggleMark(current, a, b, mark), [a, b], [a, b], word.toLowerCase());
   }
 
@@ -326,12 +343,23 @@ export function createRichBox(options: RichBoxOptions): RichBox {
     pre = getOffsets(box) ?? lastSel;
   });
 
-  box.addEventListener('input', () => {
-    const after = readRuns(box);
+  box.addEventListener('input', (event) => {
+    let after = readRuns(box);
     const before = current;
     if (same(before, after)) return;
-    current = after;
     const sel = getOffsets(box) ?? [plainLength(after), plainLength(after)];
+    if (!composing && !(event as InputEvent).isComposing) {
+      // Text typed after pressing Bold (and so on) with nothing selected gets those marks, in the
+      // same undo step as the typing. Any other change just drops the pending marks.
+      const marked = pending === null ? null : markInsertion(before, after, pendingAt, pending);
+      pending = null;
+      if (marked !== null && !same(marked, after)) {
+        after = marked;
+        writeRuns(box, after);
+        setOffsets(box, sel[0], sel[1]);
+      }
+    }
+    current = after;
     lastSel = sel;
     options.onEdit({ before, after, selBefore: pre, selAfter: sel, what: 'typing' });
     updatePressed();
@@ -369,7 +397,27 @@ export function createRichBox(options: RichBoxOptions): RichBox {
     event.preventDefault();
   });
 
-  box.addEventListener('blur', () => {
+  // Phone keyboards type in "compositions". The pending marks go on when the word is settled.
+  box.addEventListener('compositionstart', () => {
+    composing = true;
+    composeBefore = current;
+  });
+  box.addEventListener('compositionend', () => {
+    composing = false;
+    const marks = pending;
+    pending = null;
+    const marked = marks === null ? null : markInsertion(composeBefore, current, pendingAt, marks);
+    if (marked !== null && !same(marked, current)) {
+      const sel = getOffsets(box) ?? lastSel;
+      change(marked, sel, sel, 'typing');
+    }
+    updatePressed();
+  });
+
+  box.addEventListener('blur', (event) => {
+    const to = event.relatedTarget;
+    // Going to the toolbar keeps them (press Bold, then go back and type). Going elsewhere drops them.
+    if (!(to instanceof Node && element.contains(to))) pending = null;
     selection();
     // Tidy anything the browser left behind (spans, divs) so the box matches the form.
     if (!same(readRuns(box), current) || box.querySelector('div,span,font,p') !== null) {
@@ -385,12 +433,17 @@ export function createRichBox(options: RichBoxOptions): RichBox {
     }
     if (getOffsets(box) !== null) {
       selection();
+      // Text just typed moves the cursor too. That is not "moved away": the input event comes next
+      // (or has just come) and uses the pending marks, so only clear when the words are unchanged.
+      const moved = lastSel[0] !== lastSel[1] || lastSel[0] !== pendingAt;
+      if (pending !== null && !composing && moved && same(readRuns(box), current)) pending = null;
       updatePressed();
     }
   };
   document.addEventListener('selectionchange', onSelect);
   box.addEventListener('focus', () => {
     selection();
+    if (pending !== null && (lastSel[0] !== lastSel[1] || lastSel[0] !== pendingAt)) pending = null;
     updatePressed();
   });
   updatePressed();
@@ -402,12 +455,14 @@ export function createRichBox(options: RichBoxOptions): RichBox {
     box,
     runs: () => current,
     select(sel) {
+      pending = null;
       const max = plainLength(current);
       lastSel = [Math.min(sel[0], max), Math.min(sel[1], max)];
       if (box.isConnected) setOffsets(box, lastSel[0], lastSel[1]);
       updatePressed();
     },
     set(runs, sel) {
+      pending = null;
       current = normalizeRich(runs);
       writeRuns(box, current);
       if (sel) {

@@ -1,11 +1,48 @@
 /**
  * Pieces shared by the two card views (the weekly announcement in card-view.ts and the monthly
  * letter in letter-card.ts): the "Change in the form" button, a named group, the card width
- * control, and the list of things to look at above the card. Everything is made with DOM calls.
+ * control, and the list of things to check above the card. Everything is made with DOM calls.
  */
 import type { FieldPath, Suggestion } from '../core/fill';
 import { previewWidths } from '../config/tokens';
 import { clear, el, uid } from './dom';
+
+/** The one name for the list of things to look at, on every screen. */
+export const CHECKS_TITLE = 'Things to check';
+
+/**
+ * The one line the right-hand "Check and copy" panel shows on the card views. The full list is
+ * above the card, so it is not repeated there.
+ */
+export function checksLine(count: number): string {
+  return `${count} ${count === 1 ? 'thing' : 'things'} to check, listed above the card.`;
+}
+
+/**
+ * Fills the right-hand "Check and copy" list. In the form it is the full list. On the card (`count`
+ * given) the list is above the card, so only one line with the number is shown, plus any problem
+ * with the HTML itself, which is not on the card.
+ */
+export function fillChecksBox(
+  box: HTMLElement,
+  options: { list: string[]; problems: string[]; count?: number },
+): void {
+  clear(box);
+  const { list, problems, count } = options;
+  const onCard = count !== undefined;
+  const items = onCard ? [] : list;
+  if (items.length === 0 && problems.length === 0 && (count ?? 0) === 0) {
+    box.append(el('p', { className: 'ok', textContent: 'Nothing to fix. This is ready to copy.' }));
+    return;
+  }
+  if (onCard && count > 0)
+    box.append(el('p', { className: 'label', textContent: checksLine(count) }));
+  if (items.length === 0 && problems.length === 0) return;
+  const ul = el('ul', { className: 'warn-list' });
+  for (const text of [...items, ...problems]) ul.append(el('li', { textContent: text }));
+  if (!onCard) box.append(el('p', { className: 'label', textContent: CHECKS_TITLE }));
+  box.append(ul);
+}
 
 /** A small button that jumps to a field in the form. Quiet until its row or block is in use. */
 export function openButton(
@@ -63,7 +100,10 @@ export function widthTools(
   return tools;
 }
 
-/** One thing to look at, shown above the card. */
+/** How many notes show above the card before "Show all N". */
+export const NOTES_SHOWN = 4;
+
+/** One thing to check, shown above the card. */
 export interface CardNote {
   key: string;
   message: string;
@@ -78,11 +118,11 @@ export interface NotesPanel {
 }
 
 /**
- * The yellow list above the card: each note says what to look at and has "Show in the form". A note
- * with a one-tap fix also has "Make this change". Hidden while there is nothing to look at.
+ * The yellow list above the card: each note says what to check and has "Show in the form". A note
+ * with a one-tap fix also has "Make this change". Hidden while there is nothing to check.
  */
 export function createNotesPanel(options: {
-  /** "Things to check" or "Things to look at". The count is added. */
+  /** The list name (CHECKS_TITLE). The count is added. */
   title: string;
   notes(): CardNote[];
   openInForm(path: FieldPath): void;
@@ -90,9 +130,27 @@ export function createNotesPanel(options: {
 }): NotesPanel {
   const heading = el('h3', { className: 'ec-notes-title' });
   const list = el('ul', { className: 'ec-notes-list' });
-  const element = el('section', { className: 'ec-notes' }, [heading, list]);
+  // A long calendar can have twenty notes, most of them "the year was assumed". The list then
+  // filled the first screen and hid the card, so only the first few show until asked (owner
+  // review, 2026-11-23).
+  const more = el('button', { type: 'button', className: 'btn small ec-notes-more' });
+  more.setAttribute('aria-controls', (list.id = uid('notes-list')));
+  const element = el('section', { className: 'ec-notes' }, [heading, list, more]);
   element.setAttribute('aria-labelledby', (heading.id = uid('notes')));
   let shownKey = '\u0000';
+  let expanded = false;
+
+  function showMore(): void {
+    const items = Array.from(list.children) as HTMLElement[];
+    items.forEach((item, i) => (item.hidden = !expanded && i >= NOTES_SHOWN));
+    more.hidden = items.length <= NOTES_SHOWN;
+    more.textContent = expanded ? 'Show fewer' : `Show all ${items.length}`;
+    more.setAttribute('aria-expanded', String(expanded));
+  }
+  more.addEventListener('click', () => {
+    expanded = !expanded;
+    showMore();
+  });
 
   function refresh(): void {
     const notes = options.notes();
@@ -130,6 +188,7 @@ export function createNotesPanel(options: {
         ]),
       );
     }
+    showMore();
   }
   refresh();
   return { element, refresh };

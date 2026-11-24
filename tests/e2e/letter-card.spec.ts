@@ -120,6 +120,10 @@ test.beforeEach(async ({ context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 });
 
+/** The Undo bar sticks to the top of the window, so it would sit on top of a tall card picture. */
+const unstick = (page: Page) =>
+  page.addStyleTag({ content: '.history-bar { position: static !important; }' });
+
 test('the card comes first on the letter screen, with the previews unchanged', async ({
   page,
   context,
@@ -248,10 +252,10 @@ test('row controls show only on the active event; each section keeps one', async
   await expect(rowJump(2)).toBeHidden();
 });
 
-test('a Things to look at item jumps to its field in the form', async ({ page, context }) => {
+test('a Things to check item jumps to its field in the form', async ({ page, context }) => {
   const seen = await watch(context, page);
   await openLetter(page);
-  const heading = page.getByRole('heading', { name: /^Things to look at \(\d+\)$/ });
+  const heading = page.getByRole('heading', { name: /^Things to check \(\d+\)$/ });
   await expect(heading).toBeVisible();
   await expect(card(page).locator('xpath=..')).toContainText('The summary line is empty.');
   await panel(page)
@@ -470,15 +474,81 @@ test('the card width control resizes the letter card', async ({ page }) => {
 test('screenshots of the letter card for review', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await openLetter(page);
+  await unstick(page);
   await card(page).screenshot({ path: 'test-results/screens/letter-card-empty-wide.png' });
   await openReference(page);
+  await unstick(page);
   await card(page).screenshot({ path: 'test-results/screens/letter-card-reference-wide.png' });
-  // One block active: its toolbar floats and its "Change in the form" shows.
+  // One block active: its toolbar shows under it and its "Change in the form" shows.
   await page.mouse.move(0, 0);
   const block = card(page).getByRole('group', { name: /^Block 2:/ });
   await block.getByRole('textbox').first().click();
   await block.scrollIntoViewIfNeeded();
+  await unstick(page);
   await block.screenshot({ path: 'test-results/screens/letter-card-block-active.png' });
   await page.setViewportSize({ width: 360, height: 900 });
+  await unstick(page);
   await card(page).screenshot({ path: 'test-results/screens/letter-card-reference-360.png' });
+});
+
+test('the right-hand panel says how many things to check on the card, and lists them in full in the form', async ({
+  page,
+}) => {
+  await openLetter(page);
+  const out = panel(page).locator('.letter-output .card').first();
+  const heading = page.getByRole('heading', { name: /^Things to check \(\d+\)$/ });
+  const n = Number(/\((\d+)\)/.exec((await heading.textContent()) ?? '')?.[1] ?? '0');
+  expect(n).toBeGreaterThan(0);
+  await expect(out.getByRole('heading', { name: 'Check and copy' })).toBeVisible();
+  await expect(out).toContainText(
+    `${n} ${n === 1 ? 'thing' : 'things'} to check, listed above the card.`,
+  );
+  await expect(out.locator('li')).toHaveCount(0);
+  await expect(panel(page).getByText('Things to look at')).toHaveCount(0);
+
+  // In the form the right-hand panel keeps the full list, under the same name.
+  await inForm(page).click();
+  await expect(out.getByText('Things to check', { exact: true })).toBeVisible();
+  await expect(out.locator('li')).toHaveCount(n);
+  await expect(out).not.toContainText('listed above the card');
+
+  // Back on the card the one line returns, and its number matches the list above the card.
+  await onCard(page).click();
+  await expect(out.locator('li')).toHaveCount(0);
+  await expect(out).toContainText(`${n} ${n === 1 ? 'thing' : 'things'} to check`);
+});
+
+test('the saved-work hint shows with the save status on both views, and not on the weekly screen', async ({
+  page,
+}) => {
+  const hint = /^Saved in this browser or app only\./;
+  await openLetter(page);
+  await expect(panel(page).getByText(hint)).toBeVisible();
+  await expect(panel(page).getByText(hint)).toContainText(
+    'To carry on somewhere else, use Download draft.',
+  );
+  await box(page, 'Story title').fill('Anything');
+  await expect(panel(page).getByText(/^Saved on this device at /)).toBeVisible();
+  await expect(panel(page).getByText(hint)).toBeVisible();
+  await inForm(page).click();
+  await expect(panel(page).getByText(hint)).toBeVisible();
+  // The weekly screen does not save, so it says nothing about saving.
+  await page.getByRole('tab', { name: 'Weekly announcement' }).click();
+  await expect(weekly(page).getByText(/Saved in this browser/)).toHaveCount(0);
+  await expect(weekly(page).getByText(/Saved on this device/)).toHaveCount(0);
+});
+
+test('name tags and other pills on the letter card have a 44px touch area at 360px', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 900 });
+  await openReference(page);
+  const areas = card(page).locator('.ec-badge .ec-input, .ec-pill .ec-input');
+  const count = await areas.count();
+  expect(count).toBeGreaterThan(0);
+  const heights = await areas.evaluateAll((nodes) =>
+    nodes.map((n) => n.getBoundingClientRect().height),
+  );
+  for (const h of heights) expect(h).toBeGreaterThanOrEqual(44);
+  expect(await overflow(page)).toBeLessThanOrEqual(0);
 });

@@ -20,7 +20,23 @@ Nothing you paste or type leaves your device. The tool works without the interne
 3. Select all the code, then copy it. On a Mac, use Command instead of Ctrl.
 4. Go back to the News Builder. Paste into the box marked "Paste the old HTML here".
 
-The tool picks one of five layouts and fills in the form for you. The five layouts are Message, Call to action, Link list, Date list and Help wanted. You can switch layout at any time. Your words come with you.
+The tool picks one of five layouts and fills it in for you. The five layouts are Message, Call to action, Link list, Date list and Help wanted. You can switch layout at any time. Your words come with you.
+
+### Edit on the card, or in the form
+
+After you paste, the tool shows "Edit on the card": your announcement drawn the way the email will look.
+
+![Edit on the card after a paste. It shows the switch between Edit on the card and Edit in the form, the Things to check list with Show all 24, the card width buttons, and the card with its navy header and date rows.](images/guide/2b-card-view.png)
+
+- Click any words on the card and type to change them.
+- To make words bold, italic or crossed out, or to make them a link, select them and press Bold, Italic, Strike or Link. You can also press Ctrl+B, Ctrl+I or Ctrl+K (Command on a Mac). For Bold, Italic or Strike you can also press the button first with nothing selected, then type: the words you type next are formatted. Moving the cursor or clicking somewhere else cancels this. A link needs words, so select them first.
+- The buttons appear directly under the line you are editing. They push the lines below down a little and never cover any text. Press Tab to reach them from the line, and Shift+Tab to come back.
+- Things the card cannot change, such as dates, link addresses, button colors or adding a row, are in the form. Click into a row to see its "Change in the form" button. Each section also has one.
+- "Things to check" above the card lists anything to look at. Each item has a button that takes you to it. While you are on the card, the "Check and copy" panel on the right only says how many there are, such as "3 things to check, listed above the card." In the form, that panel shows the full list.
+
+The switch at the top, "Edit on the card" or "Edit in the form", moves between the two. Both change the same announcement, so you lose nothing by switching. The tool remembers your choice on this device, for the monthly letter too.
+
+In the form, text boxes also have the Bold, Italic, Strike and Link buttons. If you prefer typing codes such as `**bold**` and `[link text](https://...)`, tick "Show codes" at the top of the form.
 
 ![Form and preview after a paste. It shows the Layout choices with Date list marked Suggested, the Copy new HTML button and the Preview.](images/guide/2-form-and-preview.png)
 
@@ -53,13 +69,13 @@ When you switch to Date list, dates written inside sentences become rows. The ro
 
 ## Monthly letter
 
-![Monthly letter screen. It shows Undo, Redo, the read time, the Download draft and Open draft buttons, the Masthead, and the Check and copy panel with Things to look at and Copy letter HTML.](images/guide/4-monthly-letter.png)
+![Monthly letter screen on the card. It shows Undo, Redo, the read time, Download draft and Open draft, the Edit on the card switch, Things to check, and the Check and copy panel with Copy letter HTML.](images/guide/4-monthly-letter.png)
 
 1. Press "Monthly letter" at the top of the screen.
-2. Fill in each section.
-3. The "Things to look at" box lists anything still missing. It never stops you copying.
+2. Fill in each section. The letter opens on the card too: click any words to change them. Use "Change in the form" for dates, links, photos and adding or moving blocks.
+3. The "Things to check" list names anything still missing. On the card it is above the card, and the Check and copy panel on the right gives the number. In the form it is in the Check and copy panel. It never stops you copying.
 4. The read time updates as you type.
-5. Your work saves on this device as you go.
+5. Your work saves as you go, in this browser or app only. The website and an unzipped copy of the tool keep separate saved work. To carry on somewhere else, use Download draft. The screen says this next to "Saved on this device".
 6. Press "Copy letter HTML". Paste into TroopTrack code view, the same way as an announcement.
 
 ### Photos in the letter

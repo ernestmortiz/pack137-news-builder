@@ -3,12 +3,15 @@ import type { RichText } from '../../src/core/forms';
 import type { Mark } from '../../src/core/model';
 import {
   linkAt,
+  markInsertion,
   marksIn,
   plainLength,
   removeLink,
   replaceRange,
   setLink,
+  setMarks,
   toggleMark,
+  toggledMarks,
 } from '../../src/core/rich-edit';
 import { richToText } from '../../src/core/rich-text';
 
@@ -220,6 +223,64 @@ describe('replaceRange', () => {
       t('ab', [], 'https://example.org'),
       t('-'),
       t('cd', [], 'https://example.org'),
+    ]);
+  });
+});
+
+describe('toggledMarks', () => {
+  it('turns a mark on or off in a list of marks, leaving the input alone', () => {
+    const base: Mark[] = ['em'];
+    expect(toggledMarks(base, 'strong')).toEqual(['em', 'strong']);
+    expect(toggledMarks(['em', 'strong'], 'em')).toEqual(['strong']);
+    expect(toggledMarks([], 'strike')).toEqual(['strike']);
+    expect(base).toEqual(['em']);
+  });
+});
+
+describe('setMarks', () => {
+  it('gives exactly these marks to the range and splits at the edges', () => {
+    const out = setMarks([t('abcd', ['em'])], 1, 3, ['strong']);
+    expect(out).toEqual([t('a', ['em']), t('bc', ['strong']), t('d', ['em'])]);
+  });
+  it('keeps a link on the changed text', () => {
+    const out = setMarks([t('abc', [], 'https://example.org')], 0, 3, ['strong']);
+    expect(out).toEqual([t('abc', ['strong'], 'https://example.org')]);
+  });
+  it('clears marks with an empty list, and clamps', () => {
+    expect(setMarks([t('abc', ['strong', 'em'])], -2, 99, [])).toEqual([t('abc')]);
+  });
+});
+
+describe('markInsertion', () => {
+  it('marks the text typed at the cursor and nothing else', () => {
+    const before: RichText = [t('ab')];
+    const after: RichText = [t('aXb')];
+    expect(markInsertion(before, after, 1, ['strong'])).toEqual([
+      t('a'),
+      t('X', ['strong']),
+      t('b'),
+    ]);
+  });
+  it('can mark several typed characters', () => {
+    const out = markInsertion([t('ab')], [t('aXYb')], 1, ['em']);
+    expect(out).toEqual([t('a'), t('XY', ['em']), t('b')]);
+  });
+  it('counts a line break as one character', () => {
+    const out = markInsertion([t('ab')], [t('a'), br(), t('b')], 1, ['em']);
+    expect(out).toEqual([t('a'), br(), t('b')]);
+  });
+  it('takes marks off typed text that landed inside bold text', () => {
+    const out = markInsertion([t('abcd', ['strong'])], [t('abXcd', ['strong'])], 2, []);
+    expect(out).toEqual([t('ab', ['strong']), t('X'), t('cd', ['strong'])]);
+  });
+  it('returns null when the change was not an insertion at that place', () => {
+    expect(markInsertion([t('abc')], [t('ac')], 1, ['strong'])).toBeNull();
+    expect(markInsertion([t('abc')], [t('abXc')], 1, ['strong'])).toBeNull();
+    expect(markInsertion([t('abc')], [t('abc')], 1, ['strong'])).toBeNull();
+    expect(markInsertion([t('abc')], [t('aXYbc')], 1, ['strong'])).toEqual([
+      t('a'),
+      t('XY', ['strong']),
+      t('bc'),
     ]);
   });
 });

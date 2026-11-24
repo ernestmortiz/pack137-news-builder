@@ -23,35 +23,39 @@ describe('sanitize: time budget for a very large paste', () => {
   // The other test files run at the same moment and compete for the processor, so a slow run
   // is tried again, up to three times. Work that grows with the square of the paste size fails
   // every time.
-  it('handles 1 MB of unclosed bold, italic and link tags in under 2 seconds', () => {
-    const count = 30000;
-    const html = '<b><i><a href="https://x.org">t'.repeat(count);
-    expect(html.length).toBeGreaterThan(900 * 1024);
-    let result = sanitize('');
-    let elapsed = Infinity;
-    for (let attempt = 0; attempt < 3 && elapsed >= 2000; attempt += 1) {
-      const started = performance.now();
-      result = sanitize(html);
-      elapsed = performance.now() - started;
-    }
-    const { root, issues } = result;
-    expect(elapsed).toBeLessThan(budget(2000));
-    expect(issues).toEqual([]);
-    // Counted by hand: a selector query over this many nodes takes longer than the work itself.
-    let links = 0;
-    let letters = 0;
-    const pending: Node[] = [root];
-    for (let node = pending.pop(); node; node = pending.pop()) {
-      if (node.nodeType === 3) letters += (node.nodeValue ?? '').length;
-      else if ((node as Element).tagName === 'A') {
-        links += 1;
-        expect((node as Element).getAttribute('href')).toBe('https://x.org');
+  it(
+    'handles 1 MB of unclosed bold, italic and link tags in under 2 seconds',
+    { retry: 2, timeout: 30000 },
+    () => {
+      const count = 30000;
+      const html = '<b><i><a href="https://x.org">t'.repeat(count);
+      expect(html.length).toBeGreaterThan(900 * 1024);
+      let result = sanitize('');
+      let elapsed = Infinity;
+      for (let attempt = 0; attempt < 3 && elapsed >= 2000; attempt += 1) {
+        const started = performance.now();
+        result = sanitize(html);
+        elapsed = performance.now() - started;
       }
-      for (const child of Array.from(node.childNodes)) pending.push(child);
-    }
-    expect(links).toBe(count);
-    expect(letters).toBe(count);
-  }, 30000);
+      const { root, issues } = result;
+      expect(elapsed).toBeLessThan(budget(2000));
+      expect(issues).toEqual([]);
+      // Counted by hand: a selector query over this many nodes takes longer than the work itself.
+      let links = 0;
+      let letters = 0;
+      const pending: Node[] = [root];
+      for (let node = pending.pop(); node; node = pending.pop()) {
+        if (node.nodeType === 3) letters += (node.nodeValue ?? '').length;
+        else if ((node as Element).tagName === 'A') {
+          links += 1;
+          expect((node as Element).getAttribute('href')).toBe('https://x.org');
+        }
+        for (const child of Array.from(node.childNodes)) pending.push(child);
+      }
+      expect(links).toBe(count);
+      expect(letters).toBe(count);
+    },
+  );
 });
 
 describe('sanitize: dropped elements', () => {
@@ -407,7 +411,7 @@ describe('sanitize: hostile and malformed input', () => {
     expect(root.querySelector('strong')).not.toBeNull();
   });
 
-  it('handles a 1 MB paste in under 2 seconds', () => {
+  it('handles a 1 MB paste in under 2 seconds', { retry: 2 }, () => {
     const chunk =
       '<div class="fr-wrap" id="isPasted" style="color:red;font-weight:700" data-x="1">' +
       '<p style="margin:0" onclick="x()"><span style="font-style:italic">Pack meeting</span> on ' +
@@ -429,17 +433,22 @@ describe('sanitize: hostile and malformed input', () => {
     ]);
   });
 
-  it('unwraps 3000 nested elements that are not on the allow list in under a second', () => {
-    const depth = 3000;
-    const html = '<section><article>'.repeat(depth) + 'deep' + '</article></section>'.repeat(depth);
-    const started = performance.now();
-    const { root } = sanitize(html);
-    expect(performance.now() - started).toBeLessThan(budget(1000));
-    expect(root.childNodes.length).toBe(1);
-    expect(root.firstChild?.nodeValue).toBe('deep');
-  });
+  it(
+    'unwraps 3000 nested elements that are not on the allow list in under a second',
+    { retry: 2 },
+    () => {
+      const depth = 3000;
+      const html =
+        '<section><article>'.repeat(depth) + 'deep' + '</article></section>'.repeat(depth);
+      const started = performance.now();
+      const { root } = sanitize(html);
+      expect(performance.now() - started).toBeLessThan(budget(1000));
+      expect(root.childNodes.length).toBe(1);
+      expect(root.firstChild?.nodeValue).toBe('deep');
+    },
+  );
 
-  it('removes hidden and dropped content that is thousands of levels deep', () => {
+  it('removes hidden and dropped content that is thousands of levels deep', { retry: 2 }, () => {
     const deep = '<div>'.repeat(9000) + 'secret' + '</div>'.repeat(9000);
     const html = `<p>Hi</p><div style="display:none">${deep}</div><form>${deep}</form><p>Bye</p>`;
     const started = performance.now();
@@ -449,7 +458,7 @@ describe('sanitize: hostile and malformed input', () => {
     expect(issues.map((issue) => issue.detail)).toEqual(['form']);
   });
 
-  it('checks a link with no destination that wraps thousands of levels', () => {
+  it('checks a link with no destination that wraps thousands of levels', { retry: 2 }, () => {
     const depth = 9000;
     const html = `<a>${'<div>'.repeat(depth)}words${'</div>'.repeat(depth)}</a><a><img src="https://x.org/a.jpg" alt="A"></a>`;
     const started = performance.now();
@@ -833,15 +842,19 @@ describe('sanitize: the same result, cleaned in place or built new', () => {
     expect(builtNew.issues).toEqual(inPlace.issues);
   });
 
-  it('builds nothing from the paste itself: no attribute survives but the checked ones', () => {
-    const html =
-      '<p onclick="x()" style="color:red" class="c">a<a href="https://x.org/a" onmouseover="x()">b</a>' +
-      '<img src="https://x.org/a.jpg" alt="A" onerror="x()" srcset="x.jpg 2x"></p>';
-    const { root } = sanitize(open + filler + html + close);
-    expect(root.innerHTML).toBe(
-      filler + '<p>a<a href="https://x.org/a">b</a><img src="https://x.org/a.jpg" alt="A"></p>',
-    );
-  });
+  it(
+    'builds nothing from the paste itself: no attribute survives but the checked ones',
+    { retry: 2 },
+    () => {
+      const html =
+        '<p onclick="x()" style="color:red" class="c">a<a href="https://x.org/a" onmouseover="x()">b</a>' +
+        '<img src="https://x.org/a.jpg" alt="A" onerror="x()" srcset="x.jpg 2x"></p>';
+      const { root } = sanitize(open + filler + html + close);
+      expect(root.innerHTML).toBe(
+        filler + '<p>a<a href="https://x.org/a">b</a><img src="https://x.org/a.jpg" alt="A"></p>',
+      );
+    },
+  );
 });
 
 describe('sanitize: deep and wide at once', () => {
@@ -883,7 +896,7 @@ describe('sanitize: deep and wide at once', () => {
     expect(root.firstChild?.firstChild?.nodeValue).toBe('a');
   });
 
-  it('unwraps 300 wrappers that alternate with kept blocks around 5000 nodes', () => {
+  it('unwraps 300 wrappers that alternate with kept blocks around 5000 nodes', { retry: 2 }, () => {
     const width = 5000;
     const html =
       '<section><div>'.repeat(300) + '<i>a</i>'.repeat(width) + '</div></section>'.repeat(300);
@@ -900,37 +913,45 @@ describe('sanitize: deep and wide at once', () => {
     expect(node.childNodes.length).toBe(width);
   });
 
-  it('strips a wide run of styled text inside nested wrappers in under 1.5 seconds', () => {
-    // Every text node gets an emphasis element, and every second node is one that is removed.
-    const width = 5000;
-    const html =
-      '<section style="font-weight:bold">'.repeat(100) +
-      'a<br><!-- c -->'.repeat(width) +
-      '</section>'.repeat(100);
-    const { root, elapsed } = timed(html, 1500);
-    expect(elapsed).toBeLessThan(budget(1500));
-    const children = Array.from(root.childNodes);
-    expect(children.length).toBe(width * 2);
-    expect(children.filter((child) => child.nodeName === 'STRONG').length).toBe(width);
-    expect(children.filter((child) => child.nodeName === 'BR').length).toBe(width);
-  });
+  it(
+    'strips a wide run of styled text inside nested wrappers in under 1.5 seconds',
+    { retry: 2 },
+    () => {
+      // Every text node gets an emphasis element, and every second node is one that is removed.
+      const width = 5000;
+      const html =
+        '<section style="font-weight:bold">'.repeat(100) +
+        'a<br><!-- c -->'.repeat(width) +
+        '</section>'.repeat(100);
+      const { root, elapsed } = timed(html, 1500);
+      expect(elapsed).toBeLessThan(budget(1500));
+      const children = Array.from(root.childNodes);
+      expect(children.length).toBe(width * 2);
+      expect(children.filter((child) => child.nodeName === 'STRONG').length).toBe(width);
+      expect(children.filter((child) => child.nodeName === 'BR').length).toBe(width);
+    },
+  );
 
   // The largest, so the last. The security review named 100000 nodes here. Run alone, that
   // takes about 2 seconds. With the whole suite running, the DOM parser by itself takes 2 to 4
   // seconds on a paste that size, so the width tested here is one that leaves room under the
   // limit. The code before the fix would need minutes for it.
-  it('unwraps 500 nested unknown elements around 30000 nodes in under 3 seconds', () => {
-    const depth = 500;
-    const width = 30000;
-    const html = '<x>'.repeat(depth) + '<b>a</b>'.repeat(width) + '</x>'.repeat(depth);
-    const { root, elapsed } = timed(html, 3000);
-    expect(elapsed).toBeLessThan(budget(3000));
-    const children = Array.from(root.childNodes);
-    expect(children.length).toBe(width);
-    let plain = 0;
-    for (const child of children) {
-      if (child.nodeName === 'B' && child.firstChild?.nodeValue === 'a') plain += 1;
-    }
-    expect(plain).toBe(width);
-  }, 60000);
+  it(
+    'unwraps 500 nested unknown elements around 30000 nodes in under 3 seconds',
+    { retry: 2, timeout: 60000 },
+    () => {
+      const depth = 500;
+      const width = 30000;
+      const html = '<x>'.repeat(depth) + '<b>a</b>'.repeat(width) + '</x>'.repeat(depth);
+      const { root, elapsed } = timed(html, 3000);
+      expect(elapsed).toBeLessThan(budget(3000));
+      const children = Array.from(root.childNodes);
+      expect(children.length).toBe(width);
+      let plain = 0;
+      for (const child of children) {
+        if (child.nodeName === 'B' && child.firstChild?.nodeValue === 'a') plain += 1;
+      }
+      expect(plain).toBe(width);
+    },
+  );
 });

@@ -55,7 +55,7 @@ export interface LetterView {
   flush(): void;
   /** Move the keyboard to the control for a field. False if nothing for that path is on screen. */
   focusPath(path: FieldPath): boolean;
-  /** Redraw the list of things to look at, if this view shows one. */
+  /** Redraw the list of things to check, if this view shows one. */
   refreshNotes(): void;
 }
 
