@@ -98,7 +98,7 @@ test('the blank letter for next month shows with the defaults and three previews
   ).toBeVisible();
   await expect(field(page, 'Greeting')).toHaveValue('Hi Pack 137 families,');
   await expect(counter(page)).toContainText(/About an? \d+ minute read\. \d+ words?\./);
-  for (const width of [250, 375, 600]) {
+  for (const width of [320, 375, 600]) {
     await expect(
       panel(page).locator(`iframe[title="Preview, ${width} pixels wide"]`),
     ).toBeVisible();
@@ -323,7 +323,7 @@ test('at 360px wide the letter tab has no horizontal page overflow', async ({ pa
   await openLetter(page);
   await addBlock(page, 'Stat band: Two big numbers, such as 48 families');
   await section(page, 'Coming up').getByRole('button', { name: 'Add an event' }).click();
-  await expect(frame(page, 250).locator('body')).toContainText('Hi Pack 137 families,');
+  await expect(frame(page, 320).locator('body')).toContainText('Hi Pack 137 families,');
   const overflow = await page.evaluate(() => ({
     doc: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     body: document.body.scrollWidth - document.documentElement.clientWidth,

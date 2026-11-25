@@ -20,7 +20,10 @@ export const radius = { panel: 12, control: 8 } as const;
 
 export const space = { card: 14, panel: 14 } as const;
 
-/** Widths every preview and screenshot test must cover. 250 is a card nested in TroopTrack on a small phone. */
-export const previewWidths = [250, 375, 600] as const;
+/**
+ * Widths every preview and screenshot test must cover: a small phone, a typical phone and a
+ * desktop. 320 replaced 250 (a rare folding phone cover screen) on 2026-11-25 (owner decision).
+ */
+export const previewWidths = [320, 375, 600] as const;
 
 export const maxEmailWidth = 600;

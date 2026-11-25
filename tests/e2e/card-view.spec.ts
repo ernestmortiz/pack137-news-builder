@@ -118,7 +118,7 @@ test.describe('after pasting, the card comes first', () => {
       // The Show codes switch belongs to the form only.
       await expect(page.getByLabel('Show codes')).toBeHidden();
       await expect.poll(() => cardWords(page)).toContain(f.text);
-      for (const width of [250, 375, 600]) {
+      for (const width of [320, 375, 600]) {
         await expect(frame(page, width).locator('body')).toContainText(f.text);
       }
       expect(await overflow(page)).toBeLessThanOrEqual(0);
@@ -571,16 +571,16 @@ test('the card width control resizes the card', async ({ page }) => {
   await page.setViewportSize({ width: 1200, height: 900 });
   await paste(page, input('4-in-the-news'));
   const widthOf = async () => (await card(page).boundingBox())?.width ?? 0;
-  await page.getByRole('button', { name: 'Card width 250 pixels' }).click();
-  expect(await widthOf()).toBeCloseTo(250, 0);
+  await page.getByRole('button', { name: 'Card width 320 pixels' }).click();
+  expect(await widthOf()).toBeCloseTo(320, 0);
   await page.getByRole('button', { name: 'Card width 375 pixels' }).click();
   expect(await widthOf()).toBeCloseTo(375, 0);
   await page.getByRole('button', { name: 'Card width 600 pixels' }).click();
   expect(await widthOf()).toBeLessThanOrEqual(600);
   // Typing in a card line keeps the width.
-  await page.getByRole('button', { name: 'Card width 250 pixels' }).click();
+  await page.getByRole('button', { name: 'Card width 320 pixels' }).click();
   await card(page).getByRole('textbox', { name: 'Title', exact: true }).fill('Short');
-  expect(await widthOf()).toBeCloseTo(250, 0);
+  expect(await widthOf()).toBeCloseTo(320, 0);
   expect(await overflow(page)).toBeLessThanOrEqual(0);
 });
 

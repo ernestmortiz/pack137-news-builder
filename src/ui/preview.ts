@@ -19,8 +19,8 @@ function attributeOf(tag: string, name: string): string | undefined {
  * The stand-in's size, copied from the picture's own style so the preview lays out like the email:
  * a full-width photo (width:100%;max-width:552px) stays full width up to its size, and a fixed
  * picture such as the 90px logo (width:90px;max-width:100%) stays fixed. A fixed 552px box
- * stretched the letter past a phone's width (2026-11-25), and a full-width logo box squeezed the
- * masthead title into one letter (1.2.1), so neither rule fits every picture.
+ * stretched the letter past a phone's width (2026-11-25); copying each picture's own rules keeps
+ * every stand-in the size the email shows.
  */
 function standInSize(style: string, widthAttr: string): string {
   const read = (name: string) =>

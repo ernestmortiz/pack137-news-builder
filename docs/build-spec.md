@@ -157,7 +157,7 @@ Primary button (secondary button swaps to `#E3E6F5` in both `bgcolor` and `backg
 </table>
 ```
 
-Date row (revised 2026-11-22, owner decision). Single column, date stacked above the event, so it holds up at 250px wide. First row has no top border; later rows add `border-top:1px solid #E3E6F5` after the padding, or `#FFFFFF` inside a colored panel. The two-column date row (96px date cell) is retired and must not be emitted.
+Date row (revised 2026-11-22, owner decision). Single column, date stacked above the event, so it holds up on the narrowest phones (designed at 250px wide). First row has no top border; later rows add `border-top:1px solid #E3E6F5` after the padding, or `#FFFFFF` inside a colored panel. The two-column date row (96px date cell) is retired and must not be emitted.
 
 The date is a navy date pill above the event: a one-cell table with no style attribute, followed by a 6px spacer, navy `#151B4D` cell with `bgcolor`, white 12px bold capitals with 0.5px letter-spacing, 8px corners, padding `3px 10px`, and `&nbsp;` between the words of each date so a date never breaks. A range reads "SAT FEB 27 TO SUN FEB 28" and may wrap only around " TO ", so a range cell carries no `white-space:nowrap`. A struck (rescheduled) date wraps the text in `<s>`. The pill stays navy on highlight and quiet panels. Link rows have no date and no pill. A calendar tile (month, day number and weekday in a small square) was tried on 2026-11-22 and dropped by the owner: it took too much space.
 
@@ -285,7 +285,7 @@ Each helper fills a form field and marks it "check me" when unsure. None blocks 
 
 ### 7.5 Output panel
 
-- Live preview at three widths: nested in TroopTrack on a small phone (250px), phone (375px) and desktop (600px), rendered in a sandboxed `iframe` via `srcdoc`.
+- Live preview at three widths: small phone (320px), phone (375px) and desktop (600px), rendered in a sandboxed `iframe` via `srcdoc`. The small phone was 250px until 2026-11-25; the owner replaced it with 320px, the narrowest width still common, because 250px (a folding phone cover screen inside TroopTrack) is rare.
 - "Copy new HTML" button with a visible "Copied" confirmation. Use the async clipboard API with a fallback to a selected read-only textarea.
 - A collapsed "Show the code" area for the curious.
 - "Start over" clears the form after a confirm step.
@@ -440,7 +440,7 @@ CLAUDE.md
 - **Output linter.** A test helper run on every rendered string that fails if it finds: a `<style>`, `<script>`, `class=`, `id=` or `data-` attribute; a color outside the token list; an em dash; an image without alt or without `max-width:100%`; a link without an absolute `href`; a percentage width other than 100% on a layout table; a `calc(` anywhere; a button under 44px; nesting of more than one wrapper `div`.
 - **Hostile input.** Pasted `<script>`, `onerror=`, `javascript:` URLs, malformed tags and a 1 MB paste must produce safe output and no errors.
 - **End to end.** Playwright: paste, edit a field, copy, and assert clipboard content, in both features.
-- **Visual.** Screenshot the preview at 250px, 375px and 600px for each fixture and compare.
+- **Visual.** Screenshot the preview at 320px, 375px and 600px for each fixture and compare.
 - **Manual email check before each release.** Paste one announcement and one letter into TroopTrack, send to a test address, and view in Gmail web, Gmail on iPhone, Gmail on Android, Apple Mail and Outlook. Known and accepted: Gmail dark mode shifts the colors; older Outlook shows square corners.
 
 ### 11.4 Accessibility and usability of the tool itself
@@ -489,7 +489,7 @@ Still open:
 - Web deployment. Deferred by the owner. Until decided, the web build is delivered as a zip of static files and previewed locally.
 - How do volunteers get the installers: a download page on the pack site, or a shared drive folder?
 - Which Android versions and screen sizes matter? ASSUMPTION: Android 10 and later, phones first.
-- Narrow screens (resolved 2026-11-21). A test send of the weekly email in the Gmail app on a folding phone's outer screen showed that TroopTrack nests each announcement inside its own padded card, leaving about 250px for content. Approved fix, now in section 6.1: stacked date rows, Link list image above the text, `white-space:nowrap` on pills, 14px padding. Preview and screenshot tests must include 250px alongside 375px and 600px.
+- Narrow screens (resolved 2026-11-21). A test send of the weekly email in the Gmail app on a folding phone's outer screen showed that TroopTrack nests each announcement inside its own padded card, leaving about 250px for content. Approved fix, now in section 6.1: stacked date rows, Link list image above the text, `white-space:nowrap` on pills, 14px padding. Preview and screenshot tests must include 250px alongside 375px and 600px. Superseded 2026-11-25: the narrowest preview is now 320px (owner decision); the 250px-era layout rules stay in place.
 - Is "Pack 137 News" still the name for the weekly announcements, with "Pack 137 Stories" for the monthly?
 - Who else, besides the project owner, will use and maintain this in the next two years?
 - Should the Converter keep a history of past conversions on the device? ASSUMPTION: no, to keep it simple.
