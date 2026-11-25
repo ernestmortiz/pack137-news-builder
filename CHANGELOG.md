@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.2.2 (2026-11-25)
+
+- The previews now show the most popular widths: an Android phone (360 pixels), an iPhone (390) and a desktop (600). They replace 250, a rare folding phone cover screen, and 375. The card width buttons match.
+- The grey picture boxes in the preview are sized like the real pictures: photos fill the width, and the logo stays a 90 pixel circle.
+- Behind the scenes: the Android build fetches its build tools from Google's mirror of Maven Central first, so a busy Maven Central no longer fails a build or a release.
+
 ## 1.2.1 (2026-11-25)
 
 - The phone previews of a monthly letter with full-width photos no longer scroll sideways. The real email always fitted; only the preview's grey picture boxes were too wide (owner report from an iPhone, 2026-11-25).
