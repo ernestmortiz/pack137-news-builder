@@ -16,7 +16,7 @@ function attributeOf(tag: string, name: string): string | undefined {
 }
 
 /**
- * Replaces each <img> with a placeholder box of the same width. `html` is renderer output, where
+ * Replaces each <img> with a placeholder box as wide as the picture would be. `html` is renderer output, where
  * attribute values are already escaped, so the alt text can be used as text as it stands.
  */
 export function replaceImagesWithPlaceholders(html: string): string {
@@ -25,7 +25,10 @@ export function replaceImagesWithPlaceholders(html: string): string {
       ? attributeOf(tag, 'width')
       : '';
     const alt = (attributeOf(tag, 'alt') ?? '').trim();
-    const size = width ? `width:${width}px;max-width:100%;` : 'width:100%;';
+    // Sized like the photo itself: full width, up to its stated width. A fixed width with
+    // max-width:100% stretched the letter's tables past a phone's width in the preview only
+    // (owner report, 2026-11-25: 624px inside the 250px frame; the real email fits).
+    const size = width ? `width:100%;max-width:${width}px;` : 'width:100%;';
     const style =
       `display:block;${size}box-sizing:border-box;min-height:48px;margin:0 0 12px 0;padding:8px;` +
       `background-color:${color.lavender};color:${color.navy};font-size:13px;line-height:1.3;` +

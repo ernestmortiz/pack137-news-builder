@@ -14,13 +14,16 @@ const linkList: AnnouncementForm = {
 };
 
 describe('replaceImagesWithPlaceholders', () => {
-  it('replaces an image with a box of the same width showing the alt text', () => {
+  it('replaces an image with a box as wide as the picture, showing the alt text', () => {
     const html = renderAnnouncement(linkList);
     expect(html).toContain('<img');
     const out = replaceImagesWithPlaceholders(html);
     expect(out).not.toContain('<img');
     expect(out).not.toContain('example.org/pic.png');
-    expect(out).toContain('width:80px;max-width:100%;');
+    // Full width up to the picture's width, as the picture is: a fixed width would stretch a
+    // phone preview's tables (owner report, 2026-11-25).
+    expect(out).toContain('width:100%;max-width:80px;');
+    expect(out).not.toMatch(/<div style="display:block;width:80px;/);
     expect(out).toContain('A &quot;big&quot; cat &amp; dog</div>');
   });
 

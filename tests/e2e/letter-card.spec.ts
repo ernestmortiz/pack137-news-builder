@@ -552,3 +552,21 @@ test('name tags and other pills on the letter card have a 44px touch area at 360
   for (const h of heights) expect(h).toBeGreaterThanOrEqual(44);
   expect(await overflow(page)).toBeLessThanOrEqual(0);
 });
+
+test('the phone previews of a letter with full-width photos do not scroll sideways (owner, 2026-11-25)', async ({
+  page,
+}) => {
+  // The real email fits a phone; the preview's photo stand-ins used to be fixed 552px boxes,
+  // which stretched the letter to about 630px inside the 250px and 375px frames.
+  await openReference(page);
+  for (const width of [250, 375]) {
+    const frame = panel(page)
+      .locator(`iframe[title="Preview, ${width} pixels wide"]`)
+      .contentFrame();
+    await expect(frame.locator('body')).toContainText(referenceLetter.story.title);
+    const sizes = await frame
+      .locator('html')
+      .evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+    expect(sizes.scroll, `preview ${width}px`).toBeLessThanOrEqual(sizes.client);
+  }
+});
