@@ -146,7 +146,7 @@ test('the card comes first on the letter screen, with the previews unchanged', a
   await expect(card(page).getByRole('heading', { name: 'Around the pack' })).toBeVisible();
   await expect(box(page, 'Summary line')).toHaveAttribute('placeholder', 'Add a summary line');
   expect(await unnamed(card(page))).toBe(0);
-  for (const width of [320, 375, 600]) {
+  for (const width of [360, 390, 600]) {
     await expect(
       panel(page).locator(`iframe[title="Preview, ${width} pixels wide"]`),
     ).toBeVisible();
@@ -168,13 +168,13 @@ test('edit the intro on the card: the preview follows, Ctrl+Z restores, the form
   await openLetter(page);
   const intro = box(page, 'Intro paragraph');
   await intro.fill('Zebra camp news');
-  await expect(frame(page, 375).locator('body')).toContainText('Zebra camp news');
+  await expect(frame(page, 390).locator('body')).toContainText('Zebra camp news');
   await page.keyboard.press('Control+z');
   await expect(intro).toHaveText('');
-  await expect(frame(page, 375).locator('body')).not.toContainText('Zebra camp news');
+  await expect(frame(page, 390).locator('body')).not.toContainText('Zebra camp news');
   await page.keyboard.press('Control+Shift+z');
   await expect(intro).toHaveText('Zebra camp news');
-  await expect(frame(page, 375).locator('body')).toContainText('Zebra camp news');
+  await expect(frame(page, 390).locator('body')).toContainText('Zebra camp news');
 
   await inForm(page).click();
   await expect(card(page)).toHaveCount(0);
@@ -198,7 +198,7 @@ test('bold a word in a block on the card: the preview gets it, and undo removes 
   await openReference(page);
   const block = card(page).getByRole('group', { name: /^Block 1:/ });
   const text = block.getByRole('textbox', { name: /^Text of part 1/ });
-  const strong = frame(page, 375).locator('strong');
+  const strong = frame(page, 390).locator('strong');
   const before = await strong.count();
   await boldFirstWord(page, text);
   await expect(text.locator('strong')).toHaveCount(1);
@@ -462,15 +462,15 @@ test('the card width control resizes the letter card', async ({ page }) => {
   await page.setViewportSize({ width: 1400, height: 900 });
   await openLetter(page);
   const widthOf = async () => (await card(page).boundingBox())?.width ?? 0;
-  await panel(page).getByRole('button', { name: 'Card width 320 pixels' }).click();
-  expect(await widthOf()).toBeCloseTo(320, 0);
-  await panel(page).getByRole('button', { name: 'Card width 375 pixels' }).click();
-  expect(await widthOf()).toBeCloseTo(375, 0);
+  await panel(page).getByRole('button', { name: 'Card width 360 pixels' }).click();
+  expect(await widthOf()).toBeCloseTo(360, 0);
+  await panel(page).getByRole('button', { name: 'Card width 390 pixels' }).click();
+  expect(await widthOf()).toBeCloseTo(390, 0);
   await panel(page).getByRole('button', { name: 'Card width 600 pixels' }).click();
   expect(await widthOf()).toBeLessThanOrEqual(600);
-  await panel(page).getByRole('button', { name: 'Card width 320 pixels' }).click();
+  await panel(page).getByRole('button', { name: 'Card width 360 pixels' }).click();
   await box(page, 'Story title').fill('Short');
-  expect(await widthOf()).toBeCloseTo(320, 0);
+  expect(await widthOf()).toBeCloseTo(360, 0);
   expect(await overflow(page)).toBeLessThanOrEqual(0);
 });
 

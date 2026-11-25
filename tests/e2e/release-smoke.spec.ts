@@ -77,7 +77,7 @@ for (const width of widths) {
       await page.getByLabel('Paste the old HTML here').fill(html);
       await expect(page.getByRole('heading', { name: 'Edit the announcement' })).toBeVisible();
       await expect(page.getByRole('radio', { name: new RegExp(`^${f.layout}`) })).toBeChecked();
-      for (const w of [320, 375, 600]) {
+      for (const w of [360, 390, 600]) {
         await expect(frame(page, w).locator('body')).toContainText(f.text);
       }
       await page.getByRole('button', { name: 'Copy new HTML' }).click();
@@ -119,7 +119,7 @@ for (const width of widths) {
     await expect(panel(page).getByLabel('Summary line', { exact: true })).toHaveValue(
       'Fall camping at Watchung and a big month around the pack.',
     );
-    for (const w of [320, 375, 600]) {
+    for (const w of [360, 390, 600]) {
       await expect(letterFrame(page, w).locator('body')).toContainText('Fall camping at Watchung');
     }
     await expect(letterFrame(page, 600).locator('body')).toContainText('November 2026');

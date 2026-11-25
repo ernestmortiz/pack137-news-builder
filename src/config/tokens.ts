@@ -21,9 +21,10 @@ export const radius = { panel: 12, control: 8 } as const;
 export const space = { card: 14, panel: 14 } as const;
 
 /**
- * Widths every preview and screenshot test must cover: a small phone, a typical phone and a
- * desktop. 320 replaced 250 (a rare folding phone cover screen) on 2026-11-25 (owner decision).
+ * Widths every preview and screenshot test must cover: the most popular phone widths and a
+ * desktop. 360 is the most common Android width and 390 the most common recent iPhone width
+ * (owner decision, 2026-11-25; it replaced 250 and 375).
  */
-export const previewWidths = [320, 375, 600] as const;
+export const previewWidths = [360, 390, 600] as const;
 
 export const maxEmailWidth = 600;

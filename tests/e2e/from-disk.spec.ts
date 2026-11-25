@@ -50,7 +50,7 @@ test('dist/index.html opened from disk works, saves and copies with no remote re
   await page.getByRole('button', { name: 'Edit in the form' }).click();
   await expect(page.getByRole('radio', { name: /^Date list/ })).toBeChecked();
   await expect(page.getByLabel('Event', { exact: true }).first()).toBeVisible();
-  for (const width of [320, 375, 600]) {
+  for (const width of [360, 390, 600]) {
     await expect(frame(page, width).locator('body')).toContainText('Pinewood Derby');
   }
   await page.getByRole('button', { name: 'Copy new HTML' }).click();

@@ -118,7 +118,7 @@ test.describe('after pasting, the card comes first', () => {
       // The Show codes switch belongs to the form only.
       await expect(page.getByLabel('Show codes')).toBeHidden();
       await expect.poll(() => cardWords(page)).toContain(f.text);
-      for (const width of [320, 375, 600]) {
+      for (const width of [360, 390, 600]) {
         await expect(frame(page, width).locator('body')).toContainText(f.text);
       }
       expect(await overflow(page)).toBeLessThanOrEqual(0);
@@ -147,10 +147,10 @@ test('edit the title on the card: the preview follows, Ctrl+Z restores, the form
   const title = card(page).getByRole('textbox', { name: 'Title', exact: true });
   const before = await title.inputValue();
   await title.fill('Zebra title');
-  await expect(frame(page, 375).locator('body')).toContainText('Zebra title');
+  await expect(frame(page, 390).locator('body')).toContainText('Zebra title');
   await page.keyboard.press('Control+z');
   await expect(title).toHaveValue(before);
-  await expect(frame(page, 375).locator('body')).not.toContainText('Zebra title');
+  await expect(frame(page, 390).locator('body')).not.toContainText('Zebra title');
   await page.keyboard.press('Control+Shift+z');
   await expect(title).toHaveValue('Zebra title');
 
@@ -177,7 +177,7 @@ test('Date list: bold in a row note on the card reaches the preview, and undo re
   await paste(page, input('1-pack-calendar'));
   const note = card(page).getByRole('textbox', { name: /^Note/ }).filter({ hasText: /\w/ }).first();
   await expect(note).toBeVisible();
-  const strong = frame(page, 375).locator('strong');
+  const strong = frame(page, 390).locator('strong');
   const before = await strong.count();
   await boldFirstWord(page, note);
   await expect(note.locator('strong')).toHaveCount(1);
@@ -357,7 +357,7 @@ test('Bold with nothing selected marks the next typed words on the card, and und
 }) => {
   await paste(page, input('1-pack-calendar'));
   const note = card(page).getByRole('textbox', { name: /^Note/ }).filter({ hasText: /\w/ }).first();
-  const strong = frame(page, 375).locator('strong');
+  const strong = frame(page, 390).locator('strong');
   const before = await strong.count();
   await note.click();
   await page.keyboard.press('End');
@@ -571,16 +571,16 @@ test('the card width control resizes the card', async ({ page }) => {
   await page.setViewportSize({ width: 1200, height: 900 });
   await paste(page, input('4-in-the-news'));
   const widthOf = async () => (await card(page).boundingBox())?.width ?? 0;
-  await page.getByRole('button', { name: 'Card width 320 pixels' }).click();
-  expect(await widthOf()).toBeCloseTo(320, 0);
-  await page.getByRole('button', { name: 'Card width 375 pixels' }).click();
-  expect(await widthOf()).toBeCloseTo(375, 0);
+  await page.getByRole('button', { name: 'Card width 360 pixels' }).click();
+  expect(await widthOf()).toBeCloseTo(360, 0);
+  await page.getByRole('button', { name: 'Card width 390 pixels' }).click();
+  expect(await widthOf()).toBeCloseTo(390, 0);
   await page.getByRole('button', { name: 'Card width 600 pixels' }).click();
   expect(await widthOf()).toBeLessThanOrEqual(600);
   // Typing in a card line keeps the width.
-  await page.getByRole('button', { name: 'Card width 320 pixels' }).click();
+  await page.getByRole('button', { name: 'Card width 360 pixels' }).click();
   await card(page).getByRole('textbox', { name: 'Title', exact: true }).fill('Short');
-  expect(await widthOf()).toBeCloseTo(320, 0);
+  expect(await widthOf()).toBeCloseTo(360, 0);
   expect(await overflow(page)).toBeLessThanOrEqual(0);
 });
 

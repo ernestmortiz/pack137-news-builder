@@ -43,7 +43,7 @@ test('two photo spots become two described, phone-sized photos', async ({ page, 
   });
   await panel(page).getByLabel("Paste TroopTrack's code here").fill(fromTrooptrack);
   await expect(panel(page).getByRole('button', { name: 'Copy finished HTML' })).toBeEnabled();
-  for (const width of [320, 375, 600]) {
+  for (const width of [360, 390, 600]) {
     await expect(
       panel(page)
         .frameLocator(`iframe[title="Finished preview, ${width} pixels wide"]`)

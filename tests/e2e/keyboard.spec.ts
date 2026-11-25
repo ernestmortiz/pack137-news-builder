@@ -140,7 +140,7 @@ test('converter: the whole flow with the keyboard, and every stop shows focus', 
   await tabTo(page, 'Label (the small tag at the top)', { stops });
   await page.keyboard.press('Control+a');
   await page.keyboard.type('Keyboard news');
-  await expect(frame(page, 375).locator('body')).toContainText('Keyboard news');
+  await expect(frame(page, 390).locator('body')).toContainText('Keyboard news');
 
   // Show the code with Space, then copy with Enter.
   await tabTo(page, 'Copy new HTML', { stops, max: 900 });

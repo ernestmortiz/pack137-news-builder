@@ -8,8 +8,8 @@ import { previewDocument } from './preview';
 import { fitScale } from './preview-scale';
 
 const PREVIEW_NAMES: Record<number, string> = {
-  320: 'Small phone',
-  375: 'Phone',
+  360: 'Android phone',
+  390: 'iPhone',
   600: 'Desktop',
 };
 
