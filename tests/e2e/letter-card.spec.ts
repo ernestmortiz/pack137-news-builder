@@ -570,3 +570,19 @@ test('the phone previews of a letter with full-width photos do not scroll sidewa
     expect(sizes.scroll, `preview ${width}px`).toBeLessThanOrEqual(sizes.client);
   }
 });
+
+test('the logo stand-in in the phone preview stays logo-sized, so the masthead reads normally (owner, 2026-11-25)', async ({
+  page,
+}) => {
+  // 1.2.1 sized every stand-in as full width; the 90px logo's stand-in then took the masthead
+  // row and squeezed "Pack 137 Stories" into a one-letter column at 250px.
+  await openReference(page);
+  const frame = panel(page).locator('iframe[title="Preview, 250 pixels wide"]').contentFrame();
+  await expect(frame.locator('h1')).toContainText('Pack 137 Stories');
+  const title = await frame.locator('h1').evaluate((el) => el.getBoundingClientRect().width);
+  const logo = await frame
+    .getByText('Cranford Cub Scouts Pack 137 logo')
+    .evaluate((el) => el.getBoundingClientRect().width);
+  expect(logo).toBeLessThanOrEqual(90);
+  expect(title).toBeGreaterThanOrEqual(100);
+});

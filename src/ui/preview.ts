@@ -16,6 +16,22 @@ function attributeOf(tag: string, name: string): string | undefined {
 }
 
 /**
+ * The stand-in's size, copied from the picture's own style so the preview lays out like the email:
+ * a full-width photo (width:100%;max-width:552px) stays full width up to its size, and a fixed
+ * picture such as the 90px logo (width:90px;max-width:100%) stays fixed. A fixed 552px box
+ * stretched the letter past a phone's width (2026-11-25), and a full-width logo box squeezed the
+ * masthead title into one letter (1.2.1), so neither rule fits every picture.
+ */
+function standInSize(style: string, widthAttr: string): string {
+  const read = (name: string) =>
+    new RegExp(`(?:^|;)\\s*${name}\\s*:\\s*(\\d{1,4}(?:px|%))\\s*(?:;|$)`, 'i').exec(style)?.[1];
+  const width = read('width');
+  const max = read('max-width');
+  if (width !== undefined) return `width:${width};max-width:${max ?? '100%'};`;
+  return widthAttr ? `width:${widthAttr}px;max-width:100%;` : 'width:100%;';
+}
+
+/**
  * Replaces each <img> with a placeholder box as wide as the picture would be. `html` is renderer output, where
  * attribute values are already escaped, so the alt text can be used as text as it stands.
  */
@@ -25,10 +41,7 @@ export function replaceImagesWithPlaceholders(html: string): string {
       ? attributeOf(tag, 'width')
       : '';
     const alt = (attributeOf(tag, 'alt') ?? '').trim();
-    // Sized like the photo itself: full width, up to its stated width. A fixed width with
-    // max-width:100% stretched the letter's tables past a phone's width in the preview only
-    // (owner report, 2026-11-25: 624px inside the 250px frame; the real email fits).
-    const size = width ? `width:100%;max-width:${width}px;` : 'width:100%;';
+    const size = standInSize(attributeOf(tag, 'style') ?? '', width ?? '');
     const style =
       `display:block;${size}box-sizing:border-box;min-height:48px;margin:0 0 12px 0;padding:8px;` +
       `background-color:${color.lavender};color:${color.navy};font-size:13px;line-height:1.3;` +
