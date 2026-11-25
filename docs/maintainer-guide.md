@@ -70,8 +70,9 @@ All workflows are in `.github/workflows/`. Actions are pinned to commit SHAs (wi
 
 Files pass between jobs through the Actions cache, not as artifacts, because the account's artifact storage quota filled up during the build.
 
-Android Gradle builds (`android` and `android-emulator` in `wrappers.yml`, `android-build` in `release.yml`) are made resilient to Maven Central's temporary "429 Too Many Requests" errors in two ways:
+Android Gradle builds (`android` and `android-emulator` in `wrappers.yml`, `android-build` in `release.yml`) are made resilient to Maven Central's temporary "429 Too Many Requests" errors in three ways:
 
+- **Google's mirror of Maven Central comes first** (1.2.2). `src-tauri/gen/android/build.gradle.kts`, `buildSrc/build.gradle.kts` and `buildSrc/settings.gradle.kts` list `https://maven-central.storage-download.googleapis.com/maven2/` before `mavenCentral()`, and before the Gradle Plugin Portal for plugins. Maven Central and the Portal stay as fallbacks; the Portal is the only home of plugin markers such as `kotlin-dsl`. A check on 2026-11-25 built `buildSrc` with 61 downloads from the mirror and none from Maven Central. If you add a repository, keep the mirror first.
 - `~/.gradle/caches` and `~/.gradle/wrapper` are restored from the Actions cache before the build and saved after it, under a key made from the Gradle build files and `gradle-wrapper.properties`. Changing any of them starts a fresh cache (the old one still serves as a starting point). In the emulator job the cache is saved right after the build, because the job then deletes `~/.gradle/caches` to free disk for the emulator image.
 - The Gradle command is tried up to 3 times, pausing 45 and then 90 seconds, and only when it fails. A real compile error is therefore tried 3 times before the job fails; read the first attempt's log. The Android unit test step in `wrappers.yml` is retried the same way.
 
@@ -108,7 +109,7 @@ Do not create the release on GitHub's website; the workflow creates it, and stop
 - **Artifact storage quota full**: uploads failed. Hand-offs now use the Actions cache.
 - **Runner disk full**: the emulator image could not install. The emulator job now frees disk space first.
 - **`ubuntu-latest` moved to a new Ubuntu**: a package name changed. The smoke test job is pinned to `ubuntu-24.04`; move it on purpose.
-- **Maven Central "429 Too Many Requests"** (November 2026): the Android emulator job failed with BUILD FAILED because Gradle could not download `kotlin-gradle-plugin`. The error is temporary and not caused by our code. The Android builds now cache Gradle downloads and retry up to 3 times. If it still fails, re-run the failed jobs a little later.
+- **Maven Central "429 Too Many Requests"** (November 2026): the Android emulator job failed with BUILD FAILED because Gradle could not download `kotlin-gradle-plugin`. The error is temporary and not caused by our code. The Android builds now cache Gradle downloads and retry up to 3 times. It struck three more times on 2026-11-25, through all retries, so 1.2.2 puts Google's mirror of Maven Central first. If it still fails, re-run the failed jobs a little later.
 - **Red mark that was always there**: the Android 10 emulator job fails on every run by design, and a permanent red mark trains people to ignore red. Its test step is now allowed to fail and the job shows green with a warning. Android 14 is still a hard gate.
 - **Test build drafts piled up**: they were deleted by hand. `cleanup-test-builds.yml` now deletes a pull request's draft when it closes.
 - **`.apk.idsig` file on the release page**: `apksigner` also writes a v4 signature file by default. Release signing now passes `--v4-signing-enabled false`. The v2 and v3 signatures that installs need are unchanged.

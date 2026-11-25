@@ -38,7 +38,7 @@ test('remote resources pasted or typed never cause a request to another host', a
   // Converter: paste, open every preview, copy.
   await page.getByLabel('Paste the old HTML here').fill(`<p>Hello there</p>${remote}`);
   await expect(page.getByRole('heading', { name: 'Edit the announcement' })).toBeVisible();
-  for (const width of [250, 375, 600]) {
+  for (const width of [360, 390, 600]) {
     await expect(frame(page, width).locator('body')).toContainText('Hello there');
   }
   await page.getByRole('button', { name: 'Copy new HTML' }).click();
@@ -61,7 +61,7 @@ test('remote resources pasted or typed never cause a request to another host', a
       .click();
     await panel(page).getByLabel('Photo description (required)').last().fill(address);
   }
-  for (const width of [250, 375, 600]) {
+  for (const width of [360, 390, 600]) {
     await expect(letterFrame(page, width).locator('body')).toContainText('Hi Pack 137 families,');
     await expect(
       panel(page).locator(`iframe[title="Preview, ${width} pixels wide"]`),

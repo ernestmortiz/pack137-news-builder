@@ -1,6 +1,8 @@
 buildscript {
     repositories {
         google()
+        // Google's mirror of Maven Central first; Maven Central refused CI with 429s (2026-11-25).
+        maven("https://maven-central.storage-download.googleapis.com/maven2/")
         mavenCentral()
     }
     dependencies {
@@ -12,6 +14,8 @@ buildscript {
 allprojects {
     repositories {
         google()
+        // Google's mirror of Maven Central first; Maven Central refused CI with 429s (2026-11-25).
+        maven("https://maven-central.storage-download.googleapis.com/maven2/")
         mavenCentral()
     }
 }

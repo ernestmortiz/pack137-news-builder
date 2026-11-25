@@ -68,7 +68,7 @@ export function group(name: string, className: string, children: (Node | null)[]
   return node;
 }
 
-/** The 250, 375 and 600 pixel buttons. They resize `card` at once and tell `onWidth`. */
+/** The 360, 390 and 600 pixel buttons. They resize `card` at once and tell `onWidth`. */
 export function widthTools(
   card: HTMLElement,
   start: number,

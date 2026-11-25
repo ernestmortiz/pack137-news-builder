@@ -53,7 +53,7 @@ Suggestions are never applied unless you tap them. If you tap one by mistake, pr
 7. Style choices are optional. Use them for the one thing people must not miss.
    - Under a paragraph in Message or Call to action, tick "Yellow box". The paragraph sits in a pale-yellow box.
    - Set "Button color" to Gold for a gold button.
-8. Look at the preview. It shows three sizes: a small phone (250 pixels wide, like TroopTrack on a phone), a phone and a desktop. Photos show as grey boxes in the preview only.
+8. Look at the preview. It shows three sizes: an Android phone (360 pixels wide), an iPhone (390) and a desktop (600), the most popular widths. Photos show as grey boxes in the preview only.
 9. Press "Copy new HTML".
 10. In TroopTrack code view, delete the old code. Paste the new code. Save.
 

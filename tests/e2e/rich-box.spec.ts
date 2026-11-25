@@ -110,10 +110,10 @@ test('Bold shows in the preview, and Ctrl+Z undoes it', async ({ page, context }
   await bold.click();
   await expect(bold).toHaveAttribute('aria-pressed', 'true');
   await expect(box.locator('strong')).toHaveText(/^Den/);
-  await expect(frame(page, 375).locator('strong').first()).toContainText('Den');
+  await expect(frame(page, 390).locator('strong').first()).toContainText('Den');
   await page.keyboard.press('Control+z');
   await expect(box.locator('strong')).toHaveCount(0);
-  await expect(frame(page, 375).locator('strong')).toHaveCount(0);
+  await expect(frame(page, 390).locator('strong')).toHaveCount(0);
   await page.keyboard.press('Control+Shift+z');
   await expect(box.locator('strong')).toHaveCount(1);
   expect(seen.errors).toEqual([]);
@@ -158,7 +158,7 @@ test('Bold with nothing selected marks the next typed words, and Ctrl+Z undoes t
   await page.keyboard.type('Bring a hat');
   await expect(box.locator('strong')).toHaveText('Bring a hat');
   await expect(bold).toHaveAttribute('aria-pressed', 'true');
-  await expect(frame(page, 375).locator('strong')).toHaveText('Bring a hat');
+  await expect(frame(page, 390).locator('strong')).toHaveText('Bring a hat');
   await showCode(page);
   await expect(codeBox(page)).toHaveValue(/<strong[^>]*>Bring a hat<\/strong>/);
   // The words before it stay plain.
@@ -166,7 +166,7 @@ test('Bold with nothing selected marks the next typed words, and Ctrl+Z undoes t
   // Undo takes the typed words back, as typing is undone anywhere else in the app.
   for (let i = 0; i < 'Bring a hat'.length; i++) await page.keyboard.press('Control+z');
   await expect(box.locator('strong')).toHaveCount(0);
-  await expect(frame(page, 375).locator('strong')).toHaveCount(0);
+  await expect(frame(page, 390).locator('strong')).toHaveCount(0);
   expect(seen.errors).toEqual([]);
   expect(seen.remote).toEqual([]);
 });
@@ -289,7 +289,7 @@ test('Enter makes a line break, not a new paragraph', async ({ page, context }) 
   await expect(box).toHaveText('OneTwo');
   await expect(box.locator('br')).not.toHaveCount(0);
   await expect(page.getByRole('group', { name: /^Paragraph 2/ })).toHaveCount(0);
-  await expect(frame(page, 375).locator('body')).toContainText('Two');
+  await expect(frame(page, 390).locator('body')).toContainText('Two');
   await page.keyboard.press('Control+z');
   await page.keyboard.press('Control+z');
   await page.keyboard.press('Control+z');
@@ -397,7 +397,7 @@ test('the Call to action paragraph uses the box too', async ({ page, context }) 
   await expect(box).toHaveAttribute('contenteditable', 'true');
   await box.focus();
   await page.keyboard.type(' Bring a chair.');
-  await expect(frame(page, 375).locator('body')).toContainText('Bring a chair.');
+  await expect(frame(page, 390).locator('body')).toContainText('Bring a chair.');
 });
 
 test('other rich fields use the box too', async ({ page, context }) => {

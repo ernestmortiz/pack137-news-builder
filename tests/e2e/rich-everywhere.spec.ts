@@ -80,7 +80,7 @@ test('Date list: bold in a row note reaches the preview and undo reverts it', as
     .filter({ hasText: /\w/ })
     .first();
   await expect(note).toBeVisible();
-  const strong = weeklyFrame(page, 375).locator('strong');
+  const strong = weeklyFrame(page, 390).locator('strong');
   const before = await strong.count();
   await boldFirstWord(page, note);
   await expect(note.locator('strong')).toHaveCount(1);
@@ -136,7 +136,7 @@ test('Show codes: typed codes appear, edits carry over, the box shows the result
   const box = weekly(page).getByRole('textbox', { name: /^Text of paragraph 1/ });
   await boldFirstWord(page, box);
   await expect(box.locator('strong')).toHaveCount(1);
-  const preview = weeklyFrame(page, 375).locator('body');
+  const preview = weeklyFrame(page, 390).locator('body');
   const textBefore = await preview.innerText();
 
   // On: the same text, as typed codes. Focus stays on the switch.

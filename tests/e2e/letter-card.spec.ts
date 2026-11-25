@@ -14,7 +14,10 @@ import { expect, test, type BrowserContext, type Locator, type Page } from '@pla
 import { writeDraft } from '../../src/core/draft';
 import type { LetterForm } from '../../src/core/letter';
 import { lintOutput } from '../../src/core/lint-output';
+import { renderLetter } from '../../src/core/render-letter';
 import { defaultSettings } from '../../src/core/settings';
+import { previewWidths } from '../../src/config/tokens';
+import { previewDocument } from '../../src/ui/preview';
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -143,7 +146,7 @@ test('the card comes first on the letter screen, with the previews unchanged', a
   await expect(card(page).getByRole('heading', { name: 'Around the pack' })).toBeVisible();
   await expect(box(page, 'Summary line')).toHaveAttribute('placeholder', 'Add a summary line');
   expect(await unnamed(card(page))).toBe(0);
-  for (const width of [250, 375, 600]) {
+  for (const width of [360, 390, 600]) {
     await expect(
       panel(page).locator(`iframe[title="Preview, ${width} pixels wide"]`),
     ).toBeVisible();
@@ -165,13 +168,13 @@ test('edit the intro on the card: the preview follows, Ctrl+Z restores, the form
   await openLetter(page);
   const intro = box(page, 'Intro paragraph');
   await intro.fill('Zebra camp news');
-  await expect(frame(page, 375).locator('body')).toContainText('Zebra camp news');
+  await expect(frame(page, 390).locator('body')).toContainText('Zebra camp news');
   await page.keyboard.press('Control+z');
   await expect(intro).toHaveText('');
-  await expect(frame(page, 375).locator('body')).not.toContainText('Zebra camp news');
+  await expect(frame(page, 390).locator('body')).not.toContainText('Zebra camp news');
   await page.keyboard.press('Control+Shift+z');
   await expect(intro).toHaveText('Zebra camp news');
-  await expect(frame(page, 375).locator('body')).toContainText('Zebra camp news');
+  await expect(frame(page, 390).locator('body')).toContainText('Zebra camp news');
 
   await inForm(page).click();
   await expect(card(page)).toHaveCount(0);
@@ -195,7 +198,7 @@ test('bold a word in a block on the card: the preview gets it, and undo removes 
   await openReference(page);
   const block = card(page).getByRole('group', { name: /^Block 1:/ });
   const text = block.getByRole('textbox', { name: /^Text of part 1/ });
-  const strong = frame(page, 375).locator('strong');
+  const strong = frame(page, 390).locator('strong');
   const before = await strong.count();
   await boldFirstWord(page, text);
   await expect(text.locator('strong')).toHaveCount(1);
@@ -459,15 +462,15 @@ test('the card width control resizes the letter card', async ({ page }) => {
   await page.setViewportSize({ width: 1400, height: 900 });
   await openLetter(page);
   const widthOf = async () => (await card(page).boundingBox())?.width ?? 0;
-  await panel(page).getByRole('button', { name: 'Card width 250 pixels' }).click();
-  expect(await widthOf()).toBeCloseTo(250, 0);
-  await panel(page).getByRole('button', { name: 'Card width 375 pixels' }).click();
-  expect(await widthOf()).toBeCloseTo(375, 0);
+  await panel(page).getByRole('button', { name: 'Card width 360 pixels' }).click();
+  expect(await widthOf()).toBeCloseTo(360, 0);
+  await panel(page).getByRole('button', { name: 'Card width 390 pixels' }).click();
+  expect(await widthOf()).toBeCloseTo(390, 0);
   await panel(page).getByRole('button', { name: 'Card width 600 pixels' }).click();
   expect(await widthOf()).toBeLessThanOrEqual(600);
-  await panel(page).getByRole('button', { name: 'Card width 250 pixels' }).click();
+  await panel(page).getByRole('button', { name: 'Card width 360 pixels' }).click();
   await box(page, 'Story title').fill('Short');
-  expect(await widthOf()).toBeCloseTo(250, 0);
+  expect(await widthOf()).toBeCloseTo(360, 0);
   expect(await overflow(page)).toBeLessThanOrEqual(0);
 });
 
@@ -553,20 +556,43 @@ test('name tags and other pills on the letter card have a 44px touch area at 360
   expect(await overflow(page)).toBeLessThanOrEqual(0);
 });
 
-test('the phone previews of a letter with full-width photos do not scroll sideways (owner, 2026-11-25)', async ({
-  page,
-}) => {
-  // The real email fits a phone; the preview's photo stand-ins used to be fixed 552px boxes,
-  // which stretched the letter to about 630px inside the 250px and 375px frames.
-  await openReference(page);
-  for (const width of [250, 375]) {
-    const frame = panel(page)
-      .locator(`iframe[title="Preview, ${width} pixels wide"]`)
-      .contentFrame();
-    await expect(frame.locator('body')).toContainText(referenceLetter.story.title);
-    const sizes = await frame
+/**
+ * The preview document (the letter with its picture stand-ins, as the preview frames show it),
+ * loaded straight into a page of the given width. Measuring inside the real frames is unreliable:
+ * the browser does not draw a sandboxed frame that is off screen, so it reports zero sizes.
+ */
+async function previewAt(page: Page, width: number) {
+  await page.setViewportSize({ width, height: 900 });
+  await page.route('**/*', (route) => route.abort());
+  await page.setContent(previewDocument(renderLetter(referenceLetter, defaultSettings())), {
+    waitUntil: 'domcontentloaded',
+  });
+}
+
+for (const width of previewWidths.filter((w) => w < 600)) {
+  test(`the ${width}px preview of a letter with full-width photos does not scroll sideways (owner, 2026-11-25)`, async ({
+    page,
+  }) => {
+    // The photo stand-ins used to be fixed 552px boxes, which stretched the letter to about
+    // 630px inside the phone frames, while the real email fits a phone.
+    await previewAt(page, width);
+    const sizes = await page
       .locator('html')
       .evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
-    expect(sizes.scroll, `preview ${width}px`).toBeLessThanOrEqual(sizes.client);
-  }
-});
+    expect(sizes.client).toBe(width);
+    expect(sizes.scroll).toBeLessThanOrEqual(width);
+  });
+
+  test(`the logo stand-in stays logo-sized in the ${width}px preview`, async ({ page }) => {
+    // Each stand-in copies its picture's own sizing: the logo is a fixed 90px circle in the email.
+    await previewAt(page, width);
+    const sizes = await page.getByText('Cranford Cub Scouts Pack 137 logo').evaluate((el) => ({
+      box: Math.round(el.getBoundingClientRect().width),
+      cell: Math.round((el.closest('td') as Element).getBoundingClientRect().width),
+    }));
+    // The box is the logo's 90px, and its cell keeps the template's 110px plus padding, leaving
+    // the rest of the row to the title.
+    expect(sizes.box).toBe(90);
+    expect(sizes.cell).toBeLessThanOrEqual(134);
+  });
+}

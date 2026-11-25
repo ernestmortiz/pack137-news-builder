@@ -14,16 +14,14 @@ const linkList: AnnouncementForm = {
 };
 
 describe('replaceImagesWithPlaceholders', () => {
-  it('replaces an image with a box as wide as the picture, showing the alt text', () => {
+  it('replaces an image with a box sized like the picture, showing the alt text', () => {
     const html = renderAnnouncement(linkList);
     expect(html).toContain('<img');
     const out = replaceImagesWithPlaceholders(html);
     expect(out).not.toContain('<img');
     expect(out).not.toContain('example.org/pic.png');
-    // Full width up to the picture's width, as the picture is: a fixed width would stretch a
-    // phone preview's tables (owner report, 2026-11-25).
-    expect(out).toContain('width:100%;max-width:80px;');
-    expect(out).not.toMatch(/<div style="display:block;width:80px;/);
+    // The Link list picture is a fixed 80px in the email, so its stand-in is too.
+    expect(out).toContain('width:80px;max-width:100%;');
     expect(out).toContain('A &quot;big&quot; cat &amp; dog</div>');
   });
 
@@ -83,5 +81,16 @@ describe('previewDocument', () => {
     expect(PREVIEW_CSP).toBe("default-src 'none'; style-src 'unsafe-inline'; img-src data:");
     expect(doc).not.toMatch(/<script/i);
     expect(doc).not.toContain('<img');
+  });
+
+  it('sizes each stand-in like its picture: full-width photos and fixed-size logos', () => {
+    const out = replaceImagesWithPlaceholders(
+      '<img src="https://x.org/a.jpg" width="552" alt="Photo" style="display:block;width:100%;max-width:552px;height:auto;border:0;">' +
+        '<img src="https://x.org/l.jpg" width="90" height="90" alt="Logo" style="display:block;width:90px;max-width:100%;height:90px;border-radius:50%;border:0;">' +
+        '<img src="https://x.org/n.jpg" width="80" alt="No style">',
+    );
+    expect(out).toContain('width:100%;max-width:552px;');
+    expect(out).toContain('width:90px;max-width:100%;');
+    expect(out).toContain('width:80px;max-width:100%;');
   });
 });

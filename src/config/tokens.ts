@@ -20,7 +20,11 @@ export const radius = { panel: 12, control: 8 } as const;
 
 export const space = { card: 14, panel: 14 } as const;
 
-/** Widths every preview and screenshot test must cover. 250 is a card nested in TroopTrack on a small phone. */
-export const previewWidths = [250, 375, 600] as const;
+/**
+ * Widths every preview and screenshot test must cover: the most popular phone widths and a
+ * desktop. 360 is the most common Android width and 390 the most common recent iPhone width
+ * (owner decision, 2026-11-25; it replaced 250 and 375).
+ */
+export const previewWidths = [360, 390, 600] as const;
 
 export const maxEmailWidth = 600;
