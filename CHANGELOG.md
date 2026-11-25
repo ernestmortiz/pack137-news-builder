@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The phone previews of a monthly letter with full-width photos no longer scroll sideways. The real email always fitted; only the preview's grey picture boxes were too wide (owner report from an iPhone, 2026-11-25).
+
 ## 1.2.0 (2026-11-23)
 
 Edit like a text editor (owner request, plan in `docs/plans/rich-editing.md`):
